@@ -1,0 +1,10 @@
+.DS_Store
+.tmp
+info
+output
+.playwright-mcp/
+src/frontend/node_modules/
+src/frontend/dist/
+src/backend/Pecualia.Api/bin/
+src/backend/Pecualia.Api/obj/
+src/backend/Pecualia.Api/App_Data/outbox/

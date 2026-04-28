@@ -1,0 +1,22 @@
+services:
+  livestock-postgres:
+    image: postgres:16-alpine
+    container_name: livestock-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: livestock
+      POSTGRES_USER: livestock
+      POSTGRES_PASSWORD: livestock_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - livestock_postgres_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U livestock -d livestock"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  livestock_postgres_data:
