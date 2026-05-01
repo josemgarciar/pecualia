@@ -149,13 +149,13 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
             throw new DomainException("El animal ya está dado de baja.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.DischargeCause))
+        if (request.DischargeCause is not (AnimalDischargeCause.Salida or AnimalDischargeCause.Muerte))
         {
             throw new DomainException("La causa de baja es obligatoria.");
         }
 
         animal.DischargeDate = request.DischargeDate;
-        animal.DischargeCause = request.DischargeCause.Trim();
+        animal.DischargeCause = request.DischargeCause;
         animal.DestinationCode = Normalize(request.DestinationCode);
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -189,9 +189,9 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
             EmptyToNull(animal.Sex),
             animal.BirthYear,
             animal.RegistrationDate,
-            EmptyToNull(animal.RegistrationCause),
+            FormatRegistrationCause(animal.RegistrationCause),
             animal.DischargeDate,
-            EmptyToNull(animal.DischargeCause),
+            FormatDischargeCause(animal.DischargeCause),
             BuildStatus(animal));
     }
 
@@ -215,11 +215,11 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
             EmptyToNull(animal.Sex),
             animal.BirthYear,
             animal.RegistrationDate,
-            EmptyToNull(animal.RegistrationCause),
+            FormatRegistrationCause(animal.RegistrationCause),
             EmptyToNull(animal.OriginCode),
             EmptyToNull(animal.HealthDocumentNumber),
             animal.DischargeDate,
-            EmptyToNull(animal.DischargeCause),
+            FormatDischargeCause(animal.DischargeCause),
             EmptyToNull(animal.DestinationCode),
             BuildStatus(animal),
             ovinoCaprino is null
@@ -297,7 +297,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         animal.Breed = Normalize(request.Breed);
         animal.Sex = Normalize(request.Sex);
         animal.RegistrationDate = request.RegistrationDate;
-        animal.RegistrationCause = Normalize(request.RegistrationCause);
+        animal.RegistrationCause = request.RegistrationCause;
         animal.OriginCode = Normalize(request.OriginCode);
         animal.HealthDocumentNumber = Normalize(request.HealthDocumentNumber);
         return animal;
@@ -308,4 +308,8 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string? EmptyToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static string? FormatRegistrationCause(AnimalRegistrationCause? value) => value?.ToString();
+
+    private static string? FormatDischargeCause(AnimalDischargeCause? value) => value?.ToString();
 }

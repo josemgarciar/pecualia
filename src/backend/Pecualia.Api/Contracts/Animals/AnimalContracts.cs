@@ -9,7 +9,7 @@ public sealed record CreateAnimalRequest(
     string? Breed,
     string? Sex,
     DateOnly? RegistrationDate,
-    string? RegistrationCause,
+    AnimalRegistrationCause? RegistrationCause,
     string? OriginCode,
     string? HealthDocumentNumber,
     OvinoCaprinoAnimalRequest? OvinoCaprino,
@@ -17,7 +17,7 @@ public sealed record CreateAnimalRequest(
 
 public sealed record DischargeAnimalRequest(
     DateOnly DischargeDate,
-    string DischargeCause,
+    AnimalDischargeCause DischargeCause,
     string? DestinationCode);
 
 public sealed record OvinoCaprinoAnimalRequest(

@@ -1,0 +1,211 @@
+/* ═══════════════════════════════════════════════════════════════
+   dashboard.css — Pecualia Design System
+   ═══════════════════════════════════════════════════════════════ */
+
+
+.dashboard-header h1 {
+  margin: 0 0 6px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #1e2a24;
+}
+
+.dashboard-subheader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #637168;
+  font-size: 0.92rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-role-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #ddebdf;
+  color: #2f6b4f;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.dashboard-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dashboard-metric-card,
+.dashboard-card {
+  background: #ffffff;
+  border: 1px solid #d7ded8;
+  border-radius: 14px;
+}
+
+.dashboard-metric-card {
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+}
+
+.dashboard-metric-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dashboard-metric-icon,
+.quick-action-icon,
+.pending-item-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+}
+
+.dashboard-metric-card strong {
+  display: block;
+  color: #1e2a24;
+  font-size: 1.7rem;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.dashboard-metric-card span {
+  color: #637168;
+  font-size: 0.78rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  gap: 20px;
+}
+
+.dashboard-card {
+  padding: 22px;
+}
+
+.dashboard-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.dashboard-card-header h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e2a24;
+}
+
+.dashboard-card-header p {
+  margin: 4px 0 0;
+  color: #637168;
+  font-size: 0.82rem;
+}
+
+.dashboard-trend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: #ddebdf;
+  color: #2f6b4f;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.dashboard-chart {
+  min-height: 240px;
+}
+
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quick-action-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 16px 12px;
+  border-radius: 12px;
+  border: 1px solid #d7ded8;
+  background: #ffffff;
+  text-align: center;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.quick-action-card:hover {
+  border-color: #2f6b4f;
+  background: #fbfcfb;
+}
+
+.quick-action-icon {
+  background: #ddebdf;
+  color: #2f6b4f;
+}
+
+.quick-action-card span {
+  color: #1e2a24;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.pending-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #dc2626;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.pending-list {
+  display: grid;
+}
+
+.pending-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid #f0f2f0;
+}
+
+.pending-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.pending-item-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  flex: 1;
+}
+
+.pending-item-copy strong {
+  color: #1e2a24;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.pending-item-copy span {
+  color: #637168;
+  font-size: 0.78rem;
+}
+
+.pending-item-action {
+  border: 0;
+  background: transparent;
+  color: #637168;
+  padding: 4px;
+  display: grid;
+  place-items: center;
+}

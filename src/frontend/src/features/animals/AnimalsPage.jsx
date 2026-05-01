@@ -19,6 +19,16 @@ const sexLabelMap = {
   Male: 'Macho'
 };
 
+const registrationCauseLabelMap = {
+  Entrada: 'Entrada (E)',
+  Autorreposicion: 'Autorreposición (A)'
+};
+
+const dischargeCauseLabelMap = {
+  Salida: 'Salida (S)',
+  Muerte: 'Muerte (M)'
+};
+
 const initialForm = {
   farmId: '',
   identification: '',
@@ -48,6 +58,10 @@ function formatStatus(value) {
 
 function formatSex(value) {
   return sexLabelMap[value] ?? value ?? 'No informado';
+}
+
+function formatCause(value) {
+  return registrationCauseLabelMap[value] ?? dischargeCauseLabelMap[value] ?? value ?? 'No informada';
 }
 
 function sexSymbol(value) {
@@ -98,7 +112,7 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
       breed: emptyToNull(form.breed),
       sex: emptyToNull(form.sex),
       registrationDate: form.registrationDate || null,
-      registrationCause: emptyToNull(form.registrationCause),
+      registrationCause: form.registrationCause || null,
       originCode: emptyToNull(form.originCode),
       healthDocumentNumber: emptyToNull(form.healthDocumentNumber),
       ovinoCaprino: isOvineCaprine
@@ -192,7 +206,14 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
             </label>
             <label>
               Causa alta
-              <input value={form.registrationCause} onChange={(event) => updateField('registrationCause', event.target.value)} placeholder="Nacimiento, compra..." />
+              <div className="select-wrapper">
+                <select value={form.registrationCause} onChange={(event) => updateField('registrationCause', event.target.value)}>
+                  <option value="">No informada</option>
+                  <option value="Entrada">Entrada (E)</option>
+                  <option value="Autorreposicion">Autorreposición (A)</option>
+                </select>
+                <ChevronDown size={16} />
+              </div>
             </label>
             <label>
               Código origen
@@ -272,8 +293,14 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
   const speciesTone = speciesToneMap[animal.livestockSpecies] ?? speciesToneMap.Ovine;
 
   async function handleDischarge() {
-    const cause = window.prompt('Causa de baja');
-    if (!cause?.trim()) {
+    const cause = window.prompt('Causa de baja: Salida o Muerte', 'Salida');
+    if (!cause) {
+      return;
+    }
+
+    const normalizedCause = cause.trim();
+    if (!dischargeCauseLabelMap[normalizedCause]) {
+      setDischargeError('La causa de baja debe ser Salida (S) o Muerte (M).');
       return;
     }
 
@@ -282,7 +309,7 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
     try {
       await onDischarged(animal.id, {
         dischargeDate: new Date().toISOString().slice(0, 10),
-        dischargeCause: cause,
+        dischargeCause: normalizedCause,
         destinationCode: null
       });
     } catch (requestError) {
@@ -323,7 +350,7 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
             <AnimalDetailField label="Año de nacimiento" value={animal.birthYear ?? 'No informado'} />
             <AnimalDetailField label="Explotación" value={animal.farmName} />
             <AnimalDetailField label="Fecha de alta" value={formatDate(animal.registrationDate)} />
-            <AnimalDetailField label="Causa de alta" value={animal.registrationCause ?? 'No informada'} />
+            <AnimalDetailField label="Causa de alta" value={formatCause(animal.registrationCause)} />
             <AnimalDetailField label="Estado" value={formatStatus(animal.status)} />
             <AnimalDetailField label="Documento sanitario" value={animal.healthDocumentNumber ?? 'No informado'} />
 
@@ -413,7 +440,7 @@ function AnimalsTable({ animals, selectedAnimalId, onSelect }) {
                   <td>{animal.birthYear ?? '—'}</td>
                   <td>{animal.farmName}</td>
                   <td>{formatDate(animal.registrationDate)}</td>
-                  <td>{animal.registrationCause ?? '—'}</td>
+                  <td>{formatCause(animal.registrationCause)}</td>
                   <td><span className="animal-chip" style={{ background: statusTone.bg, color: statusTone.color }}>{statusTone.label}</span></td>
                 </tr>
               );

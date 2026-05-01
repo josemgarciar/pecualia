@@ -1,0 +1,44 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Pecualia — Design System
+   Modular CSS entry point.
+   Each file contains styles for a single domain/feature.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* 1. Base: reset, tokens, typography, global utilities */
+@import './base.css';
+
+/* 2. Auth: login, register, activate-account screens */
+@import './auth.css';
+
+/* 3. Layout: app-shell, sidebar, mobile topbar */
+@import './layout.css';
+
+/* 4. Shared: page scaffold, panel cards, status chips, form helpers */
+@import './shared.css';
+
+/* 5. Dashboard: metrics, charts, quick actions, pending items */
+@import './dashboard.css';
+
+/* 6. Farmers: toolbar, table grid, detail panel, farmer wizard */
+@import './farmers.css';
+
+/* 7. Farms: cards, detail hero/tabs/metrics, operations (births, deaths), census edit form, old balance bars */
+@import './farms.css';
+
+/* 8. Census & Balance: Figma visual redesign — category cards, distribution bar, Recharts, metrics grid, global page */
+@import './census.css';
+
+/* 9. Modals: backdrop, modal card, farm modal, steppers */
+@import './modals.css';
+
+/* 10. Wizards: farmer wizard, segmented control, summary cards, profile grid */
+@import './wizards.css';
+
+/* 11. Animals: filters, table, detail panel, chips */
+@import './animals.css';
+
+/* 12. Movements: layout, toolbar, detail panel, modal, upload, preview */
+@import './movements.css';
+
+/* 13. Responsive: all @media breakpoints */
+@import './responsive.css';

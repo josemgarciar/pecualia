@@ -26,6 +26,7 @@ const initialForm = {
   address: '',
   zipCode: '',
   authorisedCapacity: '',
+  porcineRegistryNumber: '',
   responsible: '',
   zootechnicClassification: '',
   notes: ''
@@ -106,6 +107,9 @@ function buildFarmErrors(form, step, isManager) {
     }
     if (!form.regime) {
       errors.regime = 'Selecciona un régimen';
+    }
+    if (form.livestockSpecies === 'Porcine' && !form.porcineRegistryNumber.trim()) {
+      errors.porcineRegistryNumber = 'Campo obligatorio para porcino';
     }
     if (isManager && !form.farmerId) {
       errors.farmerId = 'Selecciona un ganadero';
@@ -323,14 +327,24 @@ function FarmModal({
                 />
               )}
               {form.livestockSpecies === 'Porcine' && (
-                <InputField
-                  label="Capacidad autorizada (plazas)"
-                  value={form.authorisedCapacity}
-                  onChange={(value) => onChange('authorisedCapacity', value)}
-                  placeholder="ej: 1200"
-                  type="number"
-                  min="0"
-                />
+                <div className="grid-form">
+                  <InputField
+                    label="Nº registro porcino"
+                    value={form.porcineRegistryNumber}
+                    onChange={(value) => onChange('porcineRegistryNumber', value)}
+                    placeholder="ej: 018BA0020"
+                    required
+                    error={currentStepErrors.porcineRegistryNumber}
+                  />
+                  <InputField
+                    label="Capacidad autorizada (plazas)"
+                    value={form.authorisedCapacity}
+                    onChange={(value) => onChange('authorisedCapacity', value)}
+                    placeholder="ej: 1200"
+                    type="number"
+                    min="0"
+                  />
+                </div>
               )}
             </div>
           )}
@@ -401,6 +415,9 @@ function FarmModal({
                   <SummaryRow label="Especie" value={formatSpecies(form.livestockSpecies) || '—'} />
                   <SummaryRow label="Régimen" value={formatRegime(form.regime) || '—'} />
                   <SummaryRow label="Ganadero titular" value={ownerName} />
+                  {form.livestockSpecies === 'Porcine' && form.porcineRegistryNumber && (
+                    <SummaryRow label="Registro porcino" value={form.porcineRegistryNumber} />
+                  )}
                   {form.livestockSpecies === 'Porcine' && form.authorisedCapacity && (
                     <SummaryRow label="Capacidad" value={`${form.authorisedCapacity} plazas`} />
                   )}
@@ -544,7 +561,7 @@ export function FarmsPage() {
   const handleModalChange = (field, value) => {
     setModalForm((current) => {
       if (field === 'livestockSpecies' && value !== 'Porcine') {
-        return { ...current, [field]: value, authorisedCapacity: '' };
+        return { ...current, [field]: value, authorisedCapacity: '', porcineRegistryNumber: '' };
       }
 
       return { ...current, [field]: value };
@@ -590,6 +607,9 @@ export function FarmsPage() {
           zipCode: emptyToNull(modalForm.zipCode),
           authorisedCapacity: modalForm.livestockSpecies === 'Porcine' && modalForm.authorisedCapacity
             ? Number(modalForm.authorisedCapacity)
+            : null,
+          porcineRegistryNumber: modalForm.livestockSpecies === 'Porcine'
+            ? emptyToNull(modalForm.porcineRegistryNumber)
             : null,
           responsible: null,
           zootechnicClassification: null,

@@ -1,3 +1,5 @@
+using Pecualia.Api.Models.Enums;
+
 namespace Pecualia.Api.Models.Entities;
 
 public class Animal
@@ -12,7 +14,7 @@ public class Animal
 
     public string? DestinationCode { get; set; }
 
-    public string? DischargeCause { get; set; }
+    public AnimalDischargeCause? DischargeCause { get; set; }
 
     public string? HealthDocumentNumber { get; set; }
 
@@ -20,7 +22,7 @@ public class Animal
 
     public string? OriginCode { get; set; }
 
-    public string? RegistrationCause { get; set; }
+    public AnimalRegistrationCause? RegistrationCause { get; set; }
 
     public DateOnly? RegistrationDate { get; set; }
 
@@ -33,4 +35,6 @@ public class Animal
     public OvinoCaprinoAnimal? OvinoCaprino { get; set; }
 
     public PorcinoAnimal? Porcino { get; set; }
+
+    public ICollection<MovementCertificateAnimal> MovementCertificates { get; set; } = new List<MovementCertificateAnimal>();
 }

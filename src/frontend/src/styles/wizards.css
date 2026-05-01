@@ -1,0 +1,435 @@
+/* ═══════════════════════════════════════════════════════════════
+   wizards.css — Pecualia Design System
+   ═══════════════════════════════════════════════════════════════ */
+
+
+.farm-empty-state {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 40px 24px;
+}
+
+.modal-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.modal-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-panel-icon,
+.confirmation-hero-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #ddebdf;
+  color: #2f6b4f;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.modal-panel-title h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.modal-panel-title p {
+  margin: 2px 0 0;
+  color: #637168;
+  font-size: 0.8rem;
+}
+
+.step-progress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.step-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #d7ded8;
+  color: #637168;
+}
+
+.step-progress-item span {
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.step-progress-item-active,
+.step-progress-item-done {
+  border-color: #2f6b4f;
+  background: #f0f7f4;
+  color: #2f6b4f;
+}
+
+.step-progress-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  display: grid;
+  place-items: center;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.step-progress-item-active .step-progress-badge,
+.step-progress-item-done .step-progress-badge {
+  background: #2f6b4f;
+  color: #ffffff;
+}
+
+.select-wrapper,
+.search-input-wrapper {
+  position: relative;
+}
+
+.select-wrapper select {
+  appearance: none;
+  padding-right: 42px;
+}
+
+.select-wrapper svg,
+.search-input-wrapper svg {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #637168;
+  pointer-events: none;
+}
+
+.select-wrapper svg {
+  right: 14px;
+}
+
+.search-input-wrapper svg {
+  left: 12px;
+}
+
+.search-input-wrapper input {
+  padding-left: 40px;
+}
+
+.confirmation-hero {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 12px 0 6px;
+}
+
+.confirmation-hero strong {
+  font-size: 1.05rem;
+}
+
+.confirmation-hero span {
+  color: #637168;
+  font-size: 0.86rem;
+}
+
+.summary-list {
+  display: grid;
+  gap: 10px;
+}
+
+.summary-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f2f0;
+}
+
+.summary-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.summary-row span {
+  color: #637168;
+  font-size: 0.84rem;
+}
+
+.summary-row strong {
+  color: #1e2a24;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: right;
+}
+
+.validation-hint {
+  min-height: 20px;
+  color: #d97706;
+  font-size: 0.82rem;
+}
+
+.validation-hint span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.validation-hint-success {
+  color: #2f6b4f;
+}
+
+.farmer-wizard-shell {
+  padding: 0;
+}
+
+.farmer-modal-body {
+  padding-top: 6px;
+}
+
+.farmer-wizard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px;
+  border-bottom: 1px solid #d7ded8;
+  background: #ffffff;
+}
+
+.farmer-wizard-close {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: #f6f8f5;
+  color: #637168;
+}
+
+.farmer-wizard-close:hover {
+  background: #eef2ee;
+}
+
+.wizard-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 20px 24px 0;
+}
+
+.wizard-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #d7ded8;
+  background: #ffffff;
+  color: #637168;
+}
+
+.wizard-step span {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #e5e7eb;
+  color: #9ca3af;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.wizard-step strong {
+  font-size: 0.85rem;
+}
+
+.wizard-step-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.wizard-step-copy small {
+  color: inherit;
+  opacity: 0.85;
+  font-size: 0.74rem;
+}
+
+.wizard-step-active,
+.wizard-step-done {
+  border-color: #2f6b4f;
+  background: #f0f7f4;
+  color: #2f6b4f;
+}
+
+.wizard-step-active span,
+.wizard-step-done span {
+  background: #2f6b4f;
+  color: #ffffff;
+}
+
+.farmer-wizard-step-shell {
+  padding: 0 24px 24px;
+}
+
+.farmer-person-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.farmer-person-card {
+  text-align: left;
+  border-radius: 14px;
+  border: 2px solid #d7ded8;
+  background: #ffffff;
+  min-height: 120px;
+  padding: 20px 22px;
+  cursor: pointer;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  color: #637168;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.farmer-person-card:hover {
+  transform: translateY(-1px);
+  border-color: #bfd1c2;
+}
+
+.farmer-person-card strong {
+  color: #1e2a24;
+  font-size: 0.98rem;
+}
+
+.farmer-person-card span {
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.farmer-person-card-active {
+  border-color: #2f6b4f;
+  background: #f0f7f4;
+  box-shadow: inset 0 0 0 1px rgba(47, 107, 79, 0.08);
+}
+
+.farmer-divider {
+  height: 1px;
+  background: #d7ded8;
+}
+
+.farmer-contact-intro {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.farmer-contact-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: #f0f7f4;
+  color: #2f6b4f;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.segmented-control {
+  display: inline-flex;
+  border: 1px solid #d7ded8;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.segmented-option {
+  border: 0;
+  background: transparent;
+  color: #637168;
+  padding: 11px 15px;
+  cursor: pointer;
+}
+
+.segmented-option-active {
+  background: #2f6b4f;
+  color: #ffffff;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.summary-card {
+  background: #ffffff;
+  border: 1px solid #d7ded8;
+  border-radius: 14px;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.summary-card-accent {
+  background: linear-gradient(180deg, #f0f7f4 0%, #ffffff 100%);
+}
+
+.summary-card h3 {
+  margin: 0 0 12px;
+  font-size: 0.98rem;
+}
+
+.summary-card dl {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.summary-card dt {
+  color: #637168;
+  font-size: 0.82rem;
+}
+
+.summary-card dd {
+  margin: 0;
+  color: #1e2a24;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.wizard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 0;
+  padding: 18px 24px 24px;
+  border-top: 1px solid #d7ded8;
+  background: #ffffff;
+}
+
+.wizard-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.farmer-wizard-progress-copy {
+  color: #637168;
+}

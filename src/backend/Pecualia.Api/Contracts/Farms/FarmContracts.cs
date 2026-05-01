@@ -13,6 +13,7 @@ public sealed record CreateFarmRequest(
     string? Address,
     string? ZipCode,
     int? AuthorisedCapacity,
+    string? PorcineRegistryNumber,
     string? Responsible,
     string? ZootechnicClassification,
     double? XCoordinate,
@@ -29,7 +30,8 @@ public sealed record FarmListItemResponse(
     string? Province,
     string FarmerName,
     int AnimalCount,
-    int? AuthorisedCapacity);
+    int? AuthorisedCapacity,
+    string? PorcineRegistryNumber);
 
 public sealed record FarmSummaryResponse(
     long Id,
@@ -40,6 +42,7 @@ public sealed record FarmSummaryResponse(
     string FarmerName,
     int AnimalCount,
     int? AuthorisedCapacity,
+    string? PorcineRegistryNumber,
     string? Regime,
     string? Town,
     string? Province,
@@ -55,6 +58,7 @@ public sealed record FarmDetailResponse(
     string FarmerName,
     int AnimalCount,
     int? AuthorisedCapacity,
+    string? PorcineRegistryNumber,
     string? Regime,
     string? LivestockType,
     string? ProductionCapacity,

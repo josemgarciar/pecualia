@@ -37,12 +37,10 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
 
         var animalIds = animals.Select(entity => entity.Id).ToList();
 
-        var births = animalIds.Count == 0
-            ? new List<AnimalBirth>()
-            : await dbContext.AnimalBirths
-                .AsNoTracking()
-                .Where(entity => animalIds.Contains(entity.MotherAnimalId))
-                .ToListAsync(cancellationToken);
+        var births = await dbContext.AnimalBirths
+            .AsNoTracking()
+            .Where(entity => accessibleFarmIds.Contains(entity.LivestockFarmId))
+            .ToListAsync(cancellationToken);
 
         var vaccinations = animalIds.Count == 0
             ? new List<Vaccination>()
@@ -53,7 +51,7 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
 
         var movements = await dbContext.MovementCertificates
             .AsNoTracking()
-            .Where(entity => accessibleFarmIds.Contains(entity.OriginLivestockId))
+            .Where(entity => entity.OriginLivestockId != null && accessibleFarmIds.Contains(entity.OriginLivestockId.Value))
             .ToListAsync(cancellationToken);
 
         var inspections = await dbContext.Inspections

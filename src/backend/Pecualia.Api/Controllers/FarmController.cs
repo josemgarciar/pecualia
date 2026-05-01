@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Pecualia.Api.Contracts.Books;
+using Pecualia.Api.Contracts.FarmOperations;
 using Pecualia.Api.Contracts.Farms;
 using Pecualia.Api.Infrastructure.Security;
 using Pecualia.Api.Services;
@@ -38,6 +40,55 @@ public static class FarmController
                 sex,
                 status,
                 cancellationToken)));
+
+        group.MapGet("/{farmId:long}/births", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.GetBirthsAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
+
+        group.MapPost("/{farmId:long}/births", async (ClaimsPrincipal user, long farmId, CreateFarmBirthRequest request, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.CreateBirthAsync(user.GetUserId(), user.GetRole(), farmId, request, cancellationToken)));
+
+        group.MapGet("/{farmId:long}/deaths", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.GetDeathsAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
+
+        group.MapPost("/{farmId:long}/deaths", async (ClaimsPrincipal user, long farmId, CreateFarmDeathRequest request, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.CreateDeathAsync(user.GetUserId(), user.GetRole(), farmId, request, cancellationToken)));
+
+        group.MapGet("/{farmId:long}/census", async (ClaimsPrincipal user, long farmId, int? year, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.GetCensusAsync(user.GetUserId(), user.GetRole(), farmId, year, cancellationToken)));
+
+        group.MapPut("/{farmId:long}/census", async (ClaimsPrincipal user, long farmId, int year, UpdateFarmCensusRequest request, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.UpdateCensusAsync(user.GetUserId(), user.GetRole(), farmId, year, request, cancellationToken)));
+
+        group.MapGet("/{farmId:long}/balances", async (ClaimsPrincipal user, long farmId, int? year, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.GetBalanceAsync(user.GetUserId(), user.GetRole(), farmId, year, cancellationToken)));
+
+        group.MapGet("/{farmId:long}/incidents", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.GetIncidentsAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
+
+        group.MapPost("/{farmId:long}/incidents", async (ClaimsPrincipal user, long farmId, CreateFarmIncidentRequest request, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.CreateIncidentAsync(user.GetUserId(), user.GetRole(), farmId, request, cancellationToken)));
+
+        group.MapGet("/{farmId:long}/inspections", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.GetInspectionsAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
+
+        group.MapPost("/{farmId:long}/inspections", async (ClaimsPrincipal user, long farmId, CreateFarmInspectionRequest request, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.CreateInspectionAsync(user.GetUserId(), user.GetRole(), farmId, request, cancellationToken)));
+
+        group.MapGet("/{farmId:long}/book/preview", async (ClaimsPrincipal user, long farmId, IBookService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.GetPreviewAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
+
+        group.MapGet("/{farmId:long}/book/pdf", async (ClaimsPrincipal user, long farmId, IBookService service, CancellationToken cancellationToken) =>
+        {
+            try
+            {
+                var file = await service.GeneratePdfAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken);
+                return Results.File(file.Content, file.ContentType, file.FileName);
+            }
+            catch (DomainException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+        });
 
         group.MapGet("/{farmId:long}", async (ClaimsPrincipal user, long farmId, IFarmService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetDetailAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));

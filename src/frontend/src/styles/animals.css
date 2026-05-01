@@ -1,0 +1,208 @@
+/* ═══════════════════════════════════════════════════════════════
+   animals.css — Pecualia Design System
+   ═══════════════════════════════════════════════════════════════ */
+
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.profile-grid > div {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f8faf8;
+  border: 1px solid #edf1ed;
+}
+
+.profile-grid span {
+  color: #637168;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.profile-grid strong {
+  color: #1e2a24;
+  font-size: 0.92rem;
+}
+
+.animal-header,
+.animal-header-actions,
+.farm-animals-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.animal-header h1 {
+  margin: 0;
+  color: #1e2a24;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.animal-header p,
+.farm-animals-header p {
+  margin: 4px 0 0;
+  color: #637168;
+  font-size: 0.92rem;
+}
+
+.animal-import-button {
+  background: #e7b84c;
+  border-color: #e7b84c;
+  color: #214d39;
+}
+
+.animal-import-button:hover {
+  background: #d4a53a;
+}
+
+.animal-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.animal-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.animal-filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px;
+  border: 1px solid #d7ded8;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.farm-animals-filters {
+  padding: 0;
+  border: 0;
+}
+
+.animal-search {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+}
+
+.animal-search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #637168;
+  pointer-events: none;
+}
+
+.animal-search input {
+  padding-left: 38px;
+  background: #f6f8f5;
+}
+
+.animal-filters select {
+  width: auto;
+  min-width: 140px;
+  background: #f6f8f5;
+  color: #637168;
+}
+
+.animal-table-card {
+  overflow: hidden;
+  border: 1px solid #d7ded8;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.animal-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.animal-table th {
+  padding: 13px 16px;
+  background: #f6f8f5;
+  border-bottom: 1px solid #d7ded8;
+  color: #637168;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.animal-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f0f2f0;
+  color: #637168;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.animal-table tbody tr {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.animal-table tbody tr:hover,
+.animal-row-selected {
+  background: #f0f7f4;
+}
+
+.animal-identification-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #1e2a24;
+}
+
+.animal-identification-cell svg {
+  color: #637168;
+}
+
+.animal-identification-cell strong {
+  color: #1e2a24;
+  font-weight: 700;
+}
+
+.animal-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.animal-sex-female {
+  color: #be185d !important;
+  font-weight: 700;
+}
+
+.animal-sex-male {
+  color: #1d4ed8 !important;
+  font-weight: 700;
+}
+
+.animal-table-footer {
+  padding: 13px 16px;
+  border-top: 1px solid #d7ded8;
+  color: #637168;
+  font-size: 0.82rem;
+}
+

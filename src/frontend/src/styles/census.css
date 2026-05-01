@@ -1,0 +1,452 @@
+/* ═══════════════════════════════════════════════════════════════
+   census.css — Pecualia Design System
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Census & Balance Figma visual styles ───────────────────────────── */
+
+.census-subtab-row {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #d7ded8;
+}
+
+.census-subtab-row button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 12px 24px;
+  background: transparent;
+  color: #637168;
+  font-size: 0.94rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.census-subtab-row .census-subtab-active {
+  border-bottom-color: #2f6b4f;
+  color: #2f6b4f;
+  font-weight: 700;
+}
+
+.census-visual-card {
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid #d7ded8;
+  background: #ffffff;
+  display: grid;
+  gap: 20px;
+}
+
+.census-visual-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.census-visual-title {
+  margin: 0;
+  color: #1e2a24;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.census-visual-subtitle {
+  margin: 4px 0 0;
+  color: #637168;
+  font-size: 0.82rem;
+}
+
+.census-visual-total {
+  text-align: right;
+}
+
+.census-visual-total-label {
+  display: block;
+  color: #637168;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.census-visual-total-value {
+  display: block;
+  color: #2f6b4f;
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.census-visual-section {
+  display: grid;
+  gap: 10px;
+}
+
+.census-visual-section-label {
+  color: #637168;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.census-visual-categories {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.census-category-card {
+  border-radius: 14px;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.census-category-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.census-category-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.census-category-pct {
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.census-category-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.census-category-bar {
+  height: 4px;
+  border-radius: 999px;
+  margin-top: 4px;
+}
+
+.census-category-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.census-distribution {
+  padding-top: 16px;
+  border-top: 1px solid #f0f2f0;
+  display: grid;
+  gap: 8px;
+}
+
+.census-distribution-bar {
+  display: flex;
+  height: 16px;
+  border-radius: 999px;
+  overflow: hidden;
+  gap: 1px;
+}
+
+.census-distribution-bar > div {
+  transition: width 0.4s ease;
+}
+
+.census-distribution-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-top: 4px;
+}
+
+.census-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.census-legend-item span:last-child {
+  color: #637168;
+  font-size: 0.72rem;
+}
+
+.census-legend-dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.census-edit-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.census-chart-wrapper {
+  width: 100%;
+  min-height: 200px;
+}
+
+/* ── Balance metrics grid (6 tiles) ─────────────────────────────────── */
+
+.balance-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.balance-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .balance-metrics-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .balance-metrics-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.balance-metric-tile {
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+  display: grid;
+  gap: 4px;
+}
+
+.balance-metric-value {
+  font-size: 1.38rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.balance-metric-label {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+.balance-trend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.balance-trend-icon-positive {
+  color: #2f6b4f;
+}
+
+.balance-trend-icon-negative {
+  color: #dc2626;
+}
+
+.balance-trend-text-positive {
+  color: #2f6b4f;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.balance-trend-text-negative {
+  color: #dc2626;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+/* ── Census global page ─────────────────────────────────────────────── */
+
+.census-page-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #d7ded8;
+}
+
+.census-page-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 12px 24px;
+  background: transparent;
+  color: #637168;
+  font-size: 0.94rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.census-page-tab-active {
+  border-bottom-color: #2f6b4f;
+  color: #2f6b4f;
+  font-weight: 700;
+}
+
+.census-cards-list {
+  display: grid;
+  gap: 16px;
+}
+
+.census-global-card {
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid #d7ded8;
+  background: #ffffff;
+  display: grid;
+  gap: 16px;
+}
+
+.census-global-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.census-global-card-name {
+  margin: 0;
+  color: #1e2a24;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.census-global-card-meta {
+  margin: 4px 0 0;
+  color: #637168;
+  font-size: 0.82rem;
+}
+
+.census-global-card-total {
+  background: #ddebdf;
+  color: #2f6b4f;
+  font-size: 1.38rem;
+  font-weight: 800;
+  padding: 4px 16px;
+  border-radius: 8px;
+}
+
+.census-global-card-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.census-global-card-stat {
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+  display: grid;
+  gap: 2px;
+}
+
+.census-global-card-stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.census-global-card-stat-label {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+.census-balance-stack {
+  display: grid;
+  gap: 20px;
+}
+
+/* ── Balance global table ───────────────────────────────────────────── */
+
+.balance-table-wrapper {
+  overflow-x: auto;
+}
+
+.balance-global-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.balance-global-table thead tr {
+  background: #f6f8f5;
+  border-bottom: 1px solid #d7ded8;
+}
+
+.balance-global-table th {
+  padding: 12px 16px;
+  text-align: left;
+  color: #637168;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.balance-global-table tbody tr {
+  border-bottom: 1px solid #f0f2f0;
+  transition: background 0.15s ease;
+}
+
+.balance-global-table tbody tr:hover {
+  background: #f6f8f5;
+}
+
+.balance-global-table td {
+  padding: 12px 16px;
+  font-size: 0.88rem;
+}
+
+.balance-table-farm {
+  color: #1e2a24;
+  font-weight: 500;
+}
+
+.balance-table-altas {
+  color: #2f6b4f;
+  font-weight: 600;
+}
+
+.balance-table-bajas {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.balance-table-nacimientos {
+  color: #e7b84c;
+  font-weight: 600;
+}
+
+.balance-table-entradas {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.balance-table-salidas {
+  color: #f97316;
+  font-weight: 600;
+}
+
+.balance-table-balance-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.balance-table-positive {
+  color: #2f6b4f;
+  font-size: 0.94rem;
+  font-weight: 800;
+}
+
+.balance-table-negative {
+  color: #dc2626;
+  font-size: 0.94rem;
+  font-weight: 800;
+}

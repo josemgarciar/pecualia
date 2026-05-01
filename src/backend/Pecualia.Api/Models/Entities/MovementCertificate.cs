@@ -4,11 +4,15 @@ public sealed class MovementCertificate
 {
     public long Id { get; set; }
 
-    public long OriginLivestockId { get; set; }
+    public long? OriginLivestockId { get; set; }
 
     public long? DestinationLivestockId { get; set; }
 
+    public DateOnly? ArrivalDate { get; set; }
+
     public DateOnly DepartureDate { get; set; }
+
+    public string? MeansOfTransport { get; set; }
 
     public int NumberOfAnimals { get; set; }
 
@@ -16,9 +20,25 @@ public sealed class MovementCertificate
 
     public string? CodRemo { get; set; }
 
+    public string? Serie { get; set; }
+
     public DateOnly? SolicitationDate { get; set; }
 
-    public LivestockFarm OriginFarm { get; set; } = null!;
+    public string? TransportName { get; set; }
+
+    public string? VehicleRegistrationNumber { get; set; }
+
+    public string? OriginExternalCode { get; set; }
+
+    public string? OriginExternalName { get; set; }
+
+    public string? DestinationExternalCode { get; set; }
+
+    public string? DestinationExternalName { get; set; }
+
+    public LivestockFarm? OriginFarm { get; set; }
 
     public LivestockFarm? DestinationFarm { get; set; }
+
+    public ICollection<MovementCertificateAnimal> Animals { get; set; } = new List<MovementCertificateAnimal>();
 }

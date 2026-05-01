@@ -71,6 +71,7 @@ CREATE TABLE livestock_farm (
     livestock_species VARCHAR(40) NOT NULL,
     livestock_type VARCHAR(80),
     name VARCHAR(160) NOT NULL,
+    porcine_registry_number VARCHAR(32),
     production_capacity VARCHAR(120),
     province VARCHAR(120),
     rega_code VARCHAR(32) NOT NULL UNIQUE,
@@ -100,7 +101,9 @@ CREATE TABLE animal (
     registration_cause VARCHAR(80),
     registration_date DATE,
     sex VARCHAR(20),
-    CONSTRAINT animal_birth_year_chk CHECK (birth_year IS NULL OR birth_year BETWEEN 1900 AND 2100)
+    CONSTRAINT animal_birth_year_chk CHECK (birth_year IS NULL OR birth_year BETWEEN 1900 AND 2100),
+    CONSTRAINT animal_registration_cause_chk CHECK (registration_cause IS NULL OR registration_cause IN ('Entrada', 'Autorreposicion')),
+    CONSTRAINT animal_discharge_cause_chk CHECK (discharge_cause IS NULL OR discharge_cause IN ('Salida', 'Muerte'))
 );
 
 CREATE TABLE ovino_caprino (
@@ -122,7 +125,8 @@ CREATE TABLE porcino (
 
 CREATE TABLE animal_birth (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    mother_animal_id BIGINT NOT NULL REFERENCES animal(id) ON DELETE CASCADE,
+    livestock_farm_id BIGINT NOT NULL REFERENCES livestock_farm(id) ON DELETE CASCADE,
+    mother_animal_id BIGINT REFERENCES animal(id) ON DELETE SET NULL,
     father_animal_id BIGINT REFERENCES animal(id) ON DELETE SET NULL,
     birth_date DATE NOT NULL,
     birth_weight NUMERIC(8, 3),
@@ -145,13 +149,17 @@ CREATE TABLE vaccination (
 
 CREATE TABLE movement_certificate (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    origin_livestock_id BIGINT NOT NULL REFERENCES livestock_farm(id) ON DELETE RESTRICT,
+    origin_livestock_id BIGINT REFERENCES livestock_farm(id) ON DELETE RESTRICT,
     destination_livestock_id BIGINT REFERENCES livestock_farm(id) ON DELETE RESTRICT,
     arrival_date DATE,
     cod_remo VARCHAR(80),
     departure_date DATE NOT NULL,
     means_of_transport VARCHAR(120),
     number_of_animals INTEGER NOT NULL,
+    origin_external_code VARCHAR(32),
+    origin_external_name VARCHAR(180),
+    destination_external_code VARCHAR(32),
+    destination_external_name VARCHAR(180),
     serie VARCHAR(80),
     solicitation_date DATE,
     specie VARCHAR(40) NOT NULL,

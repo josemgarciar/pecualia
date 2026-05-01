@@ -14,6 +14,8 @@ using Pecualia.Api.Models.Enums;
 using Pecualia.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+QuestPDF.Settings.EnableDebugging = builder.Environment.IsDevelopment();
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<ActivationOptions>(builder.Configuration.GetSection(ActivationOptions.SectionName));
@@ -108,8 +110,11 @@ builder.Services.AddScoped<IAccountActivationService, AccountActivationService>(
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IFarmerService, FarmerService>();
 builder.Services.AddScoped<IFarmService, FarmService>();
+builder.Services.AddScoped<IFarmOperationService, FarmOperationService>();
 builder.Services.AddScoped<IAnimalService, AnimalService>();
+builder.Services.AddScoped<IMovementService, MovementService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IBookService, BookService>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton<IEmailSender, FileEmailSender>();
 
@@ -136,6 +141,7 @@ app.MapAuthController();
 app.MapFarmerController();
 app.MapFarmController();
 app.MapAnimalController();
+app.MapMovementController();
 app.MapDashboardController();
 
 app.Run();

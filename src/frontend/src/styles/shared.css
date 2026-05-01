@@ -1,0 +1,105 @@
+/* ═══════════════════════════════════════════════════════════════
+   shared.css — Pecualia Design System
+   ═══════════════════════════════════════════════════════════════ */
+
+
+.page-header h1,
+.panel-card h2,
+.dashboard-card h2 {
+  margin: 0;
+}
+
+.page-header p,
+.panel-card p {
+  margin: 6px 0 0;
+  color: #637168;
+  line-height: 1.5;
+}
+
+.page-header-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.panel-card {
+  background: #ffffff;
+  border: 1px solid #d7ded8;
+  border-radius: 14px;
+  padding: 20px;
+}
+
+.filter-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #ffffff;
+  border: 1px solid #d7ded8;
+  border-radius: 14px;
+  padding: 14px 18px;
+}
+
+.two-column-layout {
+  display: grid;
+  grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.panel-header-inline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.table-list {
+  display: grid;
+  gap: 12px;
+}
+
+.list-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  background: #ffffff;
+  border: 1px solid #d7ded8;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.row-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.status-PendingActivation,
+.status-Pending {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.status-Active {
+  background: #ddebdf;
+  color: #2f6b4f;
+}
+
+.status-Inactive {
+  background: #f3f4f6;
+  color: #6b7280;
+}

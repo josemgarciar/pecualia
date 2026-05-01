@@ -1,0 +1,156 @@
+/* ═══════════════════════════════════════════════════════════════
+   farmers.css — Pecualia Design System
+   ═══════════════════════════════════════════════════════════════ */
+
+
+.toolbar-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.8fr) repeat(2, minmax(180px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.toolbar-search,
+.toolbar-field {
+  min-width: 0;
+}
+
+.toolbar-row-farms {
+  grid-template-columns: minmax(280px, 1.8fr) repeat(2, minmax(180px, 1fr)) auto;
+}
+
+.farm-toolbar-row {
+  align-items: end;
+}
+
+.farm-toolbar-search .search-input-wrapper input,
+.farm-toolbar-row .select-wrapper select {
+  background: #f6f8f5;
+}
+
+.farmers-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.85fr) minmax(320px, 0.95fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.table-card {
+  background: #ffffff;
+  border: 1px solid #d7ded8;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.farmer-table {
+  display: grid;
+}
+
+.farmer-table-header,
+.farmer-table-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) 76px 116px;
+  gap: 12px;
+  align-items: center;
+}
+
+.farmer-table-header {
+  padding: 14px 16px;
+  background: #f6f8f5;
+  border-bottom: 1px solid #d7ded8;
+  color: #637168;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.farmer-table-body {
+  display: grid;
+}
+
+.farmer-table-row {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #f0f2f0;
+  background: #ffffff;
+  padding: 16px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.farmer-table-row:last-child {
+  border-bottom: 0;
+}
+
+.farmer-table-row:hover {
+  background: #f8faf8;
+}
+
+.farmer-table-row-active {
+  background: #f0f7f4;
+}
+
+.farmer-table-row strong {
+  display: block;
+  color: #1e2a24;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.farmer-table-row small {
+  display: block;
+  margin-top: 4px;
+  color: #637168;
+  font-size: 0.76rem;
+}
+
+.detail-panel {
+  position: sticky;
+  top: 24px;
+}
+
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.detail-grid > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.detail-grid span {
+  color: #637168;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.detail-grid strong {
+  color: #1e2a24;
+  font-size: 0.88rem;
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-full {
+  grid-column: 1 / -1;
+}
+
+.detail-actions {
+  display: grid;
+  gap: 10px;
+}
+

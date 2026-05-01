@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, NavLink } from 'react-router-dom';
 import {
+  BarChart3,
   Building2,
   CreditCard,
   LayoutDashboard,
@@ -48,7 +49,7 @@ function AppShell() {
   const primaryItems = [
     { to: '/app/dashboard', label: 'Inicio', icon: LayoutDashboard },
     ...(isManager ? [{ to: '/app/farmers', label: 'Ganaderos', icon: Users }] : []),
-    { to: '/app/farms', label: 'Explotaciones', icon: Building2 }
+    { to: '/app/farms', label: 'Explotaciones', icon: Building2 },
   ];
   const secondaryItems = [
     { to: '/app/profile', label: 'Perfil', icon: UserCircle2 },

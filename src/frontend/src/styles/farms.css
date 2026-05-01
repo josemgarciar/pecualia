@@ -1,0 +1,569 @@
+/* ═══════════════════════════════════════════════════════════════
+   farms.css — Pecualia Design System
+   ═══════════════════════════════════════════════════════════════ */
+
+.farm-card-list {
+  display: grid;
+  gap: 14px;
+}
+
+.farm-list-meta {
+  display: flex;
+  justify-content: flex-end;
+  color: #637168;
+  font-size: 0.82rem;
+}
+
+.farm-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid #d7ded8;
+  background: #ffffff;
+}
+
+.farm-card-interactive {
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.farm-card-interactive:hover,
+.farm-card-interactive:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(30, 42, 36, 0.08);
+  border-color: #bdd0c1;
+}
+
+.farm-card-static {
+  padding: 22px;
+}
+
+.farm-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #ddebdf;
+  color: #2f6b4f;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.farm-card-copy {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 12px;
+}
+
+.farm-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.farm-card-header h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.farm-card-header p {
+  margin: 4px 0 0;
+  color: #637168;
+  font-size: 0.78rem;
+}
+
+.farm-card-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.farm-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.farm-card-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: #637168;
+  font-size: 0.82rem;
+}
+
+.farm-card-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.farm-card-highlight {
+  color: #1e2a24;
+  font-weight: 700;
+}
+
+.farm-card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #2f6b4f;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.occupancy-block {
+  display: grid;
+  gap: 6px;
+}
+
+.occupancy-copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #637168;
+  font-size: 0.78rem;
+}
+
+.occupancy-copy strong {
+  color: #2f6b4f;
+  font-size: 0.78rem;
+}
+
+.occupancy-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #f0f2f0;
+  overflow: hidden;
+}
+
+.occupancy-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #2f6b4f;
+}
+
+.farm-detail-back {
+  width: fit-content;
+}
+
+.farm-detail-hero {
+  gap: 18px;
+}
+
+.farm-detail-hero-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.farm-detail-hero-icon {
+  width: 52px;
+  height: 52px;
+}
+
+.farm-detail-hero-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.farm-detail-hero-copy h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  color: #1e2a24;
+}
+
+.farm-detail-hero-copy p {
+  margin: 0;
+  color: #637168;
+  font-size: 0.92rem;
+}
+
+.farm-detail-hero-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.farm-detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.farm-detail-metric-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid #d7ded8;
+  background: #f9fbf8;
+}
+
+.farm-detail-metric-card span {
+  color: #637168;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.farm-detail-metric-card strong {
+  color: #1e2a24;
+  font-size: 1.1rem;
+}
+
+.farm-detail-metric-card-success {
+  background: #eff6f0;
+}
+
+.farm-detail-meta {
+  justify-content: flex-start;
+}
+
+.farm-detail-tabs {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.farm-detail-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #d7ded8;
+  background: #f9fbf8;
+  color: #637168;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.farm-detail-tab small {
+  color: #d97706;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.farm-detail-tab-active {
+  background: #ddebdf;
+  border-color: #c5d6c8;
+  color: #214d39;
+}
+
+.farm-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.section-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.section-heading-row h2,
+.section-heading-row h3 {
+  margin: 0;
+  color: #1e2a24;
+}
+
+.section-heading-row p {
+  margin: 4px 0 0;
+  color: #637168;
+  font-size: 0.88rem;
+}
+
+.farm-operations-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.info-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #f0f7f4;
+  border: 1px solid #d7eadb;
+  color: #2f6b4f;
+}
+
+.info-callout p {
+  margin: 0;
+  color: inherit;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.info-callout-danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.success-banner {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #eff6f0;
+  border: 1px solid #c5d6c8;
+  color: #214d39;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+.operation-form,
+.census-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid #d7ded8;
+  background: #f9fbf8;
+}
+
+.operation-form label,
+.operation-modal-body label,
+.census-input-card {
+  display: grid;
+  gap: 7px;
+}
+
+.operation-form span,
+.operation-modal-body span,
+.census-input-card span {
+  color: #637168;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.operation-form input,
+.operation-form textarea,
+.operation-form select,
+.operation-modal-body input,
+.operation-modal-body textarea,
+.operation-modal-body select,
+.census-input-card input,
+.section-heading-row select {
+  width: 100%;
+  border: 1px solid #d7ded8;
+  border-radius: 11px;
+  background: #ffffff;
+  color: #1e2a24;
+  padding: 11px 12px;
+  outline: none;
+}
+
+.operation-form textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.operation-modal-body textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.operation-form-wide {
+  grid-column: 1 / -1;
+}
+
+.operation-form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.birth-card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.operation-record-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid #d7ded8;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.operation-record-card div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.operation-record-card strong {
+  color: #1e2a24;
+}
+
+.operation-record-card span {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #d97706;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.operation-record-card p {
+  margin: 0;
+  color: #637168;
+}
+
+.death-chip {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.operation-modal-body {
+  padding-top: 20px;
+}
+
+.subtab-row {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px;
+  border: 1px solid #d7ded8;
+  border-radius: 14px;
+  background: #f9fbf8;
+}
+
+.subtab-row button {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 14px;
+  background: transparent;
+  color: #637168;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.subtab-row .subtab-active {
+  background: #ddebdf;
+  color: #214d39;
+}
+
+.census-total-card,
+.census-input-card,
+.balance-summary-card,
+.balance-bar-card {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid #d7ded8;
+  background: #ffffff;
+}
+
+.census-total-card {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #eff6f0, #ffffff);
+}
+
+.census-total-card span,
+.balance-summary-card span {
+  color: #637168;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.census-total-card strong,
+.balance-summary-card strong {
+  color: #1e2a24;
+  font-size: 2rem;
+}
+
+.census-total-card p,
+.balance-summary-card p {
+  margin: 0;
+  color: #637168;
+}
+
+.census-actions {
+  justify-content: flex-start;
+}
+
+.balance-bar-card {
+  display: grid;
+  gap: 18px;
+}
+
+.balance-bar-card h3 {
+  margin: 0;
+  color: #1e2a24;
+}
+
+.balance-bars {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(34px, 1fr));
+  gap: 10px;
+  align-items: end;
+  min-height: 190px;
+}
+
+.balance-month {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  height: 180px;
+}
+
+.balance-bar-track {
+  display: flex;
+  align-items: end;
+  width: 100%;
+  height: 145px;
+  border-radius: 10px;
+  background: #f0f2f0;
+  overflow: hidden;
+}
+
+.balance-bar-positive,
+.balance-bar-negative {
+  width: 100%;
+  border-radius: 10px 10px 0 0;
+}
+
+.balance-bar-positive {
+  background: #2f6b4f;
+}
+
+.balance-bar-negative {
+  background: #dc2626;
+}
+
+.balance-month span {
+  color: #637168;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.balance-summary-card {
+  background: #f9fbf8;
+}

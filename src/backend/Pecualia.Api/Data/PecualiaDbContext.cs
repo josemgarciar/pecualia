@@ -28,6 +28,22 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
 
     public DbSet<MovementCertificate> MovementCertificates => Set<MovementCertificate>();
 
+    public DbSet<MovementCertificateAnimal> MovementCertificateAnimals => Set<MovementCertificateAnimal>();
+
+    public DbSet<Balance> Balances => Set<Balance>();
+
+    public DbSet<BalanceOvinoCaprino> BalanceOvinoCaprino => Set<BalanceOvinoCaprino>();
+
+    public DbSet<BalancePorcino> BalancePorcino => Set<BalancePorcino>();
+
+    public DbSet<Census> Census => Set<Census>();
+
+    public DbSet<CensusOvinoCaprino> CensusOvinoCaprino => Set<CensusOvinoCaprino>();
+
+    public DbSet<CensusPorcino> CensusPorcino => Set<CensusPorcino>();
+
+    public DbSet<Incident> Incidents => Set<Incident>();
+
     public DbSet<Inspection> Inspections => Set<Inspection>();
 
     public DbSet<AccountActivationToken> AccountActivationTokens => Set<AccountActivationToken>();
@@ -132,6 +148,7 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
             .IsRequired();
         farm.Property(entity => entity.LivestockType).HasColumnName("livestock_type").HasMaxLength(80);
         farm.Property(entity => entity.Name).HasColumnName("name").HasMaxLength(160).IsRequired();
+        farm.Property(entity => entity.PorcineRegistryNumber).HasColumnName("porcine_registry_number").HasMaxLength(32);
         farm.Property(entity => entity.ProductionCapacity).HasColumnName("production_capacity").HasMaxLength(120);
         farm.Property(entity => entity.Province).HasColumnName("province").HasMaxLength(120);
         farm.Property(entity => entity.RegaCode).HasColumnName("rega_code").HasMaxLength(32).IsRequired();
@@ -162,11 +179,21 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         animal.Property(entity => entity.BirthYear).HasColumnName("birth_year");
         animal.Property(entity => entity.Breed).HasColumnName("breed").HasMaxLength(80);
         animal.Property(entity => entity.DestinationCode).HasColumnName("destination_code").HasMaxLength(32);
-        animal.Property(entity => entity.DischargeCause).HasColumnName("discharge_cause").HasMaxLength(80);
+        animal.Property(entity => entity.DischargeCause)
+            .HasColumnName("discharge_cause")
+            .HasConversion(
+                entity => entity == null ? null : entity.ToString(),
+                value => ParseAnimalDischargeCause(value))
+            .HasMaxLength(80);
         animal.Property(entity => entity.Identification).HasColumnName("identification").HasMaxLength(80).IsRequired();
         animal.Property(entity => entity.HealthDocumentNumber).HasColumnName("health_document_number").HasMaxLength(80);
         animal.Property(entity => entity.OriginCode).HasColumnName("origin_code").HasMaxLength(32);
-        animal.Property(entity => entity.RegistrationCause).HasColumnName("registration_cause").HasMaxLength(80);
+        animal.Property(entity => entity.RegistrationCause)
+            .HasColumnName("registration_cause")
+            .HasConversion(
+                entity => entity == null ? null : entity.ToString(),
+                value => ParseAnimalRegistrationCause(value))
+            .HasMaxLength(80);
         animal.Property(entity => entity.RegistrationDate).HasColumnName("registration_date");
         animal.Property(entity => entity.DischargeDate).HasColumnName("discharge_date");
         animal.Property(entity => entity.Sex).HasColumnName("sex").HasMaxLength(20);
@@ -212,14 +239,21 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         animalBirth.ToTable("animal_birth");
         animalBirth.HasKey(entity => entity.Id);
         animalBirth.Property(entity => entity.Id).HasColumnName("id").UseIdentityAlwaysColumn();
+        animalBirth.Property(entity => entity.LivestockFarmId).HasColumnName("livestock_farm_id");
         animalBirth.Property(entity => entity.MotherAnimalId).HasColumnName("mother_animal_id");
         animalBirth.Property(entity => entity.FatherAnimalId).HasColumnName("father_animal_id");
         animalBirth.Property(entity => entity.BirthDate).HasColumnName("birth_date");
+        animalBirth.Property(entity => entity.BirthWeight).HasColumnName("birth_weight");
+        animalBirth.Property(entity => entity.Observations).HasColumnName("observations");
         animalBirth.Property(entity => entity.OffspringNumber).HasColumnName("offspring_number");
+        animalBirth.HasOne(entity => entity.LivestockFarm)
+            .WithMany()
+            .HasForeignKey(entity => entity.LivestockFarmId)
+            .OnDelete(DeleteBehavior.Cascade);
         animalBirth.HasOne(entity => entity.MotherAnimal)
             .WithMany()
             .HasForeignKey(entity => entity.MotherAnimalId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.SetNull);
         animalBirth.HasOne(entity => entity.FatherAnimal)
             .WithMany()
             .HasForeignKey(entity => entity.FatherAnimalId)
@@ -245,11 +279,20 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         movementCertificate.Property(entity => entity.Id).HasColumnName("id").UseIdentityAlwaysColumn();
         movementCertificate.Property(entity => entity.OriginLivestockId).HasColumnName("origin_livestock_id");
         movementCertificate.Property(entity => entity.DestinationLivestockId).HasColumnName("destination_livestock_id");
+        movementCertificate.Property(entity => entity.ArrivalDate).HasColumnName("arrival_date");
+        movementCertificate.Property(entity => entity.OriginExternalCode).HasColumnName("origin_external_code").HasMaxLength(32);
+        movementCertificate.Property(entity => entity.OriginExternalName).HasColumnName("origin_external_name").HasMaxLength(180);
+        movementCertificate.Property(entity => entity.DestinationExternalCode).HasColumnName("destination_external_code").HasMaxLength(32);
+        movementCertificate.Property(entity => entity.DestinationExternalName).HasColumnName("destination_external_name").HasMaxLength(180);
         movementCertificate.Property(entity => entity.DepartureDate).HasColumnName("departure_date");
+        movementCertificate.Property(entity => entity.MeansOfTransport).HasColumnName("means_of_transport").HasMaxLength(120);
         movementCertificate.Property(entity => entity.NumberOfAnimals).HasColumnName("number_of_animals");
         movementCertificate.Property(entity => entity.Specie).HasColumnName("specie").HasMaxLength(40).IsRequired();
         movementCertificate.Property(entity => entity.CodRemo).HasColumnName("cod_remo").HasMaxLength(80);
+        movementCertificate.Property(entity => entity.Serie).HasColumnName("serie").HasMaxLength(80);
         movementCertificate.Property(entity => entity.SolicitationDate).HasColumnName("solicitation_date");
+        movementCertificate.Property(entity => entity.TransportName).HasColumnName("transport_name").HasMaxLength(180);
+        movementCertificate.Property(entity => entity.VehicleRegistrationNumber).HasColumnName("vehicle_registration_number").HasMaxLength(40);
         movementCertificate.HasOne(entity => entity.OriginFarm)
             .WithMany()
             .HasForeignKey(entity => entity.OriginLivestockId)
@@ -258,6 +301,132 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
             .WithMany()
             .HasForeignKey(entity => entity.DestinationLivestockId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        var movementCertificateAnimal = modelBuilder.Entity<MovementCertificateAnimal>();
+        movementCertificateAnimal.ToTable("movement_certificate_animals");
+        movementCertificateAnimal.HasKey(entity => entity.Id);
+        movementCertificateAnimal.Property(entity => entity.Id).HasColumnName("id").UseIdentityAlwaysColumn();
+        movementCertificateAnimal.Property(entity => entity.MovementCertificateId).HasColumnName("movement_certificate_id");
+        movementCertificateAnimal.Property(entity => entity.AnimalId).HasColumnName("animal_id");
+        movementCertificateAnimal.HasIndex(entity => new { entity.MovementCertificateId, entity.AnimalId }).IsUnique();
+        movementCertificateAnimal.HasOne(entity => entity.MovementCertificate)
+            .WithMany(entity => entity.Animals)
+            .HasForeignKey(entity => entity.MovementCertificateId)
+            .OnDelete(DeleteBehavior.Cascade);
+        movementCertificateAnimal.HasOne(entity => entity.Animal)
+            .WithMany(entity => entity.MovementCertificates)
+            .HasForeignKey(entity => entity.AnimalId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        var balance = modelBuilder.Entity<Balance>();
+        balance.ToTable("balance");
+        balance.HasKey(entity => entity.Id);
+        balance.Property(entity => entity.Id).HasColumnName("id").UseIdentityAlwaysColumn();
+        balance.Property(entity => entity.LivestockFarmId).HasColumnName("livestock_farm_id");
+        balance.Property(entity => entity.BalanceDate).HasColumnName("balance_date");
+        balance.Property(entity => entity.DestinationLivestockCode).HasColumnName("destination_livestock_code").HasMaxLength(32);
+        balance.Property(entity => entity.HealthDocumentNumber).HasColumnName("health_document_number").HasMaxLength(80);
+        balance.Property(entity => entity.ModificationCause).HasColumnName("modification_cause").HasMaxLength(80).IsRequired();
+        balance.Property(entity => entity.NumberOfAnimals).HasColumnName("number_of_animals");
+        balance.Property(entity => entity.OriginLivestockCode).HasColumnName("origin_livestock_code").HasMaxLength(32);
+        balance.HasOne(entity => entity.LivestockFarm)
+            .WithMany()
+            .HasForeignKey(entity => entity.LivestockFarmId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var balanceOvinoCaprino = modelBuilder.Entity<BalanceOvinoCaprino>();
+        balanceOvinoCaprino.ToTable("balance_ovino_caprino");
+        balanceOvinoCaprino.HasKey(entity => entity.BalanceId);
+        balanceOvinoCaprino.Property(entity => entity.BalanceId).HasColumnName("balance_id");
+        balanceOvinoCaprino.Property(entity => entity.NonReproductiveBetween4And12Months).HasColumnName("non_reproductive_between_4_12m");
+        balanceOvinoCaprino.Property(entity => entity.NonReproductiveUnder4Months).HasColumnName("non_reproductive_under_4m");
+        balanceOvinoCaprino.Property(entity => entity.ReproductiveFemales).HasColumnName("reproductive_females");
+        balanceOvinoCaprino.Property(entity => entity.ReproductiveMales).HasColumnName("reproductive_males");
+        balanceOvinoCaprino.Property(entity => entity.TransportTicketNumber).HasColumnName("transport_ticket_number").HasMaxLength(80);
+        balanceOvinoCaprino.Property(entity => entity.TransporterName).HasColumnName("transporter_name").HasMaxLength(180);
+        balanceOvinoCaprino.HasOne(entity => entity.Balance)
+            .WithOne(entity => entity.OvinoCaprino)
+            .HasForeignKey<BalanceOvinoCaprino>(entity => entity.BalanceId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var balancePorcino = modelBuilder.Entity<BalancePorcino>();
+        balancePorcino.ToTable("balance_porcino");
+        balancePorcino.HasKey(entity => entity.BalanceId);
+        balancePorcino.Property(entity => entity.BalanceId).HasColumnName("balance_id");
+        balancePorcino.Property(entity => entity.Baits).HasColumnName("baits");
+        balancePorcino.Property(entity => entity.Boars).HasColumnName("boars");
+        balancePorcino.Property(entity => entity.Breed).HasColumnName("breed").HasMaxLength(80);
+        balancePorcino.Property(entity => entity.Piglets).HasColumnName("piglets");
+        balancePorcino.Property(entity => entity.PigsReposition).HasColumnName("pigs_reposition");
+        balancePorcino.Property(entity => entity.Rear).HasColumnName("rear");
+        balancePorcino.Property(entity => entity.SowsForLive).HasColumnName("sows_for_live");
+        balancePorcino.Property(entity => entity.SowsReposition).HasColumnName("sows_reposition");
+        balancePorcino.Property(entity => entity.Tag).HasColumnName("tag").HasMaxLength(80);
+        balancePorcino.Property(entity => entity.Type).HasColumnName("type").HasMaxLength(80);
+        balancePorcino.HasOne(entity => entity.Balance)
+            .WithOne(entity => entity.Porcino)
+            .HasForeignKey<BalancePorcino>(entity => entity.BalanceId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var census = modelBuilder.Entity<Census>();
+        census.ToTable("census");
+        census.HasKey(entity => entity.Id);
+        census.Property(entity => entity.Id).HasColumnName("id").UseIdentityAlwaysColumn();
+        census.Property(entity => entity.LivestockFarmId).HasColumnName("livestock_farm_id");
+        census.Property(entity => entity.CensusDate).HasColumnName("census_date");
+        census.HasOne(entity => entity.LivestockFarm)
+            .WithMany()
+            .HasForeignKey(entity => entity.LivestockFarmId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var censusOvinoCaprino = modelBuilder.Entity<CensusOvinoCaprino>();
+        censusOvinoCaprino.ToTable("census_ovino_caprino");
+        censusOvinoCaprino.HasKey(entity => entity.CensusId);
+        censusOvinoCaprino.Property(entity => entity.CensusId).HasColumnName("census_id");
+        censusOvinoCaprino.Property(entity => entity.NonReproductiveBetween4And12Months).HasColumnName("non_reproductive_between_4_12m");
+        censusOvinoCaprino.Property(entity => entity.NonReproductiveUnder4Months).HasColumnName("non_reproductive_under_4m");
+        censusOvinoCaprino.Property(entity => entity.ReproductiveFemale).HasColumnName("reproductive_female");
+        censusOvinoCaprino.Property(entity => entity.ReproductiveMale).HasColumnName("reproductive_male");
+        censusOvinoCaprino.HasOne(entity => entity.Census)
+            .WithOne(entity => entity.OvinoCaprino)
+            .HasForeignKey<CensusOvinoCaprino>(entity => entity.CensusId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var censusPorcino = modelBuilder.Entity<CensusPorcino>();
+        censusPorcino.ToTable("census_porcino");
+        censusPorcino.HasKey(entity => entity.CensusId);
+        censusPorcino.Property(entity => entity.CensusId).HasColumnName("census_id");
+        censusPorcino.Property(entity => entity.Baits).HasColumnName("baits");
+        censusPorcino.Property(entity => entity.Boars).HasColumnName("boars");
+        censusPorcino.Property(entity => entity.Piglets).HasColumnName("piglets");
+        censusPorcino.Property(entity => entity.PigsReposition).HasColumnName("pigs_reposition");
+        censusPorcino.Property(entity => entity.Rears).HasColumnName("rears");
+        censusPorcino.Property(entity => entity.Sow).HasColumnName("sow");
+        censusPorcino.Property(entity => entity.SowsReposition).HasColumnName("sows_reposition");
+        censusPorcino.HasOne(entity => entity.Census)
+            .WithOne(entity => entity.Porcino)
+            .HasForeignKey<CensusPorcino>(entity => entity.CensusId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var incident = modelBuilder.Entity<Incident>();
+        incident.ToTable("incident");
+        incident.HasKey(entity => entity.Id);
+        incident.Property(entity => entity.Id).HasColumnName("id").UseIdentityAlwaysColumn();
+        incident.Property(entity => entity.LivestockFarmId).HasColumnName("livestock_farm_id");
+        incident.Property(entity => entity.AnimalId).HasColumnName("animal_id");
+        incident.Property(entity => entity.ChangeReason).HasColumnName("change_reason").HasMaxLength(120);
+        incident.Property(entity => entity.Description).HasColumnName("description");
+        incident.Property(entity => entity.IncidentDate).HasColumnName("incident_date");
+        incident.Property(entity => entity.LastIdentification).HasColumnName("last_identification").HasMaxLength(80);
+        incident.Property(entity => entity.NewIdentification).HasColumnName("new_identification").HasMaxLength(80);
+        incident.HasOne(entity => entity.LivestockFarm)
+            .WithMany()
+            .HasForeignKey(entity => entity.LivestockFarmId)
+            .OnDelete(DeleteBehavior.Cascade);
+        incident.HasOne(entity => entity.Animal)
+            .WithMany()
+            .HasForeignKey(entity => entity.AnimalId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         var inspection = modelBuilder.Entity<Inspection>();
         inspection.ToTable("inspection");
@@ -293,5 +462,29 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
             .WithMany()
             .HasForeignKey(entity => entity.CreatedByUserId)
             .OnDelete(DeleteBehavior.SetNull);
+    }
+
+    private static AnimalRegistrationCause? ParseAnimalRegistrationCause(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return Enum.TryParse<AnimalRegistrationCause>(value, true, out var cause)
+            ? cause
+            : AnimalRegistrationCause.Entrada;
+    }
+
+    private static AnimalDischargeCause? ParseAnimalDischargeCause(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return Enum.TryParse<AnimalDischargeCause>(value, true, out var cause)
+            ? cause
+            : AnimalDischargeCause.Salida;
     }
 }

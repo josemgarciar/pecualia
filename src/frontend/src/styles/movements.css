@@ -1,0 +1,473 @@
+/* ═══════════════════════════════════════════════════════════════
+   movements.css — Pecualia Design System
+   ═══════════════════════════════════════════════════════════════ */
+
+.movements-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.95fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.movement-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.movement-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.movement-import-button {
+  background: #f6edd2;
+  border-color: #e7b84c;
+  color: #7a5a12;
+}
+
+.movement-import-button:hover {
+  background: #f2e2af;
+}
+
+.movement-detail-panel {
+  width: auto;
+}
+
+.movement-detail-hero {
+  padding-bottom: 18px;
+}
+
+.movement-detail-hero strong {
+  display: block;
+  margin-top: 6px;
+  color: #ffffff;
+  font-size: 1.05rem;
+}
+
+.movement-detail-hero p {
+  margin: 4px 0 0;
+  color: #ddebdf;
+  font-size: 0.82rem;
+}
+
+.movement-detail-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.movement-detail-group {
+  display: grid;
+  gap: 3px;
+}
+
+.movement-detail-group span {
+  color: #637168;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.movement-detail-group strong {
+  color: #1e2a24;
+  font-size: 0.92rem;
+}
+
+.movement-detail-group small {
+  color: #637168;
+}
+
+.movement-detail-list {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f2f0;
+}
+
+.movement-detail-animal {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #d7ded8;
+  border-radius: 12px;
+  background: #f6f8f5;
+}
+
+.movement-detail-animal strong {
+  color: #1e2a24;
+  font-size: 0.88rem;
+}
+
+.movement-detail-animal span {
+  color: #637168;
+  font-size: 0.8rem;
+}
+
+.movement-impact-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(47, 107, 79, 0.18);
+  background: #ddebdf;
+  color: #2f6b4f;
+}
+
+.movement-impact-note p {
+  margin: 0;
+  color: #2f6b4f;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.movement-selected-farm {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid #2f6b4f;
+  border-radius: 12px;
+  background: #f0f7f4;
+}
+
+.movement-selected-farm strong {
+  color: #1e2a24;
+  font-size: 0.92rem;
+}
+
+.movement-selected-farm span {
+  color: #637168;
+  font-size: 0.8rem;
+}
+
+.movement-modal-shell {
+  width: min(1040px, 100%);
+}
+
+.movement-section-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.movement-section-copy h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.movement-section-copy p {
+  margin: 0;
+  color: #637168;
+  font-size: 0.82rem;
+}
+
+.movement-animal-picker {
+  border-top: 1px solid #d7ded8;
+  padding-top: 18px;
+}
+
+.movement-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.movement-selection-card {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid #d7ded8;
+  border-radius: 14px;
+  background: #ffffff;
+  text-align: left;
+}
+
+.movement-selection-card:hover,
+.movement-selection-card-active {
+  border-color: #2f6b4f;
+  background: #f0f7f4;
+}
+
+.movement-selection-card strong {
+  color: #1e2a24;
+}
+
+.movement-selection-card span {
+  color: #637168;
+  font-size: 0.82rem;
+}
+
+.movement-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px 24px 8px;
+}
+
+.movement-stepper-item {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.movement-stepper-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: #d7ded8;
+  color: #637168;
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.movement-stepper-badge-active {
+  background: #2f6b4f;
+  color: #ffffff;
+}
+
+.movement-stepper-label {
+  color: #637168;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.movement-stepper-label-active {
+  color: #2f6b4f;
+}
+
+.movement-upload-box {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 26px 18px;
+  border: 1px dashed #2f6b4f;
+  border-radius: 16px;
+  background: #f0f7f4;
+  color: #2f6b4f;
+  text-align: center;
+  cursor: pointer;
+}
+
+.movement-upload-box strong {
+  color: #1e2a24;
+}
+
+.movement-upload-box span {
+  color: #637168;
+  font-size: 0.82rem;
+}
+
+.movement-preview-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.movement-preview-summary-card {
+  padding: 16px;
+  border: 1px solid #d7ded8;
+  border-radius: 14px;
+  background: #ffffff;
+  display: grid;
+  gap: 8px;
+}
+
+.movement-preview-summary-card span {
+  color: #637168;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.movement-preview-summary-card strong {
+  color: #1e2a24;
+  font-size: 1.2rem;
+}
+
+.movement-confirmation-card,
+.movement-shared-data {
+  padding: 18px;
+  border: 1px solid #d7ded8;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.movement-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.animal-detail-panel {
+  width: 320px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid #d7ded8;
+  border-radius: 14px;
+  background: #ffffff;
+  position: sticky;
+  top: 24px;
+}
+
+.animal-detail-hero {
+  padding: 20px;
+  background: #2f6b4f;
+}
+
+.animal-detail-hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.animal-detail-hero span {
+  display: block;
+  color: #ddebdf;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.animal-detail-hero strong {
+  display: block;
+  margin-top: 4px;
+  color: #ffffff;
+  font-size: 1.08rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.animal-detail-hero button {
+  border: 0;
+  background: transparent;
+  color: #ddebdf;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.animal-detail-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.animal-detail-badges span {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-size: 0.72rem;
+}
+
+.animal-detail-tabs {
+  display: flex;
+  border-bottom: 1px solid #d7ded8;
+}
+
+.animal-detail-tabs button {
+  flex: 1;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: #ffffff;
+  padding: 11px;
+  color: #637168;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.animal-detail-tabs .animal-detail-tab-active {
+  border-bottom-color: #2f6b4f;
+  color: #2f6b4f;
+  font-weight: 800;
+}
+
+.animal-detail-body {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.animal-detail-field {
+  display: grid;
+  gap: 3px;
+}
+
+.animal-detail-field span {
+  color: #637168;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.animal-detail-field strong {
+  color: #1e2a24;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.animal-specific-detail {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid #d7ded8;
+}
+
+.animal-specific-detail h3,
+.animal-specific-block h3 {
+  margin: 0;
+  color: #637168;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.animal-detail-actions {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid #d7ded8;
+}
+
+.danger-button {
+  border: 1px solid #dc2626;
+  border-radius: 10px;
+  padding: 11px 15px;
+  background: #ffffff;
+  color: #dc2626;
+  cursor: pointer;
+}
+
+.danger-button:hover {
+  background: #fff1f2;
+}
+
+.danger-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.animal-modal {
+  max-height: min(860px, 92vh);
+  overflow: auto;
+}
+
+.animal-specific-block {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #d7ded8;
+  border-radius: 14px;
+  background: #f6f8f5;
+}

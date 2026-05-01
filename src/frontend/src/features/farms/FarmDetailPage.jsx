@@ -5,16 +5,32 @@ import {
   BarChart3,
   BookOpen,
   Building2,
+  ArrowLeftRight,
   ClipboardCheck,
+  Edit3,
   MapPin,
+  Plus,
   Search,
   Skull,
   Sprout,
   Tag,
-  TriangleAlert
+  TrendingDown,
+  TrendingUp,
+  TriangleAlert,
+  X
 } from 'lucide-react';
-import { apiRequest } from '../../shared/api/client';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
+import { apiBlobRequest, apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
+import { FarmMovementsSection } from '../movements/FarmMovementsSection';
 
 const speciesToneMap = {
   Ovine: { bg: '#DDEBDF', color: '#2F6B4F', label: 'Ovino' },
@@ -34,17 +50,25 @@ const regimeLabelMap = {
   Intensive: 'Intensivo'
 };
 
+const registrationCauseLabelMap = {
+  Entrada: 'Entrada (E)',
+  Autorreposicion: 'Autorreposición (A)'
+};
+
 const detailTabs = [
   { key: 'summary', label: 'Resumen', icon: Building2, enabled: true },
   { key: 'animals', label: 'Animales', icon: Tag, enabled: true },
-  { key: 'movements', label: 'Movimientos', icon: Building2, enabled: false },
-  { key: 'births', label: 'Nacimientos', icon: Sprout, enabled: false },
-  { key: 'deaths', label: 'Muertes', icon: Skull, enabled: false },
-  { key: 'balances', label: 'Censos y balances', icon: BarChart3, enabled: false },
-  { key: 'book', label: 'Libro', icon: BookOpen, enabled: false },
-  { key: 'incidents', label: 'Incidencias', icon: TriangleAlert, enabled: false },
-  { key: 'inspections', label: 'Inspecciones', icon: ClipboardCheck, enabled: false }
+  { key: 'movements', label: 'Movimientos', icon: ArrowLeftRight, enabled: true },
+  { key: 'births', label: 'Nacimientos', icon: Sprout, enabled: true },
+  { key: 'deaths', label: 'Muertes', icon: Skull, enabled: true },
+  { key: 'balances', label: 'Censos y balances', icon: BarChart3, enabled: true },
+  { key: 'book', label: 'Libro', icon: BookOpen, enabled: true },
+  { key: 'incidents', label: 'Incidencias', icon: TriangleAlert, enabled: true },
+  { key: 'inspections', label: 'Inspecciones', icon: ClipboardCheck, enabled: true }
 ];
+
+const currentYear = new Date().getFullYear();
+const monthLabels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 function formatText(value, fallback = 'No informado') {
   return value ?? fallback;
@@ -58,6 +82,10 @@ function formatRegime(value) {
   return regimeLabelMap[value] ?? value;
 }
 
+function formatRegistrationCause(value) {
+  return registrationCauseLabelMap[value] ?? value ?? '—';
+}
+
 function formatCoordinate(value) {
   if (value == null) {
     return 'No informada';
@@ -67,6 +95,23 @@ function formatCoordinate(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(value);
+}
+
+function formatDate(value) {
+  return value ? new Intl.DateTimeFormat('es-ES').format(new Date(`${value}T00:00:00`)) : '—';
+}
+
+function parsePositiveNumber(value) {
+  return value === '' ? null : Number(value);
+}
+
+function parseOptionalInteger(value) {
+  return value === '' ? null : Number(value);
+}
+
+function emptyToNull(value) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }
 
 function DetailField({ label, value, fullWidth = false }) {
@@ -87,12 +132,13 @@ function SummaryMetric({ label, value, tone = 'default' }) {
   );
 }
 
-function FarmAnimalsSection({ farmId, token }) {
+function FarmAnimalsSection({ farm, token }) {
   const [animals, setAnimals] = useState([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const identificationLabel = farm.livestockSpecies === 'Porcine' ? 'Lote' : 'Crotal';
 
   useEffect(() => {
     let cancelled = false;
@@ -110,7 +156,7 @@ function FarmAnimalsSection({ farmId, token }) {
           params.set('status', status);
         }
 
-        const response = await apiRequest(`/api/farms/${farmId}/animals${params.toString() ? `?${params}` : ''}`, { token });
+        const response = await apiRequest(`/api/farms/${farm.id}/animals${params.toString() ? `?${params}` : ''}`, { token });
         if (!cancelled) {
           setAnimals(response);
         }
@@ -131,7 +177,7 @@ function FarmAnimalsSection({ farmId, token }) {
     return () => {
       cancelled = true;
     };
-  }, [farmId, search, status, token]);
+  }, [farm.id, search, status, token]);
 
   if (loading) {
     return <div className="panel-card empty-state">Cargando animales de la explotación...</div>;
@@ -148,7 +194,7 @@ function FarmAnimalsSection({ farmId, token }) {
       <div className="animal-filters farm-animals-filters">
         <div className="animal-search">
           <Search size={14} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar crotal o raza..." />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Buscar ${identificationLabel.toLowerCase()} o raza...`} />
         </div>
         <select value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="">Todos los estados</option>
@@ -168,7 +214,7 @@ function FarmAnimalsSection({ farmId, token }) {
             <table className="animal-table">
               <thead>
                 <tr>
-                  {['Crotal', 'Especie', 'Raza', 'Sexo', 'Año nac.', 'Fecha alta', 'Causa alta', 'Estado'].map((header) => (
+                  {[identificationLabel, 'Especie', 'Raza', 'Sexo', 'Año nac.', 'Fecha alta', 'Causa alta', 'Estado'].map((header) => (
                     <th key={header}>{header}</th>
                   ))}
                 </tr>
@@ -194,7 +240,7 @@ function FarmAnimalsSection({ farmId, token }) {
                       <td>{animal.sex === 'Female' ? '♀' : animal.sex === 'Male' ? '♂' : ''} {sexLabel}</td>
                       <td>{animal.birthYear ?? '—'}</td>
                       <td>{animal.registrationDate ? new Intl.DateTimeFormat('es-ES').format(new Date(`${animal.registrationDate}T00:00:00`)) : '—'}</td>
-                      <td>{animal.registrationCause ?? '—'}</td>
+                      <td>{formatRegistrationCause(animal.registrationCause)}</td>
                       <td><span className="animal-chip" style={{ background: statusTone.bg, color: statusTone.color }}>{statusTone.label}</span></td>
                     </tr>
                   );
@@ -203,6 +249,1169 @@ function FarmAnimalsSection({ farmId, token }) {
             </table>
           </div>
           <div className="animal-table-footer">{animals.length} animales</div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FarmBirthsSection({ farm, token }) {
+  const [births, setBirths] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState({
+    birthDate: new Date().toISOString().slice(0, 10),
+    offspringNumber: '1',
+    birthWeight: '',
+    observations: ''
+  });
+
+  async function loadBirths() {
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await apiRequest(`/api/farms/${farm.id}/births`, { token });
+      setBirths(response);
+    } catch (requestError) {
+      setError(requestError.message);
+      setBirths([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadBirths();
+  }, [farm.id, token]);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+
+    const offspringNumber = Number(form.offspringNumber);
+    const birthWeight = parsePositiveNumber(form.birthWeight);
+    if (!form.birthDate || !Number.isInteger(offspringNumber) || offspringNumber <= 0 || (birthWeight !== null && birthWeight < 0)) {
+      setError('Revisa fecha, número de crías y peso. El número de crías debe ser positivo.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await apiRequest(`/api/farms/${farm.id}/births`, {
+        method: 'POST',
+        token,
+        body: {
+          birthDate: form.birthDate,
+          offspringNumber,
+          birthWeight,
+          observations: form.observations.trim() || null
+        }
+      });
+      setSuccess('Nacimiento registrado correctamente.');
+      setFormOpen(false);
+      setForm({ birthDate: new Date().toISOString().slice(0, 10), offspringNumber: '1', birthWeight: '', observations: '' });
+      await loadBirths();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const totalOffspring = births.reduce((sum, birth) => sum + birth.offspringNumber, 0);
+
+  if (loading) {
+    return <div className="panel-card empty-state">Cargando nacimientos...</div>;
+  }
+
+  return (
+    <section className="farm-operations-layout">
+      <article className="panel-card stack">
+        <div className="section-heading-row">
+          <div>
+            <h2>Nacimientos</h2>
+            <p>{births.length} partos registrados · {totalOffspring} crías declaradas</p>
+          </div>
+          <button className="primary-button" type="button" onClick={() => setFormOpen((value) => !value)}>
+            <Plus size={16} />
+            Registrar nacimiento
+          </button>
+        </div>
+
+        <div className="info-callout">
+          <Sprout size={18} />
+          <p>El nacimiento registra trazabilidad agregada para censo y balance. No crea animales ni solicita crotales.</p>
+        </div>
+
+        {error && <div className="error-banner">{error}</div>}
+        {success && <div className="success-banner">{success}</div>}
+
+        {formOpen && (
+          <form className="operation-form" onSubmit={handleSubmit}>
+            <label>
+              <span>Fecha de parto *</span>
+              <input type="date" value={form.birthDate} onChange={(event) => setForm({ ...form, birthDate: event.target.value })} />
+            </label>
+            <label>
+              <span>Número de crías *</span>
+              <input type="number" min="1" value={form.offspringNumber} onChange={(event) => setForm({ ...form, offspringNumber: event.target.value })} />
+            </label>
+            <label>
+              <span>Peso medio al nacimiento</span>
+              <input type="number" min="0" step="0.001" value={form.birthWeight} onChange={(event) => setForm({ ...form, birthWeight: event.target.value })} placeholder="3.0 kg" />
+            </label>
+            <label className="operation-form-wide">
+              <span>Observaciones</span>
+              <textarea value={form.observations} onChange={(event) => setForm({ ...form, observations: event.target.value })} placeholder="Notas sobre el parto, complicaciones, etc." />
+            </label>
+            <div className="operation-form-actions">
+              <button className="secondary-button" type="button" onClick={() => setFormOpen(false)}>Cancelar</button>
+              <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar nacimiento'}</button>
+            </div>
+          </form>
+        )}
+
+        {births.length === 0 ? (
+          <div className="empty-state">
+            <Sprout size={28} />
+            <div>No hay nacimientos registrados para esta explotación.</div>
+          </div>
+        ) : (
+          <div className="birth-card-list">
+            {births.map((birth) => (
+              <article key={birth.id} className="operation-record-card">
+                <div>
+                  <strong>Parto registrado · {formatDate(birth.birthDate)}</strong>
+                  <span>{birth.offspringNumber} cría{birth.offspringNumber === 1 ? '' : 's'}</span>
+                </div>
+                <p>Peso medio: {birth.birthWeight == null ? 'No informado' : `${birth.birthWeight} kg`}</p>
+                {birth.observations && <p>{birth.observations}</p>}
+              </article>
+            ))}
+          </div>
+        )}
+      </article>
+    </section>
+  );
+}
+
+function FarmDeathsSection({ farm, token }) {
+  const [deaths, setDeaths] = useState([]);
+  const [search, setSearch] = useState('');
+  const [destination, setDestination] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState({
+    identification: '',
+    dischargeDate: new Date().toISOString().slice(0, 10),
+    destinationCode: ''
+  });
+
+  async function loadDeaths() {
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await apiRequest(`/api/farms/${farm.id}/deaths`, { token });
+      setDeaths(response);
+    } catch (requestError) {
+      setError(requestError.message);
+      setDeaths([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadDeaths();
+  }, [farm.id, token]);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!form.identification.trim() || !form.dischargeDate || !form.destinationCode) {
+      setError('Crotal, fecha y destino son obligatorios.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await apiRequest(`/api/farms/${farm.id}/deaths`, {
+        method: 'POST',
+        token,
+        body: {
+          identification: form.identification.trim(),
+          dischargeDate: form.dischargeDate,
+          destinationCode: form.destinationCode
+        }
+      });
+      setSuccess('Baja por muerte registrada correctamente.');
+      setModalOpen(false);
+      setForm({ identification: '', dischargeDate: new Date().toISOString().slice(0, 10), destinationCode: '' });
+      await loadDeaths();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const filteredDeaths = deaths.filter((death) => {
+    const matchesSearch = !search.trim() || `${death.identification} ${death.breed ?? ''}`.toLowerCase().includes(search.trim().toLowerCase());
+    const matchesDestination = !destination || death.destinationCode === destination;
+    return matchesSearch && matchesDestination;
+  });
+  const sandachCount = deaths.filter((death) => death.destinationCode === 'SANDACH').length;
+  const merCount = deaths.filter((death) => death.destinationCode === 'MER').length;
+
+  if (loading) {
+    return <div className="panel-card empty-state">Cargando bajas por muerte...</div>;
+  }
+
+  return (
+    <section className="panel-card stack">
+      <div className="info-callout info-callout-danger">
+        <Skull size={18} />
+        <p>Esta sección solo gestiona bajas cuya causa oficial es Muerte. Las bajas por Salida se gestionan desde movimientos/importación.</p>
+      </div>
+
+      <div className="farm-detail-metrics">
+        <SummaryMetric label="Total bajas por muerte" value={deaths.length} />
+        <SummaryMetric label="SANDACH" value={sandachCount} />
+        <SummaryMetric label="MER" value={merCount} />
+        <SummaryMetric label="Explotación" value={farm.name} />
+      </div>
+
+      {error && <div className="error-banner">{error}</div>}
+      {success && <div className="success-banner">{success}</div>}
+
+      <div className="section-heading-row">
+        <div className="animal-filters farm-animals-filters">
+          <div className="animal-search">
+            <Search size={14} />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por crotal o raza..." />
+          </div>
+          <select value={destination} onChange={(event) => setDestination(event.target.value)}>
+            <option value="">Todos los destinos</option>
+            <option value="SANDACH">SANDACH</option>
+            <option value="MER">MER</option>
+          </select>
+        </div>
+        <button className="primary-button" type="button" onClick={() => setModalOpen(true)}>
+          <Plus size={16} />
+          Registrar baja
+        </button>
+      </div>
+
+      <div className="animal-table-card">
+        <div className="table-scroll">
+          <table className="animal-table">
+            <thead>
+              <tr>
+                {['Crotal', 'Raza / sexo / año', 'Fecha baja', 'Causa baja', 'Destino'].map((header) => <th key={header}>{header}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredDeaths.map((death) => (
+                <tr key={death.animalId}>
+                  <td><div className="animal-identification-cell"><Tag size={13} /><strong>{death.identification}</strong></div></td>
+                  <td>{death.breed ?? '—'} · {death.sex ?? 'Sexo no informado'} · {death.birthYear ?? 'Año no informado'}</td>
+                  <td>{formatDate(death.dischargeDate)}</td>
+                  <td><span className="animal-chip death-chip">Muerte</span></td>
+                  <td>{death.destinationCode ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="animal-table-footer">{filteredDeaths.length} de {deaths.length} bajas por muerte</div>
+      </div>
+
+      {modalOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <form className="modal-card modal-wide farm-modal-shell" onSubmit={handleSubmit}>
+            <div className="farm-modal-header">
+              <div className="farm-modal-title">
+                <div className="modal-panel-icon"><Skull size={18} /></div>
+                <div>
+                  <h2>Registrar baja por muerte</h2>
+                  <p>{farm.name}</p>
+                </div>
+              </div>
+              <button className="farm-modal-close" type="button" onClick={() => setModalOpen(false)} aria-label="Cerrar modal">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="farm-modal-body operation-modal-body">
+              <label>
+                <span>Crotal / identificación *</span>
+                <input value={form.identification} onChange={(event) => setForm({ ...form, identification: event.target.value })} placeholder="Ej: ES0600005831" />
+              </label>
+              <label>
+                <span>Fecha de baja *</span>
+                <input type="date" value={form.dischargeDate} onChange={(event) => setForm({ ...form, dischargeDate: event.target.value })} />
+              </label>
+              <label>
+                <span>Destino *</span>
+                <select value={form.destinationCode} onChange={(event) => setForm({ ...form, destinationCode: event.target.value })}>
+                  <option value="">Seleccionar...</option>
+                  <option value="SANDACH">SANDACH</option>
+                  <option value="MER">MER</option>
+                </select>
+              </label>
+              <div className="info-callout">
+                <Skull size={18} />
+                <p>La causa oficial guardada será Baja - Causa Muerte. No se modificarán animales dados de baja por Salida.</p>
+              </div>
+            </div>
+            <div className="farm-modal-footer">
+              <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
+              <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar baja'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FarmCensusBalancesSection({ farm, token }) {
+  const [activeSubTab, setActiveSubTab] = useState('census');
+  const [year, setYear] = useState(currentYear);
+  const [census, setCensus] = useState(null);
+  const [balance, setBalance] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({
+    nonReproductiveUnder4Months: '0',
+    nonReproductiveBetween4And12Months: '0',
+    reproductiveFemales: '0',
+    reproductiveMales: '0',
+    boars: '0',
+    sowsForLive: '0',
+    sowsReposition: '0',
+    malesReposition: '0',
+    piglets: '0',
+    rears: '0',
+    baits: '0'
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function loadData(targetYear = year) {
+    setLoading(true);
+    setError('');
+
+    try {
+      const [censusResponse, balanceResponse] = await Promise.all([
+        apiRequest(`/api/farms/${farm.id}/census?year=${targetYear}`, { token }),
+        apiRequest(`/api/farms/${farm.id}/balances?year=${targetYear}`, { token })
+      ]);
+      setCensus(censusResponse);
+      setBalance(balanceResponse);
+      setForm({
+        nonReproductiveUnder4Months: String(censusResponse.nonReproductiveUnder4Months),
+        nonReproductiveBetween4And12Months: String(censusResponse.nonReproductiveBetween4And12Months),
+        reproductiveFemales: String(censusResponse.reproductiveFemales),
+        reproductiveMales: String(censusResponse.reproductiveMales),
+        boars: String(censusResponse.boars),
+        sowsForLive: String(censusResponse.sowsForLive),
+        sowsReposition: String(censusResponse.sowsReposition),
+        malesReposition: String(censusResponse.malesReposition),
+        piglets: String(censusResponse.piglets),
+        rears: String(censusResponse.rears),
+        baits: String(censusResponse.baits)
+      });
+    } catch (requestError) {
+      setError(requestError.message);
+      setCensus(null);
+      setBalance(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData(year);
+  }, [farm.id, token, year]);
+
+  async function handleSave(event) {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+
+    const payload = {
+      nonReproductiveUnder4Months: Number(form.nonReproductiveUnder4Months),
+      nonReproductiveBetween4And12Months: Number(form.nonReproductiveBetween4And12Months),
+      reproductiveFemales: Number(form.reproductiveFemales),
+      reproductiveMales: Number(form.reproductiveMales),
+      boars: Number(form.boars),
+      sowsForLive: Number(form.sowsForLive),
+      sowsReposition: Number(form.sowsReposition),
+      malesReposition: Number(form.malesReposition),
+      piglets: Number(form.piglets),
+      rears: Number(form.rears),
+      baits: Number(form.baits)
+    };
+
+    if (Object.values(payload).some((value) => !Number.isInteger(value) || value < 0)) {
+      setError('Todas las categorías del censo deben ser enteros no negativos.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await apiRequest(`/api/farms/${farm.id}/census?year=${year}`, {
+        method: 'PUT',
+        token,
+        body: payload
+      });
+      setCensus(response);
+      setSuccess(`Censo anual ${year} guardado correctamente.`);
+      setEditing(false);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return <div className="panel-card empty-state">Cargando censos y balances...</div>;
+  }
+
+  const isPorcine = farm.livestockSpecies === 'Porcine';
+  const total = census?.total ?? 0;
+  const censusCards = isPorcine
+    ? [
+        { label: 'Verracos', value: census?.boars ?? 0, color: '#1d4ed8', bg: '#dbeafe' },
+        { label: 'Cerdas vida', value: census?.sowsForLive ?? 0, color: '#be185d', bg: '#fce7f3' },
+        { label: 'Hembras reposición', value: census?.sowsReposition ?? 0, color: '#d97706', bg: '#fef3c7' },
+        { label: 'Machos reposición', value: census?.malesReposition ?? 0, color: '#2563eb', bg: '#dbeafe' },
+        { label: 'Lechones', value: census?.piglets ?? 0, color: '#7c3aed', bg: '#ede9fe' },
+        { label: 'Recría', value: census?.rears ?? 0, color: '#0f766e', bg: '#ccfbf1' },
+        { label: 'Cebo', value: census?.baits ?? 0, color: '#9d174d', bg: '#fce7f3' }
+      ]
+    : [
+        { label: 'Reproductores macho', value: census?.reproductiveMales ?? 0, color: '#1d4ed8', bg: '#dbeafe' },
+        { label: 'Reproductores hembra', value: census?.reproductiveFemales ?? 0, color: '#be185d', bg: '#fce7f3' },
+        { label: 'Menores de 4 meses', value: census?.nonReproductiveUnder4Months ?? 0, color: '#d97706', bg: '#fef3c7' },
+        { label: 'De 4 a 12 meses', value: census?.nonReproductiveBetween4And12Months ?? 0, color: '#7c3aed', bg: '#ede9fe' }
+      ];
+  const safeDivisor = total || 1;
+  const censusCardsWithPct = censusCards.map((card) => ({
+    ...card,
+    pct: Math.round((card.value / safeDivisor) * 100)
+  }));
+
+  const balanceReg = balance?.registrations ?? 0;
+  const balanceBirths = balance?.births ?? 0;
+  const balanceDeaths = balance?.deaths ?? 0;
+  const balanceDepartures = balance?.departures ?? 0;
+  const balanceNet = balance?.balance ?? 0;
+  const balanceEntries = balanceReg;
+  const balanceExits = balanceDepartures;
+  const censusFields = isPorcine
+    ? [
+        ['boars', 'Verracos'],
+        ['sowsForLive', 'Cerdas vida'],
+        ['sowsReposition', 'Hembras reposición'],
+        ['malesReposition', 'Machos reposición'],
+        ['piglets', 'Lechones'],
+        ['rears', 'Recría'],
+        ['baits', 'Cebo']
+      ]
+    : [
+        ['nonReproductiveUnder4Months', 'No reproductores <4 meses'],
+        ['nonReproductiveBetween4And12Months', 'No reproductores 4-12 meses'],
+        ['reproductiveFemales', 'Hembras reproductoras'],
+        ['reproductiveMales', 'Machos reproductores']
+      ];
+
+  const balanceMetrics = [
+    { label: 'Altas', value: `+${balanceReg}`, color: '#2F6B4F', bg: '#DDEBDF' },
+    { label: 'Bajas', value: `-${balanceDeaths}`, color: '#dc2626', bg: '#fee2e2' },
+    { label: 'Nacimientos', value: `+${balanceBirths}`, color: '#d97706', bg: '#fef3c7' },
+    { label: 'Mov. entrada', value: `+${balanceEntries}`, color: '#1d4ed8', bg: '#dbeafe' },
+    { label: 'Mov. salida', value: `-${balanceExits}`, color: '#f97316', bg: '#ffedd5' },
+    { label: 'Balance', value: balanceNet >= 0 ? `+${balanceNet}` : `${balanceNet}`, color: balanceNet >= 0 ? '#2F6B4F' : '#dc2626', bg: balanceNet >= 0 ? '#DDEBDF' : '#fee2e2' }
+  ];
+
+  const chartData = (balance?.months ?? []).map((month) => ({
+    mes: monthLabels[month.month - 1],
+    altas: month.registrations ?? 0,
+    bajas: month.deaths ?? 0,
+    nacimientos: month.births ?? 0
+  }));
+
+  return (
+    <section className="panel-card stack">
+      <div className="section-heading-row">
+        <div>
+          <h2>Censos y balances</h2>
+          <p>Censo anual con histórico por año y balance derivado de eventos.</p>
+        </div>
+        <select value={year} onChange={(event) => setYear(Number(event.target.value))}>
+          {Array.from(new Set([currentYear, currentYear - 1, currentYear - 2, ...(census?.availableYears ?? [])])).sort((a, b) => b - a).map((availableYear) => (
+            <option key={availableYear} value={availableYear}>{availableYear}</option>
+          ))}
+        </select>
+      </div>
+
+      {error && <div className="error-banner">{error}</div>}
+      {success && <div className="success-banner">{success}</div>}
+
+      <div className="census-subtab-row">
+        <button type="button" className={activeSubTab === 'census' ? 'census-subtab-active' : ''} onClick={() => setActiveSubTab('census')}>Censos</button>
+        <button type="button" className={activeSubTab === 'balances' ? 'census-subtab-active' : ''} onClick={() => setActiveSubTab('balances')}>Balances</button>
+      </div>
+
+      {activeSubTab === 'census' && !editing && (
+        <div className="census-visual-card">
+          <div className="census-visual-header">
+            <div>
+              <h3 className="census-visual-title">Censo actual</h3>
+              <p className="census-visual-subtitle">Año: {year} · {speciesToneMap[farm.livestockSpecies]?.label ?? farm.livestockSpecies}</p>
+            </div>
+            <div className="census-visual-total">
+              <span className="census-visual-total-label">TOTAL ANIMALES</span>
+              <span className="census-visual-total-value">{total}</span>
+            </div>
+          </div>
+
+          <div className="census-visual-section">
+            <span className="census-visual-section-label">{isPorcine ? 'TIPOS DE ANIMAL' : 'DISTRIBUCIÓN DEL CENSO'}</span>
+            <div className="census-visual-categories">
+              {censusCardsWithPct.map((cat) => (
+                <div key={cat.label} className="census-category-card" style={{ background: cat.bg }}>
+                  <div className="census-category-top">
+                    <span className="census-category-value" style={{ color: cat.color }}>{cat.value}</span>
+                    <span className="census-category-pct" style={{ color: cat.color }}>{cat.pct}%</span>
+                  </div>
+                  <span className="census-category-label" style={{ color: cat.color }}>{cat.label}</span>
+                  <div className="census-category-bar" style={{ background: `${cat.color}30` }}>
+                    <div className="census-category-bar-fill" style={{ width: `${cat.pct}%`, background: cat.color }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="census-distribution">
+            <span className="census-visual-section-label">DISTRIBUCIÓN VISUAL</span>
+            <div className="census-distribution-bar">
+              {censusCardsWithPct.map((cat) => (
+                <div key={cat.label} style={{ width: `${cat.pct}%`, background: cat.color }} />
+              ))}
+            </div>
+            <div className="census-distribution-legend">
+              {censusCardsWithPct.map((cat) => (
+                <div key={cat.label} className="census-legend-item">
+                  <span className="census-legend-dot" style={{ background: cat.color }} />
+                  <span>{cat.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="census-edit-row">
+            <button className="secondary-button" type="button" onClick={() => setEditing(true)}>
+              <Edit3 size={14} />
+              Editar censo
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'census' && editing && (
+        <form className="census-grid" onSubmit={handleSave}>
+          <article className="census-total-card">
+            <span>Censo anual {year}</span>
+            <strong>{total}</strong>
+            <p>animales declarados</p>
+          </article>
+          {censusFields.map(([field, label]) => (
+            <label key={field} className="census-input-card">
+              <span>{label}</span>
+              <input type="number" min="0" value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })} />
+            </label>
+          ))}
+          <div className="operation-form-actions census-actions">
+            <button className="secondary-button" type="button" onClick={() => setEditing(false)}>Cancelar</button>
+            <button className="primary-button" type="submit" disabled={submitting}>
+              {submitting ? 'Guardando...' : 'Guardar censo anual'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {activeSubTab === 'balances' && balance && (
+        <div className="stack">
+          <div className="census-visual-card">
+            <h3 className="census-visual-title">Actividad mensual</h3>
+            <div className="census-chart-wrapper">
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F2F0" />
+                  <XAxis dataKey="mes" tick={{ fill: '#637168', fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#637168', fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #D7DED8', fontSize: 12 }} />
+                  <Bar dataKey="altas" name="Altas" fill="#2F6B4F" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="bajas" name="Bajas" fill="#dc2626" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="nacimientos" name="Nacimientos" fill="#E7B84C" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="census-visual-card">
+            <div className="balance-card-header">
+              <h3 className="census-visual-title">Balance {monthLabels[new Date().getMonth()]} {year}</h3>
+            </div>
+            <div className="balance-metrics-grid">
+              {balanceMetrics.map((item) => (
+                <div key={item.label} className="balance-metric-tile" style={{ background: item.bg }}>
+                  <span className="balance-metric-value" style={{ color: item.color }}>{item.value}</span>
+                  <span className="balance-metric-label" style={{ color: item.color }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="balance-trend-row">
+              {balanceNet >= 0 ? <TrendingUp size={16} className="balance-trend-icon-positive" /> : <TrendingDown size={16} className="balance-trend-icon-negative" />}
+              <span className={balanceNet >= 0 ? 'balance-trend-text-positive' : 'balance-trend-text-negative'}>
+                Balance {balanceNet >= 0 ? 'positivo' : 'negativo'} este mes
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FarmBookSection({ farm, token }) {
+  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [downloading, setDownloading] = useState(false);
+  const [printing, setPrinting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPreview() {
+      setLoading(true);
+      setError('');
+
+      try {
+        const response = await apiRequest(`/api/farms/${farm.id}/book/preview`, { token });
+        if (!cancelled) {
+          setPreview(response);
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(requestError.message);
+          setPreview(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [farm.id, token]);
+
+  async function handlePdf(mode) {
+    if (mode === 'download') {
+      setDownloading(true);
+    } else {
+      setPrinting(true);
+    }
+    setError('');
+
+    try {
+      const { blob, filename } = await apiBlobRequest(`/api/farms/${farm.id}/book/pdf`, { token });
+      const objectUrl = URL.createObjectURL(blob);
+
+      if (mode === 'download') {
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = filename;
+        anchor.click();
+      } else {
+        window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      }
+
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setDownloading(false);
+      setPrinting(false);
+    }
+  }
+
+  if (loading) {
+    return <div className="panel-card empty-state">Preparando vista previa del libro...</div>;
+  }
+
+  return (
+    <section className="panel-card stack">
+      <div className="section-heading-row">
+        <div>
+          <h2>Libro de registro</h2>
+          <p>Generación oficial imprimible a partir de los datos actuales de la explotación.</p>
+        </div>
+        <div className="operation-form-actions">
+          <button className="secondary-button" type="button" onClick={() => handlePdf('print')} disabled={printing || downloading}>
+            {printing ? 'Abriendo...' : 'Abrir / imprimir PDF'}
+          </button>
+          <button className="primary-button" type="button" onClick={() => handlePdf('download')} disabled={downloading || printing}>
+            {downloading ? 'Descargando...' : 'Descargar PDF'}
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="error-banner">{error}</div>}
+
+      {preview && (
+        <>
+          <div className="detail-grid">
+            <DetailField label="Plantilla" value={preview.template === 'official-porcino' ? 'Oficial porcino' : 'Oficial ovino/caprino'} />
+            <DetailField label="Especie" value={speciesToneMap[preview.livestockSpecies]?.label ?? preview.livestockSpecies} />
+            <DetailField label="Titular" value={preview.summary.farmerName} />
+            <DetailField label="NIF / CIF" value={preview.summary.farmerIdentifier ?? 'No informado'} />
+            <DetailField label="Localidad" value={preview.summary.town ?? 'No informada'} />
+            <DetailField label="Provincia" value={preview.summary.province ?? 'No informada'} />
+          </div>
+
+          <div className="census-visual-card">
+            <div className="balance-metrics-grid">
+              {[
+                { label: 'Animales', value: preview.summary.animals, color: '#2F6B4F', bg: '#DDEBDF' },
+                { label: 'Balances', value: preview.summary.balances, color: '#1d4ed8', bg: '#dbeafe' },
+                { label: 'Censos', value: preview.summary.censuses, color: '#7c3aed', bg: '#ede9fe' },
+                { label: 'Incidencias', value: preview.summary.incidents, color: '#d97706', bg: '#fef3c7' },
+                { label: 'Inspecciones', value: preview.summary.inspections, color: '#9d174d', bg: '#fce7f3' }
+              ].map((item) => (
+                <div key={item.label} className="balance-metric-tile" style={{ background: item.bg }}>
+                  <span className="balance-metric-value" style={{ color: item.color }}>{item.value}</span>
+                  <span className="balance-metric-label" style={{ color: item.color }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="stack">
+            {preview.sections.map((section) => (
+              <article key={section.id} className="panel-card stack">
+                <div className="detail-header">
+                  <div>
+                    <h2>{section.title}</h2>
+                    <p>{section.description}</p>
+                  </div>
+                  <strong>{section.items}</strong>
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function FarmIncidentsSection({ farm, token }) {
+  const [incidents, setIncidents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState({
+    animalIdentification: '',
+    incidentDate: new Date().toISOString().slice(0, 10),
+    changeReason: '',
+    description: '',
+    lastIdentification: '',
+    newIdentification: ''
+  });
+
+  async function loadIncidents() {
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await apiRequest(`/api/farms/${farm.id}/incidents`, { token });
+      setIncidents(response);
+    } catch (requestError) {
+      setError(requestError.message);
+      setIncidents([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadIncidents();
+  }, [farm.id, token]);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!form.incidentDate) {
+      setError('La fecha de incidencia es obligatoria.');
+      return;
+    }
+
+    if (
+      !form.animalIdentification.trim() &&
+      !form.changeReason.trim() &&
+      !form.description.trim() &&
+      !form.lastIdentification.trim() &&
+      !form.newIdentification.trim()
+    ) {
+      setError('Debes completar al menos un dato descriptivo de la incidencia.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await apiRequest(`/api/farms/${farm.id}/incidents`, {
+        method: 'POST',
+        token,
+        body: {
+          animalIdentification: emptyToNull(form.animalIdentification),
+          incidentDate: form.incidentDate,
+          changeReason: emptyToNull(form.changeReason),
+          description: emptyToNull(form.description),
+          lastIdentification: emptyToNull(form.lastIdentification),
+          newIdentification: emptyToNull(form.newIdentification)
+        }
+      });
+      setSuccess('Incidencia registrada correctamente.');
+      setModalOpen(false);
+      setForm({
+        animalIdentification: '',
+        incidentDate: new Date().toISOString().slice(0, 10),
+        changeReason: '',
+        description: '',
+        lastIdentification: '',
+        newIdentification: ''
+      });
+      await loadIncidents();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return <div className="panel-card empty-state">Cargando incidencias...</div>;
+  }
+
+  return (
+    <section className="panel-card stack">
+      <div className="section-heading-row">
+        <div>
+          <h2>Incidencias</h2>
+          <p>Anotaciones de identificación y regularizaciones del ganado.</p>
+        </div>
+        <button className="primary-button" type="button" onClick={() => setModalOpen(true)}>
+          <Plus size={16} />
+          Registrar incidencia
+        </button>
+      </div>
+
+      {error && <div className="error-banner">{error}</div>}
+      {success && <div className="success-banner">{success}</div>}
+
+      {incidents.length === 0 ? (
+        <div className="empty-state">
+          <TriangleAlert size={28} />
+          <div>No hay incidencias registradas.</div>
+        </div>
+      ) : (
+        <div className="animal-table-card">
+          <div className="table-scroll">
+            <table className="animal-table">
+              <thead>
+                <tr>
+                  {['Fecha', 'Animal', 'Motivo', 'Descripción', 'Identificación anterior', 'Nueva identificación'].map((header) => (
+                    <th key={header}>{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {incidents.map((incident) => (
+                  <tr key={incident.id}>
+                    <td>{formatDate(incident.incidentDate)}</td>
+                    <td>{incident.animalIdentification ?? '—'}</td>
+                    <td>{incident.changeReason ?? '—'}</td>
+                    <td>{incident.description ?? '—'}</td>
+                    <td>{incident.lastIdentification ?? '—'}</td>
+                    <td>{incident.newIdentification ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="animal-table-footer">{incidents.length} incidencias</div>
+        </div>
+      )}
+
+      {modalOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <form className="modal-card modal-wide farm-modal-shell" onSubmit={handleSubmit}>
+            <div className="farm-modal-header">
+              <div className="farm-modal-title">
+                <div className="modal-panel-icon"><TriangleAlert size={18} /></div>
+                <div>
+                  <h2>Nueva incidencia</h2>
+                  <p>{farm.name}</p>
+                </div>
+              </div>
+              <button className="farm-modal-close" type="button" onClick={() => setModalOpen(false)} aria-label="Cerrar modal">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="farm-modal-body operation-modal-body">
+              <label>
+                <span>Animal relacionado</span>
+                <input value={form.animalIdentification} onChange={(event) => setForm({ ...form, animalIdentification: event.target.value })} placeholder="Ej: ES0600005831 / GT1800001004" />
+              </label>
+              <label>
+                <span>Fecha de incidencia *</span>
+                <input type="date" value={form.incidentDate} onChange={(event) => setForm({ ...form, incidentDate: event.target.value })} />
+              </label>
+              <label>
+                <span>Motivo</span>
+                <input value={form.changeReason} onChange={(event) => setForm({ ...form, changeReason: event.target.value })} placeholder="Reposición de crotal, regularización documental..." />
+              </label>
+              <label>
+                <span>Identificación anterior</span>
+                <input value={form.lastIdentification} onChange={(event) => setForm({ ...form, lastIdentification: event.target.value })} placeholder="Ej: GT1800001004" />
+              </label>
+              <label>
+                <span>Nueva identificación</span>
+                <input value={form.newIdentification} onChange={(event) => setForm({ ...form, newIdentification: event.target.value })} placeholder="Si aplica" />
+              </label>
+              <label className="operation-form-wide">
+                <span>Descripción</span>
+                <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Detalle de la incidencia y actuaciones realizadas." />
+              </label>
+            </div>
+            <div className="farm-modal-footer">
+              <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
+              <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar incidencia'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FarmInspectionsSection({ farm, token }) {
+  const [inspections, setInspections] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState({
+    inspectionDate: new Date().toISOString().slice(0, 10),
+    reason: '',
+    observations: '',
+    veterinary: '',
+    taggedAnimals: ''
+  });
+
+  async function loadInspections() {
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await apiRequest(`/api/farms/${farm.id}/inspections`, { token });
+      setInspections(response);
+    } catch (requestError) {
+      setError(requestError.message);
+      setInspections([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadInspections();
+  }, [farm.id, token]);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!form.inspectionDate) {
+      setError('La fecha de inspección es obligatoria.');
+      return;
+    }
+
+    if (!form.reason.trim() && !form.observations.trim()) {
+      setError('Debes indicar al menos el motivo o las observaciones de la inspección.');
+      return;
+    }
+
+    const taggedAnimals = parseOptionalInteger(form.taggedAnimals);
+    if (taggedAnimals != null && (!Number.isInteger(taggedAnimals) || taggedAnimals < 0)) {
+      setError('Los animales revisados deben ser un número entero igual o mayor que cero.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await apiRequest(`/api/farms/${farm.id}/inspections`, {
+        method: 'POST',
+        token,
+        body: {
+          inspectionDate: form.inspectionDate,
+          reason: emptyToNull(form.reason),
+          observations: emptyToNull(form.observations),
+          veterinary: emptyToNull(form.veterinary),
+          taggedAnimals
+        }
+      });
+      setSuccess('Inspección registrada correctamente.');
+      setModalOpen(false);
+      setForm({
+        inspectionDate: new Date().toISOString().slice(0, 10),
+        reason: '',
+        observations: '',
+        veterinary: '',
+        taggedAnimals: ''
+      });
+      await loadInspections();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return <div className="panel-card empty-state">Cargando inspecciones...</div>;
+  }
+
+  return (
+    <section className="panel-card stack">
+      <div className="section-heading-row">
+        <div>
+          <h2>Inspecciones</h2>
+          <p>Control veterinario y observaciones oficiales asociadas a la explotación.</p>
+        </div>
+        <button className="primary-button" type="button" onClick={() => setModalOpen(true)}>
+          <Plus size={16} />
+          Registrar inspección
+        </button>
+      </div>
+
+      {error && <div className="error-banner">{error}</div>}
+      {success && <div className="success-banner">{success}</div>}
+
+      {inspections.length === 0 ? (
+        <div className="empty-state">
+          <ClipboardCheck size={28} />
+          <div>No hay inspecciones registradas.</div>
+        </div>
+      ) : (
+        <div className="animal-table-card">
+          <div className="table-scroll">
+            <table className="animal-table">
+              <thead>
+                <tr>
+                  {['Fecha', 'Motivo', 'Observaciones', 'Veterinario', 'Animales revisados'].map((header) => (
+                    <th key={header}>{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {inspections.map((inspection) => (
+                  <tr key={inspection.id}>
+                    <td>{formatDate(inspection.inspectionDate)}</td>
+                    <td>{inspection.reason ?? '—'}</td>
+                    <td>{inspection.observations ?? '—'}</td>
+                    <td>{inspection.veterinary ?? '—'}</td>
+                    <td>{inspection.taggedAnimals ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="animal-table-footer">{inspections.length} inspecciones</div>
+        </div>
+      )}
+
+      {modalOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <form className="modal-card modal-wide farm-modal-shell" onSubmit={handleSubmit}>
+            <div className="farm-modal-header">
+              <div className="farm-modal-title">
+                <div className="modal-panel-icon"><ClipboardCheck size={18} /></div>
+                <div>
+                  <h2>Nueva inspección</h2>
+                  <p>{farm.name}</p>
+                </div>
+              </div>
+              <button className="farm-modal-close" type="button" onClick={() => setModalOpen(false)} aria-label="Cerrar modal">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="farm-modal-body operation-modal-body">
+              <label>
+                <span>Fecha de inspección *</span>
+                <input type="date" value={form.inspectionDate} onChange={(event) => setForm({ ...form, inspectionDate: event.target.value })} />
+              </label>
+              <label>
+                <span>Motivo</span>
+                <input value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="Inspección programada, revisión documental..." />
+              </label>
+              <label>
+                <span>Veterinario</span>
+                <input value={form.veterinary} onChange={(event) => setForm({ ...form, veterinary: event.target.value })} placeholder="Nombre del profesional responsable" />
+              </label>
+              <label>
+                <span>Animales revisados</span>
+                <input type="number" min="0" step="1" value={form.taggedAnimals} onChange={(event) => setForm({ ...form, taggedAnimals: event.target.value })} placeholder="Ej: 24" />
+              </label>
+              <label className="operation-form-wide">
+                <span>Observaciones</span>
+                <textarea value={form.observations} onChange={(event) => setForm({ ...form, observations: event.target.value })} placeholder="Observaciones veterinarias y seguimiento de la inspección." />
+              </label>
+            </div>
+            <div className="farm-modal-footer">
+              <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
+              <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar inspección'}</button>
+            </div>
+          </form>
         </div>
       )}
     </section>
@@ -314,6 +1523,9 @@ export function FarmDetailPage() {
 
         <div className="farm-detail-metrics">
           <SummaryMetric label="Animales registrados" value={farm.animalCount} tone="success" />
+          {farm.livestockSpecies === 'Porcine' && farm.porcineRegistryNumber && (
+            <SummaryMetric label="Registro porcino" value={farm.porcineRegistryNumber} />
+          )}
           {farm.livestockSpecies === 'Porcine' && (
             <SummaryMetric label="Capacidad autorizada" value={farm.authorisedCapacity ?? 'No informada'} />
           )}
@@ -379,14 +1591,17 @@ export function FarmDetailPage() {
               <DetailField label="Titular" value={farm.farmerName} />
               <DetailField label="Especie" value={speciesTone.label} />
               <DetailField label="Régimen" value={formatRegime(farm.regime)} />
-            <DetailField label="Estado" value={statusTone.label} />
-            <DetailField label="Tipo ganadero" value={formatText(farm.livestockType)} />
-            <DetailField label="Capacidad productiva" value={formatText(farm.productionCapacity)} />
-            {farm.livestockSpecies === 'Porcine' && (
-              <DetailField label="Capacidad autorizada" value={farm.authorisedCapacity ?? 'No informada'} />
-            )}
-            <DetailField label="Clasificación zootécnica" value={formatText(farm.zootechnicClassification)} />
-          </div>
+              <DetailField label="Estado" value={statusTone.label} />
+              <DetailField label="Tipo ganadero" value={formatText(farm.livestockType)} />
+              <DetailField label="Capacidad productiva" value={formatText(farm.productionCapacity)} />
+              {farm.livestockSpecies === 'Porcine' && (
+                <DetailField label="Registro porcino" value={formatText(farm.porcineRegistryNumber)} />
+              )}
+              {farm.livestockSpecies === 'Porcine' && (
+                <DetailField label="Capacidad autorizada" value={farm.authorisedCapacity ?? 'No informada'} />
+              )}
+              <DetailField label="Clasificación zootécnica" value={formatText(farm.zootechnicClassification)} />
+            </div>
           </article>
 
           <article className="panel-card stack">
@@ -410,7 +1625,14 @@ export function FarmDetailPage() {
         </section>
       )}
 
-      {activeTab === 'animals' && <FarmAnimalsSection farmId={farm.id} token={token} />}
+      {activeTab === 'animals' && <FarmAnimalsSection farm={farm} token={token} />}
+      {activeTab === 'movements' && <FarmMovementsSection farm={farm} token={token} />}
+      {activeTab === 'births' && <FarmBirthsSection farm={farm} token={token} />}
+      {activeTab === 'deaths' && <FarmDeathsSection farm={farm} token={token} />}
+      {activeTab === 'balances' && <FarmCensusBalancesSection farm={farm} token={token} />}
+      {activeTab === 'book' && <FarmBookSection farm={farm} token={token} />}
+      {activeTab === 'incidents' && <FarmIncidentsSection farm={farm} token={token} />}
+      {activeTab === 'inspections' && <FarmInspectionsSection farm={farm} token={token} />}
     </div>
   );
 }

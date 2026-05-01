@@ -46,6 +46,11 @@ public sealed class FarmService(PecualiaDbContext dbContext) : IFarmService
             throw new DomainException("La especie indicada no está soportada en esta versión.");
         }
 
+        if (request.LivestockSpecies == LivestockSpecies.Porcine && string.IsNullOrWhiteSpace(request.PorcineRegistryNumber))
+        {
+            throw new DomainException("El número de registro porcino es obligatorio para explotaciones porcinas.");
+        }
+
         if (role == UserRole.Manager)
         {
             var canManage = await dbContext.Farmers.AnyAsync(entity => entity.UserId == request.FarmerId && entity.ManagerId == userId, cancellationToken);
@@ -71,6 +76,7 @@ public sealed class FarmService(PecualiaDbContext dbContext) : IFarmService
             Address = Normalize(request.Address),
             ZipCode = Normalize(request.ZipCode),
             AuthorisedCapacity = request.LivestockSpecies == LivestockSpecies.Porcine ? request.AuthorisedCapacity : null,
+            PorcineRegistryNumber = request.LivestockSpecies == LivestockSpecies.Porcine ? Normalize(request.PorcineRegistryNumber).ToUpperInvariant() : string.Empty,
             Responsible = Normalize(request.Responsible),
             ZootechnicClassification = Normalize(request.ZootechnicClassification),
             XCoordinate = request.XCoordinate,
@@ -113,6 +119,7 @@ public sealed class FarmService(PecualiaDbContext dbContext) : IFarmService
             $"{farm.Farmer.User.Name} {farm.Farmer.User.Surname}".Trim(),
             farm.Animals.Count,
             farm.AuthorisedCapacity,
+            EmptyToNull(farm.PorcineRegistryNumber),
             farm.Regime?.ToString(),
             EmptyToNull(farm.Town),
             EmptyToNull(farm.Province),
@@ -143,6 +150,7 @@ public sealed class FarmService(PecualiaDbContext dbContext) : IFarmService
             BuildFarmerName(farm.Farmer),
             farm.Animals.Count,
             farm.AuthorisedCapacity,
+            EmptyToNull(farm.PorcineRegistryNumber),
             farm.Regime?.ToString(),
             EmptyToNull(farm.LivestockType),
             EmptyToNull(farm.ProductionCapacity),
@@ -177,7 +185,8 @@ public sealed class FarmService(PecualiaDbContext dbContext) : IFarmService
             EmptyToNull(farm.Province),
             BuildFarmerName(farm.Farmer),
             farm.Animals.Count,
-            farm.AuthorisedCapacity);
+            farm.AuthorisedCapacity,
+            EmptyToNull(farm.PorcineRegistryNumber));
     }
 
     private static string Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
