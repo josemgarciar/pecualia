@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowLeft,
@@ -481,6 +481,7 @@ function FarmModal({
 }
 
 export function FarmsPage() {
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { token, user } = useAuth();
@@ -557,6 +558,15 @@ export function FarmsPage() {
     setModalSuccess(false);
     setModalOpen(true);
   };
+
+  useEffect(() => {
+    if (!location.state?.openCreateModal) {
+      return;
+    }
+
+    openModal();
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: {} });
+  }, [location.pathname, location.search, location.state, navigate, selectedFarmerId, user?.id, user?.role]);
 
   const handleModalChange = (field, value) => {
     setModalForm((current) => {

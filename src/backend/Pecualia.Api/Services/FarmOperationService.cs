@@ -16,6 +16,14 @@ public interface IFarmOperationService
 
     Task<FarmDeathResponse> CreateDeathAsync(long userId, UserRole role, long farmId, CreateFarmDeathRequest request, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<FarmVaccinationResponse>> GetVaccinationsAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
+
+    Task<FarmVaccinationResponse> CreateVaccinationAsync(long userId, UserRole role, long farmId, CreateFarmVaccinationRequest request, CancellationToken cancellationToken);
+
+    Task<FarmVaccinationResponse> UpdateVaccinationAsync(long userId, UserRole role, long farmId, long vaccinationId, UpdateFarmVaccinationRequest request, CancellationToken cancellationToken);
+
+    Task DeleteVaccinationAsync(long userId, UserRole role, long farmId, long vaccinationId, CancellationToken cancellationToken);
+
     Task<FarmCensusResponse> GetCensusAsync(long userId, UserRole role, long farmId, int? year, CancellationToken cancellationToken);
 
     Task<FarmCensusResponse> UpdateCensusAsync(long userId, UserRole role, long farmId, int year, UpdateFarmCensusRequest request, CancellationToken cancellationToken);
@@ -118,11 +126,7 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             throw new DomainException("El animal ya está dado de baja.");
         }
 
-        var destinationCode = NormalizeNullable(request.DestinationCode)?.ToUpperInvariant();
-        if (destinationCode is not ("SANDACH" or "MER"))
-        {
-            throw new DomainException("El destino de una baja por muerte debe ser SANDACH o MER.");
-        }
+        var destinationCode = NormalizeDeathDestinationCode(farm.LivestockSpecies, request.DestinationCode);
 
         animal.DischargeDate = request.DischargeDate;
         animal.DischargeCause = AnimalDischargeCause.Muerte;
@@ -133,6 +137,110 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return MapDeath(animal);
+    }
+
+    public async Task<IReadOnlyList<FarmVaccinationResponse>> GetVaccinationsAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken)
+    {
+        await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+
+        var vaccinations = await dbContext.Vaccinations
+            .AsNoTracking()
+            .Include(entity => entity.Animal)
+            .Where(entity => entity.Animal.LivestockFarmId == farmId)
+            .OrderByDescending(entity => entity.VaccinationDate)
+            .ThenByDescending(entity => entity.Id)
+            .ToListAsync(cancellationToken);
+
+        return vaccinations.Select(MapVaccination).ToList();
+    }
+
+    public async Task<FarmVaccinationResponse> CreateVaccinationAsync(long userId, UserRole role, long farmId, CreateFarmVaccinationRequest request, CancellationToken cancellationToken)
+    {
+        await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+
+        var animal = await LoadFarmAnimalAsync(farmId, request.AnimalIdentification, cancellationToken);
+        var vaccinationType = NormalizeNullable(request.VaccinationType);
+        var observations = NormalizeNullable(request.Observations);
+
+        if (vaccinationType is null)
+        {
+            throw new DomainException("El tipo de vacunación es obligatorio.");
+        }
+
+        if (request.NextDose is not null && request.NextDose < request.VaccinationDate)
+        {
+            throw new DomainException("La próxima dosis no puede ser anterior a la fecha de vacunación.");
+        }
+
+        var vaccination = new Vaccination
+        {
+            AnimalId = animal.Id,
+            VaccinationDate = request.VaccinationDate,
+            NextDose = request.NextDose,
+            VaccinationType = vaccinationType,
+            Observations = observations
+        };
+
+        dbContext.Vaccinations.Add(vaccination);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        vaccination.Animal = animal;
+        return MapVaccination(vaccination);
+    }
+
+    public async Task<FarmVaccinationResponse> UpdateVaccinationAsync(long userId, UserRole role, long farmId, long vaccinationId, UpdateFarmVaccinationRequest request, CancellationToken cancellationToken)
+    {
+        await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+
+        var vaccination = await dbContext.Vaccinations
+            .Include(entity => entity.Animal)
+            .SingleOrDefaultAsync(entity => entity.Id == vaccinationId && entity.Animal.LivestockFarmId == farmId, cancellationToken);
+
+        if (vaccination is null)
+        {
+            throw new DomainException("Vacunación no encontrada.");
+        }
+
+        var animal = await LoadFarmAnimalAsync(farmId, request.AnimalIdentification, cancellationToken);
+        var vaccinationType = NormalizeNullable(request.VaccinationType);
+        var observations = NormalizeNullable(request.Observations);
+
+        if (vaccinationType is null)
+        {
+            throw new DomainException("El tipo de vacunación es obligatorio.");
+        }
+
+        if (request.NextDose is not null && request.NextDose < request.VaccinationDate)
+        {
+            throw new DomainException("La próxima dosis no puede ser anterior a la fecha de vacunación.");
+        }
+
+        vaccination.AnimalId = animal.Id;
+        vaccination.Animal = animal;
+        vaccination.VaccinationDate = request.VaccinationDate;
+        vaccination.NextDose = request.NextDose;
+        vaccination.VaccinationType = vaccinationType;
+        vaccination.Observations = observations;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return MapVaccination(vaccination);
+    }
+
+    public async Task DeleteVaccinationAsync(long userId, UserRole role, long farmId, long vaccinationId, CancellationToken cancellationToken)
+    {
+        await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+
+        var vaccination = await dbContext.Vaccinations
+            .Include(entity => entity.Animal)
+            .SingleOrDefaultAsync(entity => entity.Id == vaccinationId && entity.Animal.LivestockFarmId == farmId, cancellationToken);
+
+        if (vaccination is null)
+        {
+            throw new DomainException("Vacunación no encontrada.");
+        }
+
+        dbContext.Vaccinations.Remove(vaccination);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<FarmCensusResponse> GetCensusAsync(long userId, UserRole role, long farmId, int? year, CancellationToken cancellationToken)
@@ -348,6 +456,20 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         return farm ?? throw new DomainException("Explotación no encontrada.");
     }
 
+    private async Task<Animal> LoadFarmAnimalAsync(long farmId, string identification, CancellationToken cancellationToken)
+    {
+        var normalizedIdentification = NormalizeIdentifier(identification);
+        if (normalizedIdentification is null)
+        {
+            throw new DomainException("Debes indicar el crotal o lote del animal.");
+        }
+
+        var animal = await dbContext.Animals
+            .SingleOrDefaultAsync(entity => entity.LivestockFarmId == farmId && entity.Identification == normalizedIdentification, cancellationToken);
+
+        return animal ?? throw new DomainException("El animal indicado no pertenece a esta explotación.");
+    }
+
     private static bool IsOvineOrCaprine(LivestockFarm farm) =>
         farm.LivestockSpecies is LivestockSpecies.Ovine or LivestockSpecies.Caprine;
 
@@ -515,6 +637,20 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             EmptyToNull(animal.DestinationCode));
     }
 
+    private static FarmVaccinationResponse MapVaccination(Vaccination vaccination)
+    {
+        return new FarmVaccinationResponse(
+            vaccination.Id,
+            vaccination.Animal.LivestockFarmId,
+            vaccination.AnimalId,
+            vaccination.Animal.Identification,
+            EmptyToNull(vaccination.Animal.Breed),
+            vaccination.VaccinationDate,
+            vaccination.NextDose,
+            vaccination.VaccinationType,
+            EmptyToNull(vaccination.Observations));
+    }
+
     private static FarmCensusResponse BuildEmptyCensusResponse(LivestockFarm farm, int year, IReadOnlyList<int> availableYears)
     {
         return new FarmCensusResponse(
@@ -601,6 +737,33 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
     }
 
     private static string? NormalizeNullable(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string NormalizeDeathDestinationCode(LivestockSpecies species, string? destinationCode)
+    {
+        var normalizedDestinationCode = NormalizeNullable(destinationCode)?.ToUpperInvariant();
+
+        if (normalizedDestinationCode is null)
+        {
+            throw new DomainException("El destino de una baja por muerte es obligatorio.");
+        }
+
+        if (species == LivestockSpecies.Porcine)
+        {
+            if (normalizedDestinationCode != "MER")
+            {
+                throw new DomainException("En ganado porcino, una baja por muerte solo puede registrarse con destino MER.");
+            }
+
+            return normalizedDestinationCode;
+        }
+
+        if (normalizedDestinationCode is not ("SANDACH" or "MER"))
+        {
+            throw new DomainException("El destino de una baja por muerte debe ser SANDACH o MER.");
+        }
+
+        return normalizedDestinationCode;
+    }
 
     private static string? NormalizeIdentifier(string? value)
     {

@@ -304,13 +304,33 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
       return;
     }
 
+    let destinationCode = null;
+    if (normalizedCause === 'Muerte') {
+      if (animal.livestockSpecies === 'Porcine') {
+        destinationCode = 'MER';
+      } else {
+        const destination = window.prompt('Destino de la baja por muerte: SANDACH o MER', 'SANDACH');
+        if (!destination) {
+          return;
+        }
+
+        const normalizedDestination = destination.trim().toUpperCase();
+        if (!['SANDACH', 'MER'].includes(normalizedDestination)) {
+          setDischargeError('El destino de una baja por muerte debe ser SANDACH o MER.');
+          return;
+        }
+
+        destinationCode = normalizedDestination;
+      }
+    }
+
     setDischarging(true);
     setDischargeError('');
     try {
       await onDischarged(animal.id, {
         dischargeDate: new Date().toISOString().slice(0, 10),
         dischargeCause: normalizedCause,
-        destinationCode: null
+        destinationCode
       });
     } catch (requestError) {
       setDischargeError(requestError.message);

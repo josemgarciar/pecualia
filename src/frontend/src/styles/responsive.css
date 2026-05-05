@@ -32,6 +32,15 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .book-layout,
+  .profile-detail-grid,
+  .profile-panel-grid,
+  .settings-summary-grid,
+  .settings-grid,
+  .settings-notification-grid,
+  .subscription-current-meta,
+  .subscription-plan-grid,
+  .subscription-plan-grid-compact,
   .farm-detail-grid,
   .farm-detail-metrics {
     grid-template-columns: 1fr;
@@ -86,6 +95,7 @@
   .auth-footer,
   .grid-form,
   .farmer-person-grid,
+  .profile-hero-card,
   .summary-grid,
   .detail-grid,
   .quick-actions-grid {
@@ -96,6 +106,13 @@
   .animal-header,
   .animal-header-actions,
   .filter-summary,
+  .profile-hero-main,
+  .profile-hero-actions,
+  .settings-hero-card,
+  .settings-hero-actions,
+  .subscription-current-header,
+  .subscription-current-title-group,
+  .profile-status-list div,
   .detail-header,
   .farmer-wizard-header,
   .farm-detail-hero-top,
@@ -114,8 +131,14 @@
     gap: 14px;
   }
 
+  .book-pdf-page-frame {
+    padding: 12px;
+  }
+
   .farm-stepper-item {
+    flex: none;
     width: 100%;
+    max-width: none;
   }
 
   .farm-stepper-connector {
@@ -132,6 +155,37 @@
 
   .movement-stepper {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-hero-copy h2 {
+    font-size: 1.5rem;
+  }
+
+  .subscription-current-copy h2 {
+    font-size: 1.6rem;
+  }
+
+  .subscription-price-block strong,
+  .subscription-plan-price strong {
+    font-size: 2.8rem;
+  }
+
+  .subscription-current-card,
+  .subscription-renewal-banner,
+  .subscription-plan-card {
+    padding: 22px;
+  }
+
+  .subscription-plan-ribbon {
+    margin: -22px -22px 0;
+  }
+
+  .profile-panel-tabs {
+    width: 100%;
+  }
+
+  .profile-panel-tab {
+    flex: 1 1 100%;
   }
 
   .wizard-steps,

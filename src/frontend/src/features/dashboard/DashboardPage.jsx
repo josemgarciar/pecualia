@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
+import { getPlanLabel } from '../../shared/subscription/plans';
 
 const toneMap = {
   success: { bg: '#DDEBDF', color: '#2F6B4F' },
@@ -33,6 +34,7 @@ export function DashboardPage() {
   const { token, user } = useAuth();
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState('');
+  const planLabel = getPlanLabel(user);
 
   useEffect(() => {
     apiRequest('/api/dashboard/summary', { token })
@@ -79,14 +81,12 @@ export function DashboardPage() {
 
   const quickActions = user?.role === 'Manager'
     ? [
-        { label: 'Nuevo ganadero', icon: Users, to: '/app/farmers' },
-        { label: 'Nueva explotación', icon: Building2, to: '/app/farms' },
-        { label: 'Ver perfil', icon: ClipboardCheck, to: '/app/profile' }
+        { label: 'Nuevo ganadero', icon: Users, to: '/app/farmers', state: { openCreateModal: true } },
+        { label: 'Nueva explotación', icon: Building2, to: '/app/farms', state: { openCreateModal: true } },
       ]
     : [
-        { label: 'Nueva explotación', icon: Building2, to: '/app/farms' },
+        { label: 'Nueva explotación', icon: Building2, to: '/app/farms', state: { openCreateModal: true } },
         { label: 'Mi cuenta', icon: ClipboardCheck, to: '/app/profile' },
-        { label: 'Mi perfil', icon: Users, to: '/app/profile' }
       ];
 
   return (
@@ -96,7 +96,7 @@ export function DashboardPage() {
           <h1>Buenos días, {user?.name}</h1>
           <div className="dashboard-subheader">
             <span className="dashboard-role-chip">{user?.role === 'Manager' ? 'Gestora Profesional' : 'Ganadero'}</span>
-            <span>{user?.role === 'Manager' ? 'Plan Profesional activo' : 'Cuenta activa'}</span>
+            <span>{user?.role === 'Manager' ? `Plan ${planLabel} activo` : `Plan ${planLabel} activo`}</span>
           </div>
         </div>
       </header>
@@ -192,7 +192,7 @@ export function DashboardPage() {
               const Icon = action.icon;
 
               return (
-                <Link className="quick-action-card" key={action.label} to={action.to}>
+                <Link className="quick-action-card" key={action.label} to={action.to} state={action.state}>
                   <div className="quick-action-icon">
                     <Icon size={16} />
                   </div>

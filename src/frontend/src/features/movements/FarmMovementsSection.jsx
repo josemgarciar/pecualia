@@ -45,6 +45,13 @@ const dischargeCauseOptions = [
   { value: 'Muerte', label: 'Muerte (M)' }
 ];
 
+function isForcedMerDestination(species, cause, directionOrOperation, counterpartyType = 'External') {
+  return species === 'Porcine' &&
+    cause === 'Muerte' &&
+    counterpartyType === 'External' &&
+    (directionOrOperation === 'Exit' || directionOrOperation === 'Baja');
+}
+
 function formatDate(value) {
   if (!value) {
     return '—';
@@ -234,6 +241,12 @@ function MovementManualModal({ farm, token, farms, onClose, onCreated }) {
   const animalSourceFarmId = form.direction === 'Entry' && form.counterpartyType === 'Internal'
     ? Number(form.counterpartyFarmId || 0)
     : farm.id;
+  const forcedMerDestination = isForcedMerDestination(
+    farm.livestockSpecies,
+    form.cause,
+    form.direction,
+    form.counterpartyType
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -300,7 +313,9 @@ function MovementManualModal({ farm, token, farms, onClose, onCreated }) {
         direction: form.direction,
         counterpartyType: form.counterpartyType,
         counterpartyFarmId: form.counterpartyType === 'Internal' && form.counterpartyFarmId ? Number(form.counterpartyFarmId) : null,
-        counterpartyExternalCode: form.counterpartyType === 'External' ? emptyToNull(form.counterpartyExternalCode) : null,
+        counterpartyExternalCode: form.counterpartyType === 'External'
+          ? emptyToNull(forcedMerDestination ? 'MER' : form.counterpartyExternalCode)
+          : null,
         counterpartyExternalName: form.counterpartyType === 'External' ? emptyToNull(form.counterpartyExternalName) : null,
         codRemo: form.codRemo.trim(),
         serie: emptyToNull(form.serie),
@@ -386,8 +401,12 @@ function MovementManualModal({ farm, token, farms, onClose, onCreated }) {
                   <input value={form.counterpartyExternalName} onChange={(event) => updateField('counterpartyExternalName', event.target.value)} />
                 </label>
                 <label className="farm-form-field">
-                  <span className="farm-field-label">Código contraparte</span>
-                  <input value={form.counterpartyExternalCode} onChange={(event) => updateField('counterpartyExternalCode', event.target.value)} />
+                  <span className="farm-field-label">{forcedMerDestination ? 'Destino' : 'Código contraparte'}</span>
+                  <input
+                    value={forcedMerDestination ? 'MER' : form.counterpartyExternalCode}
+                    onChange={(event) => updateField('counterpartyExternalCode', event.target.value)}
+                    disabled={forcedMerDestination}
+                  />
                 </label>
               </>
             )}
@@ -555,6 +574,7 @@ function MovementImportModal({ farm, token, farms, onClose, onCommitted }) {
   const rejectedRowsCount = preview
     ? preview.summary.totalLines - processableRowsCount
     : 0;
+  const forcedMerDestination = isForcedMerDestination(farm.livestockSpecies, config.cause, config.operation);
   const canContinueStep1 = Boolean(
     config.operation &&
     config.cause.trim() &&
@@ -593,7 +613,7 @@ function MovementImportModal({ farm, token, farms, onClose, onCommitted }) {
         body: {
           farmId: farm.id,
           operation: config.operation,
-          counterpartyExternalCode: emptyToNull(config.counterpartyExternalCode),
+          counterpartyExternalCode: emptyToNull(forcedMerDestination ? 'MER' : config.counterpartyExternalCode),
           counterpartyExternalName: emptyToNull(config.counterpartyExternalName),
           codRemo: config.sinGuia ? null : emptyToNull(config.codRemo),
           serie: emptyToNull(config.serie),
@@ -630,7 +650,7 @@ function MovementImportModal({ farm, token, farms, onClose, onCommitted }) {
         body: {
           farmId: farm.id,
           operation: config.operation,
-          counterpartyExternalCode: emptyToNull(config.counterpartyExternalCode),
+          counterpartyExternalCode: emptyToNull(forcedMerDestination ? 'MER' : config.counterpartyExternalCode),
           counterpartyExternalName: emptyToNull(config.counterpartyExternalName),
           codRemo: config.sinGuia ? null : emptyToNull(config.codRemo),
           serie: emptyToNull(config.serie),
@@ -751,8 +771,13 @@ function MovementImportModal({ farm, token, farms, onClose, onCommitted }) {
                   <input value={config.counterpartyExternalName} onChange={(event) => updateConfig('counterpartyExternalName', event.target.value)} placeholder="Nombre informativo" />
                 </label>
                 <label className="farm-form-field">
-                  <span className="farm-field-label">Código REGA / destino</span>
-                  <input value={config.counterpartyExternalCode} onChange={(event) => updateConfig('counterpartyExternalCode', event.target.value)} placeholder="Solo metadata, no se vincula" />
+                  <span className="farm-field-label">{forcedMerDestination ? 'Destino' : 'Código REGA / destino'}</span>
+                  <input
+                    value={forcedMerDestination ? 'MER' : config.counterpartyExternalCode}
+                    onChange={(event) => updateConfig('counterpartyExternalCode', event.target.value)}
+                    placeholder={forcedMerDestination ? 'MER' : 'Solo metadata, no se vincula'}
+                    disabled={forcedMerDestination}
+                  />
                 </label>
 
                 <label className="farm-form-field">
@@ -774,7 +799,11 @@ function MovementImportModal({ farm, token, farms, onClose, onCommitted }) {
               </div>
               <div className="movement-impact-note">
                 <AlertTriangle size={16} />
-                <p>La aplicación no busca ni vincula la explotación contraparte. La importación solo modifica animales, censo y balance de {farm.name}.</p>
+                <p>
+                  {forcedMerDestination
+                    ? `En porcino, una baja por muerte solo puede registrarse con destino MER. La importación solo modifica animales, censo y balance de ${farm.name}.`
+                    : `La aplicación no busca ni vincula la explotación contraparte. La importación solo modifica animales, censo y balance de ${farm.name}.`}
+                </p>
               </div>
             </div>
           )}

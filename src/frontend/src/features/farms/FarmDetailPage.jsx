@@ -6,14 +6,17 @@ import {
   BookOpen,
   Building2,
   ArrowLeftRight,
+  Check,
   ClipboardCheck,
   Edit3,
   MapPin,
   Plus,
   Search,
+  Shield,
   Skull,
   Sprout,
   Tag,
+  Trash2,
   TrendingDown,
   TrendingUp,
   TriangleAlert,
@@ -61,6 +64,7 @@ const detailTabs = [
   { key: 'movements', label: 'Movimientos', icon: ArrowLeftRight, enabled: true },
   { key: 'births', label: 'Nacimientos', icon: Sprout, enabled: true },
   { key: 'deaths', label: 'Muertes', icon: Skull, enabled: true },
+  { key: 'vaccinations', label: 'Vacunación', icon: Shield, enabled: true },
   { key: 'balances', label: 'Censos y balances', icon: BarChart3, enabled: true },
   { key: 'book', label: 'Libro', icon: BookOpen, enabled: true },
   { key: 'incidents', label: 'Incidencias', icon: TriangleAlert, enabled: true },
@@ -69,6 +73,9 @@ const detailTabs = [
 
 const currentYear = new Date().getFullYear();
 const monthLabels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const BOOK_PREVIEW_MAX_PAGES = 3;
+const BOOK_PREVIEW_DEBOUNCE_MS = 450;
+const BOOK_PREVIEW_TARGET_WIDTH = 760;
 
 function formatText(value, fallback = 'No informado') {
   return value ?? fallback;
@@ -101,6 +108,15 @@ function formatDate(value) {
   return value ? new Intl.DateTimeFormat('es-ES').format(new Date(`${value}T00:00:00`)) : '—';
 }
 
+function getDeathDestinationOptions(species) {
+  return species === 'Porcine'
+    ? [{ value: 'MER', label: 'MER' }]
+    : [
+        { value: 'SANDACH', label: 'SANDACH' },
+        { value: 'MER', label: 'MER' }
+      ];
+}
+
 function parsePositiveNumber(value) {
   return value === '' ? null : Number(value);
 }
@@ -112,6 +128,23 @@ function parseOptionalInteger(value) {
 function emptyToNull(value) {
   const normalized = value?.trim();
   return normalized ? normalized : null;
+}
+
+function buildBookPdfPath(farmId, sectionIds) {
+  const params = new URLSearchParams();
+  sectionIds.forEach((sectionId) => params.append('sectionIds', sectionId));
+  const query = params.toString();
+  return `/api/farms/${farmId}/book/pdf${query ? `?${query}` : ''}`;
+}
+
+function createVaccinationFormState() {
+  return {
+    animalIdentification: '',
+    vaccinationDate: new Date().toISOString().slice(0, 10),
+    nextDose: '',
+    vaccinationType: '',
+    observations: ''
+  };
 }
 
 function DetailField({ label, value, fullWidth = false }) {
@@ -139,6 +172,8 @@ function FarmAnimalsSection({ farm, token }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const identificationLabel = farm.livestockSpecies === 'Porcine' ? 'Lote' : 'Crotal';
+  const activeAnimals = animals.filter((animal) => animal.status === 'Active').length;
+  const isInitialLoading = loading && animals.length === 0 && !error;
 
   useEffect(() => {
     let cancelled = false;
@@ -149,8 +184,8 @@ function FarmAnimalsSection({ farm, token }) {
 
       try {
         const params = new URLSearchParams();
-        if (search) {
-          params.set('search', search);
+        if (search.trim()) {
+          params.set('search', search.trim());
         }
         if (status) {
           params.set('status', status);
@@ -179,14 +214,10 @@ function FarmAnimalsSection({ farm, token }) {
     };
   }, [farm.id, search, status, token]);
 
-  if (loading) {
-    return <div className="panel-card empty-state">Cargando animales de la explotación...</div>;
-  }
-
   return (
     <section className="panel-card stack">
       <div className="farm-animals-header">
-        <p>{animals.filter((animal) => animal.status === 'Active').length} activos · {animals.length} en total</p>
+        <p>{loading && !isInitialLoading ? 'Actualizando animales...' : `${activeAnimals} activos · ${animals.length} en total`}</p>
       </div>
 
       {error && <div className="error-banner">{error}</div>}
@@ -203,7 +234,9 @@ function FarmAnimalsSection({ farm, token }) {
         </select>
       </div>
 
-      {animals.length === 0 ? (
+      {isInitialLoading ? (
+        <div className="empty-state">Cargando animales de la explotación...</div>
+      ) : animals.length === 0 ? (
         <div className="empty-state">
           <Tag size={28} />
           <div>No hay animales que coincidan con los filtros.</div>
@@ -214,7 +247,7 @@ function FarmAnimalsSection({ farm, token }) {
             <table className="animal-table">
               <thead>
                 <tr>
-                  {[identificationLabel, 'Especie', 'Raza', 'Sexo', 'Año nac.', 'Fecha alta', 'Causa alta', 'Estado'].map((header) => (
+                  {[identificationLabel, 'Especie', 'Raza', 'Sexo', 'Año', 'Fecha identificación', 'Causa alta', 'Estado'].map((header) => (
                     <th key={header}>{header}</th>
                   ))}
                 </tr>
@@ -261,7 +294,7 @@ function FarmBirthsSection({ farm, token }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({
     birthDate: new Date().toISOString().slice(0, 10),
     offspringNumber: '1',
@@ -313,7 +346,7 @@ function FarmBirthsSection({ farm, token }) {
         }
       });
       setSuccess('Nacimiento registrado correctamente.');
-      setFormOpen(false);
+      setModalOpen(false);
       setForm({ birthDate: new Date().toISOString().slice(0, 10), offspringNumber: '1', birthWeight: '', observations: '' });
       await loadBirths();
     } catch (requestError) {
@@ -333,15 +366,15 @@ function FarmBirthsSection({ farm, token }) {
     <section className="farm-operations-layout">
       <article className="panel-card stack">
         <div className="section-heading-row">
-          <div>
-            <h2>Nacimientos</h2>
-            <p>{births.length} partos registrados · {totalOffspring} crías declaradas</p>
-          </div>
-          <button className="primary-button" type="button" onClick={() => setFormOpen((value) => !value)}>
-            <Plus size={16} />
-            Registrar nacimiento
-          </button>
+        <div>
+          <h2>Nacimientos</h2>
+          <p>{births.length} partos registrados · {totalOffspring} crías declaradas</p>
         </div>
+        <button className="primary-button" type="button" onClick={() => setModalOpen(true)}>
+          <Plus size={16} />
+          Registrar nacimiento
+        </button>
+      </div>
 
         <div className="info-callout">
           <Sprout size={18} />
@@ -350,31 +383,6 @@ function FarmBirthsSection({ farm, token }) {
 
         {error && <div className="error-banner">{error}</div>}
         {success && <div className="success-banner">{success}</div>}
-
-        {formOpen && (
-          <form className="operation-form" onSubmit={handleSubmit}>
-            <label>
-              <span>Fecha de parto *</span>
-              <input type="date" value={form.birthDate} onChange={(event) => setForm({ ...form, birthDate: event.target.value })} />
-            </label>
-            <label>
-              <span>Número de crías *</span>
-              <input type="number" min="1" value={form.offspringNumber} onChange={(event) => setForm({ ...form, offspringNumber: event.target.value })} />
-            </label>
-            <label>
-              <span>Peso medio al nacimiento</span>
-              <input type="number" min="0" step="0.001" value={form.birthWeight} onChange={(event) => setForm({ ...form, birthWeight: event.target.value })} placeholder="3.0 kg" />
-            </label>
-            <label className="operation-form-wide">
-              <span>Observaciones</span>
-              <textarea value={form.observations} onChange={(event) => setForm({ ...form, observations: event.target.value })} placeholder="Notas sobre el parto, complicaciones, etc." />
-            </label>
-            <div className="operation-form-actions">
-              <button className="secondary-button" type="button" onClick={() => setFormOpen(false)}>Cancelar</button>
-              <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar nacimiento'}</button>
-            </div>
-          </form>
-        )}
 
         {births.length === 0 ? (
           <div className="empty-state">
@@ -395,12 +403,54 @@ function FarmBirthsSection({ farm, token }) {
             ))}
           </div>
         )}
+
+        {modalOpen && (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <form className="modal-card modal-wide farm-modal-shell" onSubmit={handleSubmit}>
+              <div className="farm-modal-header">
+                <div className="farm-modal-title">
+                  <div className="modal-panel-icon"><Sprout size={18} /></div>
+                  <div>
+                    <h2>Nuevo nacimiento</h2>
+                    <p>{farm.name}</p>
+                  </div>
+                </div>
+                <button className="farm-modal-close" type="button" onClick={() => setModalOpen(false)} aria-label="Cerrar modal">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="farm-modal-body operation-modal-body">
+                <label>
+                  <span>Fecha de parto *</span>
+                  <input type="date" value={form.birthDate} onChange={(event) => setForm({ ...form, birthDate: event.target.value })} />
+                </label>
+                <label>
+                  <span>Número de crías *</span>
+                  <input type="number" min="1" value={form.offspringNumber} onChange={(event) => setForm({ ...form, offspringNumber: event.target.value })} />
+                </label>
+                <label>
+                  <span>Peso medio al nacimiento</span>
+                  <input type="number" min="0" step="0.001" value={form.birthWeight} onChange={(event) => setForm({ ...form, birthWeight: event.target.value })} placeholder="3.0 kg" />
+                </label>
+                <label className="operation-form-wide">
+                  <span>Observaciones</span>
+                  <textarea value={form.observations} onChange={(event) => setForm({ ...form, observations: event.target.value })} placeholder="Notas sobre el parto, complicaciones, etc." />
+                </label>
+              </div>
+              <div className="farm-modal-footer">
+                <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
+                <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar nacimiento'}</button>
+              </div>
+            </form>
+          </div>
+        )}
       </article>
     </section>
   );
 }
 
 function FarmDeathsSection({ farm, token }) {
+  const isPorcineFarm = farm.livestockSpecies === 'Porcine';
   const [deaths, setDeaths] = useState([]);
   const [search, setSearch] = useState('');
   const [destination, setDestination] = useState('');
@@ -471,6 +521,7 @@ function FarmDeathsSection({ farm, token }) {
     const matchesDestination = !destination || death.destinationCode === destination;
     return matchesSearch && matchesDestination;
   });
+  const destinationOptions = getDeathDestinationOptions(farm.livestockSpecies);
   const sandachCount = deaths.filter((death) => death.destinationCode === 'SANDACH').length;
   const merCount = deaths.filter((death) => death.destinationCode === 'MER').length;
 
@@ -487,7 +538,7 @@ function FarmDeathsSection({ farm, token }) {
 
       <div className="farm-detail-metrics">
         <SummaryMetric label="Total bajas por muerte" value={deaths.length} />
-        <SummaryMetric label="SANDACH" value={sandachCount} />
+        {!isPorcineFarm && <SummaryMetric label="SANDACH" value={sandachCount} />}
         <SummaryMetric label="MER" value={merCount} />
         <SummaryMetric label="Explotación" value={farm.name} />
       </div>
@@ -503,8 +554,9 @@ function FarmDeathsSection({ farm, token }) {
           </div>
           <select value={destination} onChange={(event) => setDestination(event.target.value)}>
             <option value="">Todos los destinos</option>
-            <option value="SANDACH">SANDACH</option>
-            <option value="MER">MER</option>
+            {destinationOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
         </div>
         <button className="primary-button" type="button" onClick={() => setModalOpen(true)}>
@@ -565,18 +617,309 @@ function FarmDeathsSection({ farm, token }) {
                 <span>Destino *</span>
                 <select value={form.destinationCode} onChange={(event) => setForm({ ...form, destinationCode: event.target.value })}>
                   <option value="">Seleccionar...</option>
-                  <option value="SANDACH">SANDACH</option>
-                  <option value="MER">MER</option>
+                  {destinationOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </label>
               <div className="info-callout">
                 <Skull size={18} />
-                <p>La causa oficial guardada será Baja - Causa Muerte. No se modificarán animales dados de baja por Salida.</p>
+                <p>
+                  {farm.livestockSpecies === 'Porcine'
+                    ? 'En porcino, la baja por muerte solo puede registrarse con destino MER.'
+                    : 'La causa oficial guardada será Baja - Causa Muerte. No se modificarán animales dados de baja por Salida.'}
+                </p>
               </div>
             </div>
             <div className="farm-modal-footer">
               <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
               <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar baja'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FarmVaccinationsSection({ farm, token }) {
+  const [vaccinations, setVaccinations] = useState([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingVaccination, setEditingVaccination] = useState(null);
+  const [form, setForm] = useState(createVaccinationFormState);
+  const identificationLabel = farm.livestockSpecies === 'Porcine' ? 'Lote' : 'Crotal';
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  async function loadVaccinations() {
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await apiRequest(`/api/farms/${farm.id}/vaccinations`, { token });
+      setVaccinations(response);
+    } catch (requestError) {
+      setError(requestError.message);
+      setVaccinations([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadVaccinations();
+  }, [farm.id, token]);
+
+  function openCreateModal() {
+    setEditingVaccination(null);
+    setForm(createVaccinationFormState());
+    setModalOpen(true);
+  }
+
+  function openEditModal(vaccination) {
+    setEditingVaccination(vaccination);
+    setForm({
+      animalIdentification: vaccination.animalIdentification ?? '',
+      vaccinationDate: vaccination.vaccinationDate,
+      nextDose: vaccination.nextDose ?? '',
+      vaccinationType: vaccination.vaccinationType ?? '',
+      observations: vaccination.observations ?? ''
+    });
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    setEditingVaccination(null);
+    setForm(createVaccinationFormState());
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!form.animalIdentification.trim() || !form.vaccinationDate || !form.vaccinationType.trim()) {
+      setError(`Debes indicar ${identificationLabel.toLowerCase()}, fecha y tipo de vacunación.`);
+      return;
+    }
+
+    if (form.nextDose && form.nextDose < form.vaccinationDate) {
+      setError('La próxima dosis no puede ser anterior a la fecha de vacunación.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const body = {
+        animalIdentification: form.animalIdentification.trim(),
+        vaccinationDate: form.vaccinationDate,
+        nextDose: emptyToNull(form.nextDose),
+        vaccinationType: form.vaccinationType.trim(),
+        observations: emptyToNull(form.observations)
+      };
+
+      if (editingVaccination) {
+        await apiRequest(`/api/farms/${farm.id}/vaccinations/${editingVaccination.id}`, {
+          method: 'PUT',
+          token,
+          body
+        });
+        setSuccess('Vacunación actualizada correctamente.');
+      } else {
+        await apiRequest(`/api/farms/${farm.id}/vaccinations`, {
+          method: 'POST',
+          token,
+          body
+        });
+        setSuccess('Vacunación registrada correctamente.');
+      }
+
+      closeModal();
+      await loadVaccinations();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(vaccination) {
+    const confirmed = window.confirm(`Se eliminará la vacunación "${vaccination.vaccinationType}" del ${formatDate(vaccination.vaccinationDate)} para ${vaccination.animalIdentification}.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+
+    try {
+      await apiRequest(`/api/farms/${farm.id}/vaccinations/${vaccination.id}`, {
+        method: 'DELETE',
+        token
+      });
+      setSuccess('Vacunación eliminada correctamente.');
+      await loadVaccinations();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  const filteredVaccinations = vaccinations.filter((vaccination) => {
+    const haystack = `${vaccination.animalIdentification} ${vaccination.breed ?? ''} ${vaccination.vaccinationType}`.toLowerCase();
+    return !search.trim() || haystack.includes(search.trim().toLowerCase());
+  });
+  const scheduledDoses = vaccinations.filter((vaccination) => vaccination.nextDose).length;
+  const overdueDoses = vaccinations.filter((vaccination) => vaccination.nextDose && vaccination.nextDose < todayIso).length;
+  const vaccinatedAnimals = new Set(vaccinations.map((vaccination) => vaccination.animalId)).size;
+
+  if (loading) {
+    return <div className="panel-card empty-state">Cargando vacunaciones...</div>;
+  }
+
+  return (
+    <section className="panel-card stack">
+      <div className="info-callout">
+        <Shield size={18} />
+        <p>Histórico sanitario de la explotación. Registra cada pauta aplicada y, si procede, la fecha estimada de la siguiente dosis.</p>
+      </div>
+
+      <div className="farm-detail-metrics">
+        <SummaryMetric label="Vacunaciones" value={vaccinations.length} />
+        <SummaryMetric label="Animales vacunados" value={vaccinatedAnimals} />
+        <SummaryMetric label="Próximas dosis" value={scheduledDoses} />
+        <SummaryMetric label="Dosis vencidas" value={overdueDoses} />
+      </div>
+
+      <div className="section-heading-row">
+        <div>
+          <h2>Vacunación</h2>
+          <p>Registro de vacunas aplicadas por animal dentro de la explotación.</p>
+        </div>
+        <button className="primary-button" type="button" onClick={openCreateModal}>
+          <Plus size={16} />
+          Registrar vacunación
+        </button>
+      </div>
+
+      {error && <div className="error-banner">{error}</div>}
+      {success && <div className="success-banner">{success}</div>}
+
+      <div className="animal-filters farm-animals-filters">
+        <div className="animal-search">
+          <Search size={14} />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={`Buscar por ${identificationLabel.toLowerCase()}, raza o vacuna...`}
+          />
+        </div>
+      </div>
+
+      {filteredVaccinations.length === 0 ? (
+        <div className="empty-state">
+          <Shield size={28} />
+          <div>{vaccinations.length === 0 ? 'No hay vacunaciones registradas.' : 'No hay vacunaciones que coincidan con la búsqueda.'}</div>
+        </div>
+      ) : (
+        <div className="animal-table-card">
+          <div className="table-scroll">
+            <table className="animal-table">
+              <thead>
+                <tr>
+                  {[identificationLabel, 'Raza', 'Vacuna', 'Fecha aplicada', 'Próxima dosis', 'Observaciones', 'Acciones'].map((header) => (
+                    <th key={header}>{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredVaccinations.map((vaccination) => (
+                  <tr key={vaccination.id}>
+                    <td><strong>{vaccination.animalIdentification}</strong></td>
+                    <td>{vaccination.breed ?? '—'}</td>
+                    <td><span className="vaccination-type-chip">{vaccination.vaccinationType}</span></td>
+                    <td>{formatDate(vaccination.vaccinationDate)}</td>
+                    <td>{formatDate(vaccination.nextDose)}</td>
+                    <td>{vaccination.observations ?? '—'}</td>
+                    <td>
+                      <div className="table-row-actions">
+                        <button className="secondary-button table-action-button" type="button" onClick={() => openEditModal(vaccination)}>
+                          <Edit3 size={14} />
+                          Editar
+                        </button>
+                        <button className="danger-button table-action-button" type="button" onClick={() => handleDelete(vaccination)}>
+                          <Trash2 size={14} />
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="animal-table-footer">{filteredVaccinations.length} vacunaciones</div>
+        </div>
+      )}
+
+      {modalOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <form className="modal-card modal-wide farm-modal-shell" onSubmit={handleSubmit}>
+            <div className="farm-modal-header">
+              <div className="farm-modal-title">
+                <div className="modal-panel-icon"><Shield size={18} /></div>
+                <div>
+                  <h2>{editingVaccination ? 'Editar vacunación' : 'Nueva vacunación'}</h2>
+                  <p>{farm.name}</p>
+                </div>
+              </div>
+              <button className="farm-modal-close" type="button" onClick={closeModal} aria-label="Cerrar modal">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="farm-modal-body operation-modal-body">
+              <label>
+                <span>{identificationLabel} *</span>
+                <input
+                  value={form.animalIdentification}
+                  onChange={(event) => setForm({ ...form, animalIdentification: event.target.value })}
+                  placeholder={farm.livestockSpecies === 'Porcine' ? 'Ej: LOTE-2026-01' : 'Ej: ES0600005831'}
+                />
+              </label>
+              <label>
+                <span>Tipo de vacunación *</span>
+                <input
+                  value={form.vaccinationType}
+                  onChange={(event) => setForm({ ...form, vaccinationType: event.target.value })}
+                  placeholder="Ej: Lengua azul, Aujeszky, clostridios..."
+                />
+              </label>
+              <label>
+                <span>Fecha aplicada *</span>
+                <input type="date" value={form.vaccinationDate} onChange={(event) => setForm({ ...form, vaccinationDate: event.target.value })} />
+              </label>
+              <label>
+                <span>Próxima dosis</span>
+                <input type="date" value={form.nextDose} onChange={(event) => setForm({ ...form, nextDose: event.target.value })} />
+              </label>
+              <label className="operation-form-wide">
+                <span>Observaciones</span>
+                <textarea
+                  value={form.observations}
+                  onChange={(event) => setForm({ ...form, observations: event.target.value })}
+                  placeholder="Lote de vacuna, reacción observada, pauta aplicada..."
+                />
+              </label>
+            </div>
+            <div className="farm-modal-footer">
+              <button className="secondary-button" type="button" onClick={closeModal}>Cancelar</button>
+              <button className="primary-button" type="submit" disabled={submitting}>
+                {submitting ? 'Guardando...' : editingVaccination ? 'Guardar cambios' : 'Guardar vacunación'}
+              </button>
             </div>
           </form>
         </div>
@@ -902,8 +1245,13 @@ function FarmCensusBalancesSection({ farm, token }) {
 
 function FarmBookSection({ farm, token }) {
   const [preview, setPreview] = useState(null);
+  const [selectedSectionIds, setSelectedSectionIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pdfPreviewPages, setPdfPreviewPages] = useState([]);
+  const [pdfPreviewTotalPages, setPdfPreviewTotalPages] = useState(0);
+  const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
+  const [pdfPreviewError, setPdfPreviewError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [printing, setPrinting] = useState(false);
 
@@ -918,11 +1266,13 @@ function FarmBookSection({ farm, token }) {
         const response = await apiRequest(`/api/farms/${farm.id}/book/preview`, { token });
         if (!cancelled) {
           setPreview(response);
+          setSelectedSectionIds(response.sections.map((section) => section.id));
         }
       } catch (requestError) {
         if (!cancelled) {
           setError(requestError.message);
           setPreview(null);
+          setSelectedSectionIds([]);
         }
       } finally {
         if (!cancelled) {
@@ -938,7 +1288,163 @@ function FarmBookSection({ farm, token }) {
     };
   }, [farm.id, token]);
 
+  const orderedSelectedSectionIds = useMemo(
+    () => preview?.sections.filter((section) => selectedSectionIds.includes(section.id)).map((section) => section.id) ?? [],
+    [preview, selectedSectionIds]
+  );
+
+  const selectedSectionCount = orderedSelectedSectionIds.length;
+  const totalSectionCount = preview?.sections.length ?? 0;
+  const canGeneratePdf = selectedSectionCount > 0 && !loading;
+
+  function toggleSection(sectionId) {
+    setSelectedSectionIds((current) => (
+      current.includes(sectionId)
+        ? current.filter((entry) => entry !== sectionId)
+        : [...current, sectionId]
+    ));
+  }
+
+  function selectAllSections() {
+    setSelectedSectionIds(preview?.sections.map((section) => section.id) ?? []);
+  }
+
+  function clearSelectedSections() {
+    setSelectedSectionIds([]);
+  }
+
+  useEffect(() => {
+    if (!preview) {
+      setPdfPreviewPages([]);
+      setPdfPreviewTotalPages(0);
+      setPdfPreviewLoading(false);
+      setPdfPreviewError('');
+      return undefined;
+    }
+
+    if (orderedSelectedSectionIds.length === 0) {
+      setPdfPreviewPages([]);
+      setPdfPreviewTotalPages(0);
+      setPdfPreviewLoading(false);
+      setPdfPreviewError('');
+      return undefined;
+    }
+
+    let cancelled = false;
+    let loadingTask = null;
+    let pdfDocument = null;
+    const abortController = new AbortController();
+
+    async function renderPdfPreview() {
+      setPdfPreviewLoading(true);
+      setPdfPreviewError('');
+
+      try {
+        const { blob } = await apiBlobRequest(buildBookPdfPath(farm.id, orderedSelectedSectionIds), {
+          token,
+          signal: abortController.signal
+        });
+
+        if (cancelled || abortController.signal.aborted) {
+          return;
+        }
+
+        const [{ GlobalWorkerOptions, getDocument }, workerModule] = await Promise.all([
+          import('pdfjs-dist'),
+          import('pdfjs-dist/build/pdf.worker.min.mjs?url')
+        ]);
+        GlobalWorkerOptions.workerSrc = workerModule.default;
+
+        const pdfBytes = await blob.arrayBuffer();
+        loadingTask = getDocument({ data: pdfBytes });
+        pdfDocument = await loadingTask.promise;
+
+        if (cancelled || abortController.signal.aborted) {
+          return;
+        }
+
+        const pageCount = pdfDocument.numPages;
+        const pagesToRender = Math.min(pageCount, BOOK_PREVIEW_MAX_PAGES);
+        const renderedPages = [];
+
+        for (let pageNumber = 1; pageNumber <= pagesToRender; pageNumber += 1) {
+          const page = await pdfDocument.getPage(pageNumber);
+          const baseViewport = page.getViewport({ scale: 1 });
+          const scale = Math.min(1.25, BOOK_PREVIEW_TARGET_WIDTH / baseViewport.width);
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d', { alpha: false });
+
+          if (!context) {
+            throw new Error('No se pudo preparar la vista previa del PDF.');
+          }
+
+          canvas.width = Math.ceil(viewport.width);
+          canvas.height = Math.ceil(viewport.height);
+
+          await page.render({
+            canvasContext: context,
+            viewport
+          }).promise;
+
+          renderedPages.push({
+            pageNumber,
+            src: canvas.toDataURL('image/png'),
+            width: canvas.width,
+            height: canvas.height
+          });
+
+          page.cleanup();
+          canvas.width = 0;
+          canvas.height = 0;
+        }
+
+        if (!cancelled && !abortController.signal.aborted) {
+          setPdfPreviewPages(renderedPages);
+          setPdfPreviewTotalPages(pageCount);
+        }
+      } catch (requestError) {
+        if (!cancelled && !abortController.signal.aborted) {
+          setPdfPreviewPages([]);
+          setPdfPreviewTotalPages(0);
+          setPdfPreviewError(requestError.message ?? 'No se pudo generar la vista previa del PDF.');
+        }
+      } finally {
+        if (pdfDocument) {
+          await pdfDocument.destroy().catch(() => {});
+        } else if (loadingTask) {
+          await loadingTask.destroy().catch(() => {});
+        }
+
+        if (!cancelled) {
+          setPdfPreviewLoading(false);
+        }
+      }
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      renderPdfPreview();
+    }, BOOK_PREVIEW_DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      abortController.abort();
+      window.clearTimeout(timeoutId);
+      if (loadingTask) {
+        loadingTask.destroy().catch(() => {});
+      }
+      if (pdfDocument) {
+        pdfDocument.destroy().catch(() => {});
+      }
+    };
+  }, [farm.id, orderedSelectedSectionIds, preview, token]);
+
   async function handlePdf(mode) {
+    if (!canGeneratePdf) {
+      setError('Debes seleccionar al menos un apartado del libro.');
+      return;
+    }
+
     if (mode === 'download') {
       setDownloading(true);
     } else {
@@ -947,7 +1453,7 @@ function FarmBookSection({ farm, token }) {
     setError('');
 
     try {
-      const { blob, filename } = await apiBlobRequest(`/api/farms/${farm.id}/book/pdf`, { token });
+      const { blob, filename } = await apiBlobRequest(buildBookPdfPath(farm.id, orderedSelectedSectionIds), { token });
       const objectUrl = URL.createObjectURL(blob);
 
       if (mode === 'download') {
@@ -980,10 +1486,10 @@ function FarmBookSection({ farm, token }) {
           <p>Generación oficial imprimible a partir de los datos actuales de la explotación.</p>
         </div>
         <div className="operation-form-actions">
-          <button className="secondary-button" type="button" onClick={() => handlePdf('print')} disabled={printing || downloading}>
+          <button className="secondary-button" type="button" onClick={() => handlePdf('print')} disabled={printing || downloading || !canGeneratePdf}>
             {printing ? 'Abriendo...' : 'Abrir / imprimir PDF'}
           </button>
-          <button className="primary-button" type="button" onClick={() => handlePdf('download')} disabled={downloading || printing}>
+          <button className="primary-button" type="button" onClick={() => handlePdf('download')} disabled={downloading || printing || !canGeneratePdf}>
             {downloading ? 'Descargando...' : 'Descargar PDF'}
           </button>
         </div>
@@ -992,47 +1498,108 @@ function FarmBookSection({ farm, token }) {
       {error && <div className="error-banner">{error}</div>}
 
       {preview && (
-        <>
-          <div className="detail-grid">
-            <DetailField label="Plantilla" value={preview.template === 'official-porcino' ? 'Oficial porcino' : 'Oficial ovino/caprino'} />
-            <DetailField label="Especie" value={speciesToneMap[preview.livestockSpecies]?.label ?? preview.livestockSpecies} />
-            <DetailField label="Titular" value={preview.summary.farmerName} />
-            <DetailField label="NIF / CIF" value={preview.summary.farmerIdentifier ?? 'No informado'} />
-            <DetailField label="Localidad" value={preview.summary.town ?? 'No informada'} />
-            <DetailField label="Provincia" value={preview.summary.province ?? 'No informada'} />
-          </div>
+        <div className="book-layout">
+          <aside className="book-config-card stack">
+            <div className="detail-header">
+              <div>
+                <h2>Apartados a incluir</h2>
+                <p>Selecciona qué secciones se imprimirán o exportarán en el libro.</p>
+              </div>
+              <strong>{selectedSectionCount}/{totalSectionCount}</strong>
+            </div>
 
-          <div className="census-visual-card">
-            <div className="balance-metrics-grid">
-              {[
-                { label: 'Animales', value: preview.summary.animals, color: '#2F6B4F', bg: '#DDEBDF' },
-                { label: 'Balances', value: preview.summary.balances, color: '#1d4ed8', bg: '#dbeafe' },
-                { label: 'Censos', value: preview.summary.censuses, color: '#7c3aed', bg: '#ede9fe' },
-                { label: 'Incidencias', value: preview.summary.incidents, color: '#d97706', bg: '#fef3c7' },
-                { label: 'Inspecciones', value: preview.summary.inspections, color: '#9d174d', bg: '#fce7f3' }
-              ].map((item) => (
-                <div key={item.label} className="balance-metric-tile" style={{ background: item.bg }}>
-                  <span className="balance-metric-value" style={{ color: item.color }}>{item.value}</span>
-                  <span className="balance-metric-label" style={{ color: item.color }}>{item.label}</span>
+            <div className="book-toolbar">
+              <button className="secondary-button" type="button" onClick={selectAllSections}>
+                Seleccionar todo
+              </button>
+              <button className="secondary-button" type="button" onClick={clearSelectedSections} disabled={selectedSectionCount === 0}>
+                Limpiar
+              </button>
+            </div>
+
+            <div className="book-section-list">
+              {preview.sections.map((section) => {
+                const selected = selectedSectionIds.includes(section.id);
+
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    className={selected ? 'book-section-option book-section-option-active' : 'book-section-option'}
+                    onClick={() => toggleSection(section.id)}
+                  >
+                    <span className={selected ? 'book-section-check book-section-check-active' : 'book-section-check'}>
+                      {selected ? <Check size={12} /> : null}
+                    </span>
+                    <span className="book-section-copy">
+                      <strong>{section.title}</strong>
+                      <small>{section.description}</small>
+                    </span>
+                    <span className="book-section-count">{section.items}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          <div className="panel-card stack book-document-preview">
+            <div className="detail-header">
+              <div>
+                <h2>Vista previa de impresión</h2>
+                <p>Se muestran solo las tres primeras páginas del PDF real.</p>
+              </div>
+              <strong>
+                {pdfPreviewTotalPages > 0
+                  ? `${Math.min(pdfPreviewTotalPages, BOOK_PREVIEW_MAX_PAGES)} / ${pdfPreviewTotalPages} pág.`
+                  : 'Sin páginas'}
+              </strong>
+            </div>
+
+            {pdfPreviewError && <div className="error-banner">{pdfPreviewError}</div>}
+
+            <div className="book-document-preview-body">
+              {orderedSelectedSectionIds.length === 0 ? (
+                <div className="empty-state">Selecciona al menos un apartado para generar la vista previa del PDF.</div>
+              ) : (
+                <>
+                <div className="book-preview-status">
+                  <span>{preview.template === 'official-porcino' ? 'Plantilla oficial porcino' : 'Plantilla oficial ovino/caprino'}</span>
+                  {pdfPreviewLoading ? <strong>Actualizando vista previa...</strong> : null}
                 </div>
-              ))}
+
+                {pdfPreviewPages.length === 0 && pdfPreviewLoading ? (
+                  <div className="book-pdf-loading">
+                    <div className="book-pdf-skeleton" />
+                    <div className="book-pdf-skeleton" />
+                    <div className="book-pdf-skeleton" />
+                  </div>
+                ) : pdfPreviewPages.length === 0 ? (
+                  <div className="empty-state">No hay páginas disponibles para la selección actual.</div>
+                ) : (
+                  <div className="book-pdf-preview-list">
+                    {pdfPreviewPages.map((page) => (
+                      <article key={page.pageNumber} className="book-pdf-page-card">
+                        <div className="book-pdf-page-meta">
+                          <span>Página {page.pageNumber}</span>
+                        </div>
+                        <div className="book-pdf-page-frame">
+                          <img
+                            src={page.src}
+                            alt={`Vista previa de la página ${page.pageNumber} del libro de registro`}
+                            width={page.width}
+                            height={page.height}
+                          />
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+                </>
+              )}
             </div>
           </div>
 
-          <div className="stack">
-            {preview.sections.map((section) => (
-              <article key={section.id} className="panel-card stack">
-                <div className="detail-header">
-                  <div>
-                    <h2>{section.title}</h2>
-                    <p>{section.description}</p>
-                  </div>
-                  <strong>{section.items}</strong>
-                </div>
-              </article>
-            ))}
-          </div>
-        </>
+        </div>
       )}
     </section>
   );
@@ -1492,6 +2059,7 @@ export function FarmDetailPage() {
 
   const speciesTone = speciesToneMap[farm.livestockSpecies] ?? { bg: '#F3F4F6', color: '#6B7280', label: farm.livestockSpecies };
   const statusTone = statusToneMap[farm.status] ?? statusToneMap.Inactive;
+  const activeTabConfig = detailTabs.find((tab) => tab.key === activeTab) ?? detailTabs[0];
 
   return (
     <div className="page-stack">
@@ -1555,7 +2123,15 @@ export function FarmDetailPage() {
       </section>
 
       <section className="panel-card stack">
-        <div className="farm-detail-tabs" role="tablist" aria-label="Secciones de la explotación">
+        <div className="detail-header">
+          <div>
+            <h2>Navegación de secciones</h2>
+            <p>Accede a cada bloque del detalle sin depender de un scroll horizontal.</p>
+          </div>
+          <strong>{activeTabConfig.label}</strong>
+        </div>
+
+        <div className="farm-detail-nav-grid" role="tablist" aria-label="Secciones de la explotación">
           {detailTabs.map((tab) => {
             const Icon = tab.icon;
 
@@ -1569,9 +2145,13 @@ export function FarmDetailPage() {
                 onClick={() => tab.enabled && setActiveTab(tab.key)}
                 className={activeTab === tab.key ? 'farm-detail-tab farm-detail-tab-active' : 'farm-detail-tab'}
               >
-                <Icon size={15} />
-                <span>{tab.label}</span>
-                {!tab.enabled && <small>Próximamente</small>}
+                <span className="farm-detail-tab-icon">
+                  <Icon size={16} />
+                </span>
+                <span className="farm-detail-tab-copy">
+                  <strong>{tab.label}</strong>
+                  {!tab.enabled && <small>Próximamente</small>}
+                </span>
               </button>
             );
           })}
@@ -1629,6 +2209,7 @@ export function FarmDetailPage() {
       {activeTab === 'movements' && <FarmMovementsSection farm={farm} token={token} />}
       {activeTab === 'births' && <FarmBirthsSection farm={farm} token={token} />}
       {activeTab === 'deaths' && <FarmDeathsSection farm={farm} token={token} />}
+      {activeTab === 'vaccinations' && <FarmVaccinationsSection farm={farm} token={token} />}
       {activeTab === 'balances' && <FarmCensusBalancesSection farm={farm} token={token} />}
       {activeTab === 'book' && <FarmBookSection farm={farm} token={token} />}
       {activeTab === 'incidents' && <FarmIncidentsSection farm={farm} token={token} />}

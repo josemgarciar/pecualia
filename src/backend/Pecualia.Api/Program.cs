@@ -14,6 +14,9 @@ using Pecualia.Api.Models.Enums;
 using Pecualia.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+DotEnvLoader.LoadFromNearest(builder.Environment.ContentRootPath);
+builder.Configuration.AddEnvironmentVariables();
+
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 QuestPDF.Settings.EnableDebugging = builder.Environment.IsDevelopment();
 
@@ -23,11 +26,17 @@ builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailO
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+ValidateRequiredSetting(jwtOptions.Issuer, "Jwt:Issuer");
+ValidateRequiredSetting(jwtOptions.Audience, "Jwt:Audience");
+ValidateRequiredSetting(jwtOptions.SigningKey, "Jwt:SigningKey");
+
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey));
+var postgresConnectionString = RequireConfigurationValue(builder.Configuration, "ConnectionStrings:Postgres");
+var frontendOrigin = RequireConfigurationValue(builder.Configuration, "Frontend:Origin");
 
 builder.Services.AddDbContext<PecualiaDbContext>(options =>
 {
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres"));
+    options.UseNpgsql(postgresConnectionString);
 });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -62,7 +71,6 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddCors(options =>
 {
-    var frontendOrigin = builder.Configuration.GetValue<string>("Frontend:Origin") ?? "http://127.0.0.1:5173";
     options.AddDefaultPolicy(policy =>
     {
         policy.WithOrigins(frontendOrigin)
@@ -145,3 +153,22 @@ app.MapMovementController();
 app.MapDashboardController();
 
 app.Run();
+
+static string RequireConfigurationValue(IConfiguration configuration, string key)
+{
+    var value = configuration[key];
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        throw new InvalidOperationException($"Falta la configuración obligatoria '{key}'. Revísala en el entorno o en el fichero .env.");
+    }
+
+    return value;
+}
+
+static void ValidateRequiredSetting(string value, string key)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        throw new InvalidOperationException($"Falta la configuración obligatoria '{key}'. Revísala en el entorno o en el fichero .env.");
+    }
+}

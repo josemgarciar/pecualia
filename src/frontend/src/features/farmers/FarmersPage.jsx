@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, ChevronRight, Mail, MapPin, Phone, User, X } from 'lucide-react';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { apiRequest } from '../../shared/api/client';
@@ -505,6 +505,7 @@ function FarmerWizardModal({
 }
 
 export function FarmersPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { token, user } = useAuth();
   const [farmers, setFarmers] = useState([]);
@@ -615,6 +616,15 @@ export function FarmersPage() {
     setModalError('');
     setModalOpen(true);
   };
+
+  useEffect(() => {
+    if (user?.role !== 'Manager' || !location.state?.openCreateModal) {
+      return;
+    }
+
+    openCreateModal();
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.pathname, location.state, navigate, user?.role]);
 
   const openEditModal = () => {
     if (!selectedFarmer) {

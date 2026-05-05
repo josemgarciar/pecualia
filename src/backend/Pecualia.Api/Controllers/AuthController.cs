@@ -33,6 +33,10 @@ public static class AuthController
             }))
             .RequireAuthorization();
 
+        group.MapPut("/settings", async (ClaimsPrincipal user, UpdateUserSettingsRequest request, IAuthService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.UpdateCurrentUserSettingsAsync(user.GetUserId(), request, cancellationToken)))
+            .RequireAuthorization();
+
         return endpoints;
     }
 }

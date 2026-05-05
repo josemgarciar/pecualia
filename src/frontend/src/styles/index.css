@@ -37,8 +37,17 @@
 /* 11. Animals: filters, table, detail panel, chips */
 @import './animals.css';
 
-/* 12. Movements: layout, toolbar, detail panel, modal, upload, preview */
+/* 12. Profile: account hub, hero, actions, subscription/settings panels */
+@import './profile.css';
+
+/* 13. Subscription: plans, current plan summary and billing placeholders */
+@import './subscription.css';
+
+/* 14. Settings: account forms, security and notification preferences */
+@import './settings.css';
+
+/* 15. Movements: layout, toolbar, detail panel, modal, upload, preview */
 @import './movements.css';
 
-/* 13. Responsive: all @media breakpoints */
+/* 16. Responsive: all @media breakpoints */
 @import './responsive.css';

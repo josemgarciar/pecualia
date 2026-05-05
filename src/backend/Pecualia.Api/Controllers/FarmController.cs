@@ -53,6 +53,28 @@ public static class FarmController
         group.MapPost("/{farmId:long}/deaths", async (ClaimsPrincipal user, long farmId, CreateFarmDeathRequest request, IFarmOperationService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.CreateDeathAsync(user.GetUserId(), user.GetRole(), farmId, request, cancellationToken)));
 
+        group.MapGet("/{farmId:long}/vaccinations", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.GetVaccinationsAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
+
+        group.MapPost("/{farmId:long}/vaccinations", async (ClaimsPrincipal user, long farmId, CreateFarmVaccinationRequest request, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.CreateVaccinationAsync(user.GetUserId(), user.GetRole(), farmId, request, cancellationToken)));
+
+        group.MapPut("/{farmId:long}/vaccinations/{vaccinationId:long}", async (ClaimsPrincipal user, long farmId, long vaccinationId, UpdateFarmVaccinationRequest request, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.UpdateVaccinationAsync(user.GetUserId(), user.GetRole(), farmId, vaccinationId, request, cancellationToken)));
+
+        group.MapDelete("/{farmId:long}/vaccinations/{vaccinationId:long}", async (ClaimsPrincipal user, long farmId, long vaccinationId, IFarmOperationService service, CancellationToken cancellationToken) =>
+        {
+            try
+            {
+                await service.DeleteVaccinationAsync(user.GetUserId(), user.GetRole(), farmId, vaccinationId, cancellationToken);
+                return Results.NoContent();
+            }
+            catch (DomainException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+        });
+
         group.MapGet("/{farmId:long}/census", async (ClaimsPrincipal user, long farmId, int? year, IFarmOperationService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetCensusAsync(user.GetUserId(), user.GetRole(), farmId, year, cancellationToken)));
 
@@ -77,11 +99,16 @@ public static class FarmController
         group.MapGet("/{farmId:long}/book/preview", async (ClaimsPrincipal user, long farmId, IBookService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetPreviewAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
 
-        group.MapGet("/{farmId:long}/book/pdf", async (ClaimsPrincipal user, long farmId, IBookService service, CancellationToken cancellationToken) =>
+        group.MapGet("/{farmId:long}/book/pdf", async (
+            ClaimsPrincipal user,
+            long farmId,
+            string[]? sectionIds,
+            IBookService service,
+            CancellationToken cancellationToken) =>
         {
             try
             {
-                var file = await service.GeneratePdfAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken);
+                var file = await service.GeneratePdfAsync(user.GetUserId(), user.GetRole(), farmId, sectionIds, cancellationToken);
                 return Results.File(file.Content, file.ContentType, file.FileName);
             }
             catch (DomainException exception)

@@ -40,7 +40,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 24px;
+  padding: 24px 24px 22px;
   background: #ffffff;
   border-bottom: 1px solid #d7ded8;
 }
@@ -83,12 +83,16 @@
 .farm-stepper {
   display: flex;
   align-items: flex-start;
+  justify-content: center;
   gap: 12px;
+  width: min(100%, 720px);
+  margin: 0 auto;
   padding: 20px 24px 16px;
 }
 
 .farm-stepper-item {
-  flex: 1;
+  flex: 0 1 220px;
+  max-width: 220px;
   min-width: 0;
 }
 

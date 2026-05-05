@@ -1,15 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Navigate, Outlet, Route, Routes, NavLink } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  BarChart3,
   Building2,
-  CreditCard,
+  ChevronRight,
   LayoutDashboard,
   LogOut,
   Menu,
-  Settings,
+  ShieldCheck,
   Tag,
-  UserCircle2,
   Users,
   X
 } from 'lucide-react';
@@ -22,7 +20,10 @@ import { FarmersPage } from '../features/farmers/FarmersPage';
 import { FarmsPage } from '../features/farms/FarmsPage';
 import { FarmDetailPage } from '../features/farms/FarmDetailPage';
 import { ProfilePage } from '../features/profile/ProfilePage';
+import { SettingsPage } from '../features/profile/SettingsPage';
+import { SubscriptionPage } from '../features/profile/SubscriptionPage';
 import { useAuth } from '../shared/auth/AuthContext';
+import { getPlanLabel } from '../shared/subscription/plans';
 
 function RequireAuth() {
   const { token, bootstrapped } = useAuth();
@@ -40,22 +41,26 @@ function RequireAuth() {
 
 function AppShell() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const isManager = user?.role === 'Manager';
   const [mobileOpen, setMobileOpen] = useState(false);
   const initials = useMemo(
     () => `${user?.name?.[0] ?? ''}${user?.surname?.[0] ?? ''}`.toUpperCase() || 'P',
     [user]
   );
+  const roleLabel = isManager ? 'Gestor@' : 'Ganader@';
+  const planLabel = getPlanLabel(user);
+  const accountHeading = isManager ? (user?.organizationName || 'Cuenta profesional') : 'Perfil de explotación';
+  const secondaryIdentity = isManager
+    ? (user?.email || 'Correo no disponible')
+    : (user?.username || user?.email || 'Identidad pendiente');
   const primaryItems = [
     { to: '/app/dashboard', label: 'Inicio', icon: LayoutDashboard },
     ...(isManager ? [{ to: '/app/farmers', label: 'Ganaderos', icon: Users }] : []),
     { to: '/app/farms', label: 'Explotaciones', icon: Building2 },
   ];
-  const secondaryItems = [
-    { to: '/app/profile', label: 'Perfil', icon: UserCircle2 },
-    { label: 'Suscripción', icon: CreditCard, disabled: true },
-    { label: 'Ajustes', icon: Settings, disabled: true }
-  ];
+  const profileActive = location.pathname.startsWith('/app/profile');
 
   const renderLink = (item) => {
     const Icon = item.icon;
@@ -108,25 +113,49 @@ function AppShell() {
           </div>
         </nav>
 
-        <nav className="sidebar-section sidebar-section-secondary">
-          <span className="sidebar-section-title">Cuenta</span>
-          <div className="nav-links">
-            {secondaryItems.map(renderLink)}
-          </div>
-        </nav>
+        <section className="sidebar-section sidebar-section-fill">
+          <span className="sidebar-section-title">Perfil Activo</span>
+          <button
+            type="button"
+            className={profileActive ? 'sidebar-profile-panel sidebar-profile-panel-active' : 'sidebar-profile-panel'}
+            onClick={() => {
+              setMobileOpen(false);
+              navigate('/app/profile');
+            }}
+          >
+            <div className="sidebar-profile-panel-top">
+              <div className="sidebar-avatar sidebar-avatar-lg">{initials}</div>
+              <div className="sidebar-profile-panel-copy">
+                <strong>{user?.name} {user?.surname}</strong>
+                <span>{accountHeading}</span>
+              </div>
+              <ChevronRight size={16} className="sidebar-profile-panel-arrow" />
+            </div>
 
-        <div className="sidebar-footer">
-          <div className="sidebar-user-card">
-            <div className="sidebar-avatar">{initials}</div>
-            <div className="sidebar-user-copy">
-              <strong>{user?.name} {user?.surname}</strong>
-              <div className="sidebar-user-meta">
-                <span className="sidebar-plan-chip">{user?.role === 'Manager' ? 'PRO' : 'ACTIVA'}</span>
-                <span>{user?.role === 'Manager' ? 'Gestora' : 'Ganadero'}</span>
+            <div className="sidebar-profile-badges">
+              <span className="sidebar-plan-chip">{planLabel}</span>
+              <span className="sidebar-role-chip">{roleLabel}</span>
+            </div>
+
+            <div className="sidebar-profile-stats">
+              <div>
+                <span>{isManager ? 'Correo' : 'Usuario'}</span>
+                <strong>{secondaryIdentity}</strong>
               </div>
             </div>
-            <button className="sidebar-logout" onClick={logout} aria-label="Cerrar sesión">
+
+            <div className="sidebar-profile-note">
+              <ShieldCheck size={15} />
+              <span>{isManager ? 'Acceso centralizado a ganaderos y explotaciones' : 'Acceso directo a tu operativa y documentación'}</span>
+            </div>
+          </button>
+        </section>
+
+        <div className="sidebar-footer">
+          <div className="sidebar-footer-actions">
+            <button className="sidebar-logout sidebar-logout-full" onClick={logout} aria-label="Cerrar sesión">
               <LogOut size={15} />
+              <span>Cerrar sesión</span>
             </button>
           </div>
         </div>
@@ -169,6 +198,8 @@ export function AppRouter() {
           <Route path="farms" element={<FarmsPage />} />
           <Route path="farms/:farmId" element={<FarmDetailPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="profile/settings" element={<SettingsPage />} />
+          <Route path="profile/subscription" element={<SubscriptionPage />} />
           <Route index element={<Navigate to="/app/dashboard" replace />} />
         </Route>
       </Route>

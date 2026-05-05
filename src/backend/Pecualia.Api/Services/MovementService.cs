@@ -840,7 +840,10 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             ? "Origen no informado"
             : "Destino no informado";
         var counterpartyName = NormalizeNullable(counterpartyExternalName) ?? fallbackCounterpartyName;
-        var counterpartyCode = NormalizeNullable(counterpartyExternalCode) ?? counterpartyName;
+        var rawCounterpartyCode = NormalizeNullable(counterpartyExternalCode) ?? counterpartyName;
+        var counterpartyCode = direction == MovementDirection.Exit && cause == MovementImportCause.Muerte
+            ? NormalizeDeathDestinationCode(currentFarm.LivestockSpecies, rawCounterpartyCode)
+            : rawCounterpartyCode;
 
         return new MovementContext(
             currentFarm,
@@ -922,9 +925,14 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         var counterpartyName = counterpartyType == MovementCounterpartyType.Internal
             ? counterpartyFarm!.Name
             : counterpartyExternalName!.Trim();
-        var counterpartyCode = counterpartyType == MovementCounterpartyType.Internal
+        var rawCounterpartyCode = counterpartyType == MovementCounterpartyType.Internal
             ? counterpartyFarm!.RegaCode
             : NormalizeNullable(counterpartyExternalCode) ?? counterpartyExternalName!.Trim();
+        var counterpartyCode = direction == MovementDirection.Exit &&
+            counterpartyType == MovementCounterpartyType.External &&
+            ParseDischargeCause(cause) == AnimalDischargeCause.Muerte
+                ? NormalizeDeathDestinationCode(currentFarm.LivestockSpecies, rawCounterpartyCode)
+                : rawCounterpartyCode;
 
         return new MovementContext(
             currentFarm,
@@ -1275,6 +1283,33 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         }
 
         throw new DomainException("La causa de baja debe ser Salida (S) o Muerte (M).");
+    }
+
+    private static string NormalizeDeathDestinationCode(LivestockSpecies species, string? destinationCode)
+    {
+        var normalizedDestinationCode = NormalizeNullable(destinationCode)?.ToUpperInvariant();
+
+        if (normalizedDestinationCode is null)
+        {
+            throw new DomainException("El destino de una baja por muerte es obligatorio.");
+        }
+
+        if (species == LivestockSpecies.Porcine)
+        {
+            if (normalizedDestinationCode != "MER")
+            {
+                throw new DomainException("En ganado porcino, una baja por muerte solo puede registrarse con destino MER.");
+            }
+
+            return normalizedDestinationCode;
+        }
+
+        if (normalizedDestinationCode is not ("SANDACH" or "MER"))
+        {
+            throw new DomainException("El destino de una baja por muerte debe ser SANDACH o MER.");
+        }
+
+        return normalizedDestinationCode;
     }
 
     private async Task<MovementDetailResponse> GetMovementAsyncForCommittedTransaction(long movementId, CancellationToken cancellationToken)

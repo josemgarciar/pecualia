@@ -23,6 +23,8 @@ public interface IAuthService
     Task<ActivationResponse> ResendActivationAsync(ResendActivationRequest request, CancellationToken cancellationToken);
 
     Task<UserProfileResponse?> GetCurrentUserAsync(long userId, CancellationToken cancellationToken);
+
+    Task<UserProfileResponse> UpdateCurrentUserSettingsAsync(long userId, UpdateUserSettingsRequest request, CancellationToken cancellationToken);
 }
 
 public sealed class AuthService(
@@ -134,6 +136,7 @@ public sealed class AuthService(
         var user = await dbContext.Users
             .Include(entity => entity.Manager)
             .Include(entity => entity.Farmer)
+            .Include(entity => entity.Subscription)
             .SingleOrDefaultAsync(entity =>
                 entity.Email == identifier ||
                 (entity.Username != null && entity.Username.ToLower() == identifier),
@@ -210,9 +213,89 @@ public sealed class AuthService(
         var user = await dbContext.Users
             .Include(entity => entity.Manager)
             .Include(entity => entity.Farmer)
+            .Include(entity => entity.Subscription)
             .SingleOrDefaultAsync(entity => entity.Id == userId, cancellationToken);
 
         return user is null ? null : MapProfile(user);
+    }
+
+    public async Task<UserProfileResponse> UpdateCurrentUserSettingsAsync(long userId, UpdateUserSettingsRequest request, CancellationToken cancellationToken)
+    {
+        var user = await dbContext.Users
+            .Include(entity => entity.Manager)
+            .Include(entity => entity.Farmer)
+            .Include(entity => entity.Subscription)
+            .SingleOrDefaultAsync(entity => entity.Id == userId, cancellationToken);
+
+        if (user is null)
+        {
+            throw new DomainException("Usuario no encontrado.");
+        }
+
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var normalizedUsername = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username.Trim();
+        var normalizedName = request.Name.Trim();
+        var normalizedSurname = request.Surname.Trim();
+        var normalizedOrganizationName = string.IsNullOrWhiteSpace(request.OrganizationName) ? null : request.OrganizationName.Trim();
+        var normalizedCurrentPassword = string.IsNullOrWhiteSpace(request.CurrentPassword) ? null : request.CurrentPassword.Trim();
+        var normalizedNewPassword = string.IsNullOrWhiteSpace(request.NewPassword) ? null : request.NewPassword.Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedName) ||
+            string.IsNullOrWhiteSpace(normalizedSurname) ||
+            string.IsNullOrWhiteSpace(normalizedEmail))
+        {
+            throw new DomainException("Nombre, apellidos y correo son obligatorios.");
+        }
+
+        if (await dbContext.Users.AnyAsync(entity => entity.Email == normalizedEmail && entity.Id != userId, cancellationToken))
+        {
+            throw new DomainException("El correo ya está en uso.");
+        }
+
+        if (normalizedUsername is not null &&
+            await dbContext.Users.AnyAsync(entity => entity.Username == normalizedUsername && entity.Id != userId, cancellationToken))
+        {
+            throw new DomainException("El nombre de usuario ya está en uso.");
+        }
+
+        if (user.Role == UserRole.Manager && string.IsNullOrWhiteSpace(normalizedOrganizationName))
+        {
+            throw new DomainException("La organización es obligatoria para cuentas gestoras.");
+        }
+
+        if (normalizedNewPassword is not null)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedCurrentPassword))
+            {
+                throw new DomainException("Debes indicar la contraseña actual para establecer una nueva.");
+            }
+
+            if (string.IsNullOrWhiteSpace(user.PasswordHash) || !passwordHasher.Verify(normalizedCurrentPassword, user.PasswordHash))
+            {
+                throw new DomainException("La contraseña actual no es válida.");
+            }
+
+            if (normalizedNewPassword.Length < 8)
+            {
+                throw new DomainException("La nueva contraseña debe tener al menos 8 caracteres.");
+            }
+
+            user.PasswordHash = passwordHasher.Hash(normalizedNewPassword);
+        }
+
+        user.Name = normalizedName;
+        user.Surname = normalizedSurname;
+        user.Email = normalizedEmail;
+        user.Username = normalizedUsername;
+        user.UpdatedAt = clock.UtcNow;
+
+        if (user.Manager is not null)
+        {
+            user.Manager.OrganizationName = normalizedOrganizationName ?? user.Manager.OrganizationName;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return MapProfile(user);
     }
 
     public async Task<string> CreateActivationAsync(AppUser user, long? createdByUserId, CancellationToken cancellationToken)
@@ -298,7 +381,12 @@ public sealed class AuthService(
             user.Role.ToString(),
             user.IsActive,
             user.Manager?.OrganizationName,
-            user.Farmer?.Status.ToString());
+            user.Farmer?.Status.ToString(),
+            user.Subscription?.PlanType.ToString(),
+            user.Subscription?.State.ToString(),
+            user.Subscription?.Autorenew,
+            user.Subscription?.InitialDate,
+            user.Subscription?.ExpirationDate);
     }
 
     private static string CleanOptional(string? value) => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();

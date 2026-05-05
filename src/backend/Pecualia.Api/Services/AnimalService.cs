@@ -156,7 +156,9 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
 
         animal.DischargeDate = request.DischargeDate;
         animal.DischargeCause = request.DischargeCause;
-        animal.DestinationCode = Normalize(request.DestinationCode);
+        animal.DestinationCode = request.DischargeCause == AnimalDischargeCause.Muerte
+            ? NormalizeDeathDestinationCode(animal.LivestockFarm.LivestockSpecies, request.DestinationCode)
+            : Normalize(request.DestinationCode);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -258,7 +260,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         var speciesType = request.OvinoCaprino?.SpeciesType ?? farm.LivestockSpecies;
         if (speciesType is not (LivestockSpecies.Ovine or LivestockSpecies.Caprine) || speciesType != farm.LivestockSpecies)
         {
-            throw new DomainException("El subtipo ovino/caprino no coincide con la especie de la explotación.");
+            throw new DomainException("El tipo ovino/caprino no coincide con la especie de la explotación.");
         }
 
         return new OvinoCaprinoAnimal
@@ -275,7 +277,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
     {
         if (request.Porcino is null || string.IsNullOrWhiteSpace(request.Porcino.AnimalType))
         {
-            throw new DomainException("El tipo de animal porcino es obligatorio.");
+            throw new DomainException("El tipo porcino no coincide con la especie de la explotación");
         }
 
         return new PorcinoAnimal
@@ -306,6 +308,33 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
     private static string BuildStatus(Animal animal) => animal.DischargeDate is null ? "Active" : "Discharged";
 
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string NormalizeDeathDestinationCode(LivestockSpecies species, string? destinationCode)
+    {
+        var normalizedDestinationCode = Normalize(destinationCode)?.ToUpperInvariant();
+
+        if (normalizedDestinationCode is null)
+        {
+            throw new DomainException("El destino de una baja por muerte es obligatorio.");
+        }
+
+        if (species == LivestockSpecies.Porcine)
+        {
+            if (normalizedDestinationCode != "MER")
+            {
+                throw new DomainException("En ganado porcino, una baja por muerte solo puede registrarse con destino MER.");
+            }
+
+            return normalizedDestinationCode;
+        }
+
+        if (normalizedDestinationCode is not ("SANDACH" or "MER"))
+        {
+            throw new DomainException("El destino de una baja por muerte debe ser SANDACH o MER.");
+        }
+
+        return normalizedDestinationCode;
+    }
 
     private static string? EmptyToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 

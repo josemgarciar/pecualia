@@ -31,7 +31,7 @@ export async function apiRequest(path, { method = 'GET', body, token } = {}) {
   return parseResponse(response);
 }
 
-export async function apiBlobRequest(path, { method = 'GET', token } = {}) {
+export async function apiBlobRequest(path, { method = 'GET', token, signal } = {}) {
   const headers = {};
   if (token) {
     headers.Authorization = `Bearer ${token}`;
@@ -39,7 +39,8 @@ export async function apiBlobRequest(path, { method = 'GET', token } = {}) {
 
   const response = await fetch(path, {
     method,
-    headers
+    headers,
+    signal
   });
 
   if (!response.ok) {

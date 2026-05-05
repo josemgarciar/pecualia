@@ -42,6 +42,15 @@ public sealed record AuthResponse(string Token, UserProfileResponse User);
 
 public sealed record ActivationResponse(string Message, string? ActivationUrl);
 
+public sealed record UpdateUserSettingsRequest(
+    string Name,
+    string Surname,
+    string Email,
+    string? Username,
+    string? OrganizationName,
+    string? CurrentPassword,
+    string? NewPassword);
+
 public sealed record UserProfileResponse(
     long Id,
     string Email,
@@ -51,4 +60,9 @@ public sealed record UserProfileResponse(
     string Role,
     bool IsActive,
     string? OrganizationName,
-    string? FarmerStatus);
+    string? FarmerStatus,
+    string? PlanType,
+    string? SubscriptionState,
+    bool? SubscriptionAutorenew,
+    DateOnly? SubscriptionInitialDate,
+    DateOnly? SubscriptionExpirationDate);

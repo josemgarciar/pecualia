@@ -30,6 +30,31 @@ public sealed record CreateFarmDeathRequest(
     DateOnly DischargeDate,
     string? DestinationCode);
 
+public sealed record FarmVaccinationResponse(
+    long Id,
+    long FarmId,
+    long AnimalId,
+    string AnimalIdentification,
+    string? Breed,
+    DateOnly VaccinationDate,
+    DateOnly? NextDose,
+    string VaccinationType,
+    string? Observations);
+
+public sealed record CreateFarmVaccinationRequest(
+    string AnimalIdentification,
+    DateOnly VaccinationDate,
+    DateOnly? NextDose,
+    string VaccinationType,
+    string? Observations);
+
+public sealed record UpdateFarmVaccinationRequest(
+    string AnimalIdentification,
+    DateOnly VaccinationDate,
+    DateOnly? NextDose,
+    string VaccinationType,
+    string? Observations);
+
 public sealed record FarmCensusResponse(
     long? Id,
     long FarmId,

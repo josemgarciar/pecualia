@@ -14,7 +14,7 @@ const initialForm = {
   phoneNumber: '',
   province: '',
   town: '',
-  planType: 'Professional'
+  planType: 'Basic'
 };
 
 export function RegisterManagerPage() {
@@ -60,9 +60,9 @@ export function RegisterManagerPage() {
         <label>
           <span>Plan inicial</span>
           <select value={form.planType} onChange={(event) => setForm({ ...form, planType: event.target.value })}>
-            <option value="Basic">Básico</option>
-            <option value="Professional">Profesional</option>
-            <option value="Enterprise">Empresa</option>
+            <option value="Basic">Free</option>
+            <option value="Professional">Pro</option>
+            <option value="Enterprise">Max</option>
           </select>
         </label>
 
