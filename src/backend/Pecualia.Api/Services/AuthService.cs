@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Pecualia.Api.Configuration;
@@ -314,25 +315,111 @@ public sealed class AuthService(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var activationUrl = $"{_activationOptions.BaseUrl}?token={Uri.EscapeDataString(plainToken)}";
+        var htmlBody = BuildActivationEmailHtml(user.Name, activationUrl);
         var plainTextBody =
             $"""
             Hola {user.Name},
 
-            Tu cuenta de Pecualia ya está creada. Actívala desde este enlace:
+            Tu acceso a Pecualia ya está preparado.
+
+            Activa tu cuenta desde este enlace:
             {activationUrl}
 
             Este enlace caduca en {_activationOptions.TokenHours} horas.
+
+            Si no esperabas este correo, puedes ignorarlo.
             """;
 
         await emailSender.SendAsync(
             new EmailMessage(
                 user.Email,
                 "Activa tu cuenta de Pecualia",
-                $"<p>Hola {user.Name},</p><p>Tu cuenta de Pecualia ya está creada.</p><p><a href=\"{activationUrl}\">Activar cuenta</a></p><p>Este enlace caduca en {_activationOptions.TokenHours} horas.</p>",
+                htmlBody,
                 plainTextBody),
             cancellationToken);
 
         return activationUrl;
+    }
+
+    private string BuildActivationEmailHtml(string userName, string activationUrl)
+    {
+        var safeName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(userName) ? "ganadero" : userName.Trim());
+        var safeUrl = WebUtility.HtmlEncode(activationUrl);
+
+        return
+            $$"""
+            <!DOCTYPE html>
+            <html lang="es">
+              <body style="margin:0;padding:0;background-color:#f6f8f5;font-family:Inter,Segoe UI,Arial,sans-serif;color:#1e2a24;">
+                <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+                  Activa tu cuenta de Pecualia y termina la configuración de tu acceso.
+                </div>
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f6f8f5;padding:32px 16px;">
+                  <tr>
+                    <td align="center">
+                      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:640px;">
+                        <tr>
+                          <td style="padding-bottom:18px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td style="width:40px;height:40px;border-radius:12px;background-color:#e7b84c;color:#214d39;font-size:22px;font-weight:800;text-align:center;">
+                                  P
+                                </td>
+                                <td style="padding-left:12px;">
+                                  <div style="font-size:22px;line-height:1.1;font-weight:800;color:#214d39;">Pecualia</div>
+                                  <div style="font-size:13px;line-height:1.5;color:#637168;">Gestión ganadera digital, clara y siempre al día.</div>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="border-radius:24px;overflow:hidden;background-color:#ffffff;border:1px solid #d7ded8;box-shadow:0 18px 48px rgba(33,77,57,0.08);">
+                            <div style="padding:40px;background:linear-gradient(180deg,#214d39 0%,#2f6b4f 100%);">
+                              <div style="display:inline-block;padding:7px 12px;border-radius:999px;background-color:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.18);font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#ddebdf;">
+                                Invitación a Pecualia
+                              </div>
+                              <h1 style="margin:20px 0 12px;font-size:32px;line-height:1.15;color:#ffffff;">Activa tu acceso</h1>
+                              <p style="margin:0;font-size:16px;line-height:1.7;color:#ddebdf;">
+                                Tu cuenta ya está preparada para acceder a la plataforma y gestionar tu actividad ganadera.
+                              </p>
+                            </div>
+                            <div style="padding:36px 40px 40px;">
+                              <p style="margin:0 0 14px;font-size:16px;line-height:1.7;color:#1e2a24;">Hola {{safeName}},</p>
+                              <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#405048;">
+                                Hemos creado tu acceso en <strong style="color:#214d39;">Pecualia</strong>. Para terminar la configuración de la cuenta, activa el acceso desde el botón inferior.
+                              </p>
+                              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 24px;">
+                                <tr>
+                                  <td align="center" style="border-radius:12px;background-color:#2f6b4f;">
+                                    <a href="{{safeUrl}}" style="display:inline-block;padding:14px 24px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">
+                                      Activar cuenta
+                                    </a>
+                                  </td>
+                                </tr>
+                              </table>
+                              <div style="padding:16px 18px;border-radius:16px;background-color:#f6f8f5;border:1px solid #e3e9e4;">
+                                <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#214d39;">Detalles importantes</p>
+                                <p style="margin:0;font-size:14px;line-height:1.7;color:#637168;">
+                                  Este enlace caduca en <strong>{{_activationOptions.TokenHours}} horas</strong>. Si el botón no funciona, copia y pega esta URL en tu navegador:
+                                </p>
+                                <p style="margin:12px 0 0;font-size:13px;line-height:1.7;word-break:break-all;color:#2f6b4f;">
+                                  <a href="{{safeUrl}}" style="color:#2f6b4f;text-decoration:underline;">{{safeUrl}}</a>
+                                </p>
+                              </div>
+                              <p style="margin:24px 0 0;font-size:13px;line-height:1.7;color:#7a877f;">
+                                Si no esperabas este correo, puedes ignorarlo sin hacer ninguna acción.
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </body>
+            </html>
+            """;
     }
 
     private async Task EnsureUniqueIdentityAsync(string email, string username, CancellationToken cancellationToken)

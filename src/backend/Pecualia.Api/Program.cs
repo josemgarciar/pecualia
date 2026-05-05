@@ -124,7 +124,21 @@ builder.Services.AddScoped<IMovementService, MovementService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IBookService, BookService>();
 builder.Services.AddSingleton<IClock, SystemClock>();
-builder.Services.AddSingleton<IEmailSender, FileEmailSender>();
+
+var emailOptions = builder.Configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>() ?? new EmailOptions();
+var normalizedEmailMode = emailOptions.Mode.Trim();
+
+if (normalizedEmailMode.Equals("Resend", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>(client =>
+    {
+        client.BaseAddress = new Uri("https://api.resend.com/");
+    });
+}
+else
+{
+    builder.Services.AddSingleton<IEmailSender, FileEmailSender>();
+}
 
 var app = builder.Build();
 
