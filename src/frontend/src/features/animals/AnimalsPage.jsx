@@ -367,7 +367,7 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
         {tab === 'data' && !loading && (
           <>
             <AnimalDetailField label="Sexo" value={`${sexSymbol(animal.sex)} ${formatSex(animal.sex)}`.trim()} />
-            <AnimalDetailField label="Año de nacimiento" value={animal.birthYear ?? 'No informado'} />
+            <AnimalDetailField label="Año de identificación" value={animal.birthYear ?? 'No informado'} />
             <AnimalDetailField label="Explotación" value={animal.farmName} />
             <AnimalDetailField label="Fecha de alta" value={formatDate(animal.registrationDate)} />
             <AnimalDetailField label="Causa de alta" value={formatCause(animal.registrationCause)} />

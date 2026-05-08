@@ -17,7 +17,7 @@ public interface IFarmService
     Task<FarmDetailResponse> GetDetailAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
 }
 
-public sealed class FarmService(PecualiaDbContext dbContext) : IFarmService
+public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFarmService
 {
     public async Task<IReadOnlyList<FarmListItemResponse>> GetAccessibleFarmsAsync(long userId, UserRole role, CancellationToken cancellationToken)
     {
@@ -63,6 +63,8 @@ public sealed class FarmService(PecualiaDbContext dbContext) : IFarmService
         {
             throw new DomainException("No puedes crear explotaciones para otro ganadero.");
         }
+
+        await EnsureFarmPlanCapacityAsync(userId, role, cancellationToken);
 
         var farm = new LivestockFarm
         {
@@ -170,6 +172,30 @@ public sealed class FarmService(PecualiaDbContext dbContext) : IFarmService
         return role == UserRole.Manager
             ? dbContext.Farms.Where(entity => entity.Farmer.ManagerId == userId)
             : dbContext.Farms.Where(entity => entity.FarmerId == userId);
+    }
+
+    private async Task EnsureFarmPlanCapacityAsync(long userId, UserRole role, CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(clock.UtcNow.UtcDateTime);
+        var subscription = await dbContext.Subscriptions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(entity => entity.UserId == userId, cancellationToken);
+
+        var planType = SubscriptionPlanSupport.ResolveEffectivePlanType(subscription, today);
+        var farmLimit = SubscriptionPlanSupport.GetFarmLimit(role, planType);
+        if (farmLimit is null)
+        {
+            return;
+        }
+
+        var currentFarmCount = role == UserRole.Manager
+            ? await dbContext.Farms.CountAsync(entity => entity.Farmer.ManagerId == userId, cancellationToken)
+            : await dbContext.Farms.CountAsync(entity => entity.FarmerId == userId, cancellationToken);
+
+        if (currentFarmCount >= farmLimit.Value)
+        {
+            throw new DomainException(SubscriptionPlanSupport.BuildFarmLimitError(role, planType, farmLimit.Value));
+        }
     }
 
     private static FarmListItemResponse Map(LivestockFarm farm)

@@ -8,9 +8,9 @@ public sealed class MovementCertificate
 
     public long? DestinationLivestockId { get; set; }
 
-    public DateOnly? ArrivalDate { get; set; }
+    public DateTime? ArrivalDate { get; set; }
 
-    public DateOnly DepartureDate { get; set; }
+    public DateTime DepartureDate { get; set; }
 
     public string? MeansOfTransport { get; set; }
 
@@ -22,7 +22,7 @@ public sealed class MovementCertificate
 
     public string? Serie { get; set; }
 
-    public DateOnly? SolicitationDate { get; set; }
+    public DateTime? SolicitationDate { get; set; }
 
     public string? TransportName { get; set; }
 

@@ -85,6 +85,7 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
     public async Task<FarmerListItemResponse> CreateManagedFarmerAsync(long managerUserId, CreateFarmerRequest request, CancellationToken cancellationToken)
     {
         ValidateFarmerRequest(request.PersonType, request.Name, request.FirstSurname, request.CompanyName, request.LegalRepresentative, request.Email, request.NifCif, request.PhoneNumber, request.Town, request.Province);
+        await EnsureManagedFarmerPlanCapacityAsync(managerUserId, cancellationToken);
 
         var email = request.Email.Trim().ToLowerInvariant();
         if (await dbContext.Users.AnyAsync(entity => entity.Email == email, cancellationToken))
@@ -209,6 +210,27 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             .SingleOrDefaultAsync(entity => entity.UserId == farmerUserId && entity.ManagerId == managerUserId, cancellationToken);
 
         return farmer ?? throw new DomainException("Ganadero no encontrado.");
+    }
+
+    private async Task EnsureManagedFarmerPlanCapacityAsync(long managerUserId, CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(clock.UtcNow.UtcDateTime);
+        var subscription = await dbContext.Subscriptions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(entity => entity.UserId == managerUserId, cancellationToken);
+
+        var planType = SubscriptionPlanSupport.ResolveEffectivePlanType(subscription, today);
+        var farmerLimit = SubscriptionPlanSupport.GetManagedFarmerLimit(planType);
+        if (farmerLimit is null)
+        {
+            return;
+        }
+
+        var currentFarmerCount = await dbContext.Farmers.CountAsync(entity => entity.ManagerId == managerUserId, cancellationToken);
+        if (currentFarmerCount >= farmerLimit.Value)
+        {
+            throw new DomainException(SubscriptionPlanSupport.BuildManagedFarmerLimitError(planType, farmerLimit.Value));
+        }
     }
 
     private static FarmerListItemResponse Map(Farmer farmer)

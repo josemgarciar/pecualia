@@ -23,7 +23,9 @@
   }
 
   .movements-layout,
-  .movement-preview-summary-grid {
+  .movement-preview-summary-grid,
+  .movement-detail-summary-grid,
+  .movement-detail-body-modal {
     grid-template-columns: 1fr;
   }
 

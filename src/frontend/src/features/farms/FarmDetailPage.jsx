@@ -165,7 +165,7 @@ function SummaryMetric({ label, value, tone = 'default' }) {
   );
 }
 
-function FarmAnimalsSection({ farm, token }) {
+function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter }) {
   const [animals, setAnimals] = useState([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
@@ -190,6 +190,9 @@ function FarmAnimalsSection({ farm, token }) {
         if (status) {
           params.set('status', status);
         }
+        if (movementFilter?.movementId) {
+          params.set('movementId', String(movementFilter.movementId));
+        }
 
         const response = await apiRequest(`/api/farms/${farm.id}/animals${params.toString() ? `?${params}` : ''}`, { token });
         if (!cancelled) {
@@ -212,13 +215,24 @@ function FarmAnimalsSection({ farm, token }) {
     return () => {
       cancelled = true;
     };
-  }, [farm.id, search, status, token]);
+  }, [farm.id, movementFilter?.movementId, search, status, token]);
 
   return (
     <section className="panel-card stack">
       <div className="farm-animals-header">
         <p>{loading && !isInitialLoading ? 'Actualizando animales...' : `${activeAnimals} activos · ${animals.length} en total`}</p>
       </div>
+
+      {movementFilter && (
+        <div className="filter-summary">
+          <div>
+            <strong>Filtro activo:</strong> guía {movementFilter.codRemo}
+          </div>
+          <button className="secondary-button" type="button" onClick={onClearMovementFilter}>
+            Ver todos
+          </button>
+        </div>
+      )}
 
       {error && <div className="error-banner">{error}</div>}
 
@@ -531,10 +545,6 @@ function FarmDeathsSection({ farm, token }) {
 
   return (
     <section className="panel-card stack">
-      <div className="info-callout info-callout-danger">
-        <Skull size={18} />
-        <p>Esta sección solo gestiona bajas cuya causa oficial es Muerte. Las bajas por Salida se gestionan desde movimientos/importación.</p>
-      </div>
 
       <div className="farm-detail-metrics">
         <SummaryMetric label="Total bajas por muerte" value={deaths.length} />
@@ -1991,6 +2001,7 @@ export function FarmDetailPage() {
   const { token } = useAuth();
   const [farm, setFarm] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
+  const [movementAnimalFilter, setMovementAnimalFilter] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -2019,6 +2030,8 @@ export function FarmDetailPage() {
     }
 
     if (farmId) {
+      setActiveTab('summary');
+      setMovementAnimalFilter(null);
       loadFarmDetail();
     } else {
       setLoading(false);
@@ -2204,8 +2217,27 @@ export function FarmDetailPage() {
         </section>
       )}
 
-      {activeTab === 'animals' && <FarmAnimalsSection farm={farm} token={token} />}
-      {activeTab === 'movements' && <FarmMovementsSection farm={farm} token={token} />}
+      {activeTab === 'animals' && (
+        <FarmAnimalsSection
+          farm={farm}
+          token={token}
+          movementFilter={movementAnimalFilter}
+          onClearMovementFilter={() => setMovementAnimalFilter(null)}
+        />
+      )}
+      {activeTab === 'movements' && (
+        <FarmMovementsSection
+          farm={farm}
+          token={token}
+          onViewAnimalsForMovement={(movement) => {
+            setMovementAnimalFilter({
+              movementId: movement.id,
+              codRemo: movement.codRemo
+            });
+            setActiveTab('animals');
+          }}
+        />
+      )}
       {activeTab === 'births' && <FarmBirthsSection farm={farm} token={token} />}
       {activeTab === 'deaths' && <FarmDeathsSection farm={farm} token={token} />}
       {activeTab === 'vaccinations' && <FarmVaccinationsSection farm={farm} token={token} />}

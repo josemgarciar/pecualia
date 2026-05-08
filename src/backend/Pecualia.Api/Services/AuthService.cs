@@ -94,6 +94,10 @@ public sealed class AuthService(
         await EnsureUniqueIdentityAsync(request.Email, request.Username, cancellationToken);
 
         var manager = await ResolveManagerAsync(request.ManagerInvitationCode, request.ManagerEmail, cancellationToken);
+        if (manager is not null)
+        {
+            await EnsureManagedFarmerPlanCapacityAsync(manager.UserId, cancellationToken);
+        }
         var now = clock.UtcNow;
         var user = new AppUser
         {
@@ -455,6 +459,27 @@ public sealed class AuthService(
         }
 
         return null;
+    }
+
+    private async Task EnsureManagedFarmerPlanCapacityAsync(long managerUserId, CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(clock.UtcNow.UtcDateTime);
+        var subscription = await dbContext.Subscriptions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(entity => entity.UserId == managerUserId, cancellationToken);
+
+        var planType = SubscriptionPlanSupport.ResolveEffectivePlanType(subscription, today);
+        var farmerLimit = SubscriptionPlanSupport.GetManagedFarmerLimit(planType);
+        if (farmerLimit is null)
+        {
+            return;
+        }
+
+        var currentFarmerCount = await dbContext.Farmers.CountAsync(entity => entity.ManagerId == managerUserId, cancellationToken);
+        if (currentFarmerCount >= farmerLimit.Value)
+        {
+            throw new DomainException(SubscriptionPlanSupport.BuildManagedFarmerLimitError(planType, farmerLimit.Value));
+        }
     }
 
     private static UserProfileResponse MapProfile(AppUser user)

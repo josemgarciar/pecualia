@@ -9,6 +9,8 @@ namespace Pecualia.Api.Services;
 
 public interface IMovementService
 {
+    IReadOnlyList<MovementBreedOptionResponse> GetBreedOptions(LivestockSpecies species);
+
     Task<IReadOnlyList<FarmMovementListItemResponse>> GetFarmMovementsAsync(
         long userId,
         UserRole role,
@@ -43,6 +45,13 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
     private static readonly Regex PorcineAlternativeIdentificationRegex = new("^GT\\d+$", RegexOptions.Compiled);
     private static readonly Regex SpanishOfficialIdentificationFinderRegex = new("ES[\\s._-]*(?:\\d[\\s._-]*){12}(?:-[A-Z0-9]{3,})?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex PorcineAlternativeIdentificationFinderRegex = new("\\bGT[\\s._-]*\\d+\\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    public IReadOnlyList<MovementBreedOptionResponse> GetBreedOptions(LivestockSpecies species)
+    {
+        return BookDocumentSupport.GetBreedCodes(species)
+            .Select(entity => new MovementBreedOptionResponse(entity.Key, entity.Value))
+            .ToList();
+    }
 
     public async Task<IReadOnlyList<FarmMovementListItemResponse>> GetFarmMovementsAsync(
         long userId,
@@ -90,6 +99,8 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         CreateManualMovementRequest request,
         CancellationToken cancellationToken)
     {
+        ValidateMovementTimeline(request.DepartureDate, request.ArrivalDate, request.SolicitationDate);
+
         var context = await PrepareContextAsync(
             userId,
             role,
@@ -156,6 +167,8 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         PreviewMovementImportRequest request,
         CancellationToken cancellationToken)
     {
+        ValidateMovementTimeline(request.DepartureDate, request.ArrivalDate, request.SolicitationDate);
+
         var context = await PrepareImportContextAsync(
             userId,
             role,
@@ -176,6 +189,8 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         CommitMovementImportRequest request,
         CancellationToken cancellationToken)
     {
+        ValidateMovementTimeline(request.DepartureDate, request.ArrivalDate, request.SolicitationDate);
+
         var context = await PrepareImportContextAsync(
             userId,
             role,
@@ -331,9 +346,9 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
     private async Task<MovementDetailResponse> CreateMovementFromExistingAnimalsAsync(
         MovementContext context,
         string? serie,
-        DateOnly departureDate,
-        DateOnly? arrivalDate,
-        DateOnly? solicitationDate,
+        DateTime departureDate,
+        DateTime arrivalDate,
+        DateTime? solicitationDate,
         string? meansOfTransport,
         string? transportName,
         string? vehicleRegistrationNumber,
@@ -341,6 +356,9 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         IReadOnlyCollection<long> animalIds,
         CancellationToken cancellationToken)
     {
+        var departureDay = ToDateOnly(departureDate);
+        var arrivalDay = ToDateOnly(arrivalDate);
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         var animals = await dbContext.Animals
@@ -373,7 +391,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
 
         foreach (var animal in animals)
         {
-            ApplyMovementToExistingAnimal(context, animal, departureDate, arrivalDate, healthDocumentNumber);
+            ApplyMovementToExistingAnimal(context, animal, departureDay, arrivalDay, healthDocumentNumber);
         }
 
         dbContext.MovementCertificateAnimals.AddRange(animals.Select(entity => new MovementCertificateAnimal
@@ -383,7 +401,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         }));
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await RecordMovementSnapshotsAsync(context, animals, departureDate, arrivalDate, healthDocumentNumber, cancellationToken);
+        await RecordMovementSnapshotsAsync(context, animals, departureDay, arrivalDay, healthDocumentNumber, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 
@@ -393,9 +411,9 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
     private async Task<MovementDetailResponse> CreateExternalEntryMovementFromLinesAsync(
         MovementContext context,
         string? serie,
-        DateOnly departureDate,
-        DateOnly? arrivalDate,
-        DateOnly? solicitationDate,
+        DateTime departureDate,
+        DateTime arrivalDate,
+        DateTime? solicitationDate,
         string? meansOfTransport,
         string? transportName,
         string? vehicleRegistrationNumber,
@@ -433,9 +451,9 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
     private async Task<MovementDetailResponse> CreateExternalEntryMovementFromRowsAsync(
         MovementContext context,
         string? serie,
-        DateOnly departureDate,
-        DateOnly? arrivalDate,
-        DateOnly? solicitationDate,
+        DateTime departureDate,
+        DateTime arrivalDate,
+        DateTime? solicitationDate,
         string? meansOfTransport,
         string? transportName,
         string? vehicleRegistrationNumber,
@@ -444,6 +462,9 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         IReadOnlyList<MovementImportPreviewRowResponse> rows,
         CancellationToken cancellationToken)
     {
+        var departureDay = ToDateOnly(departureDate);
+        var arrivalDay = ToDateOnly(arrivalDate);
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         var identifications = rows.Select(entity => entity.Identification).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -494,7 +515,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
 
         foreach (var animal in existingAnimalsToReactivate)
         {
-            ApplyExternalEntryToExistingAnimal(context, animal, departureDate, arrivalDate, healthDocumentNumber);
+            ApplyExternalEntryToExistingAnimal(context, animal, departureDay, arrivalDay, healthDocumentNumber);
             affectedAnimals.Add(animal);
         }
 
@@ -504,8 +525,8 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
                 context,
                 entity.Row.Identification,
                 sharedAnimalData!,
-                departureDate,
-                arrivalDate,
+                departureDay,
+                arrivalDay,
                 healthDocumentNumber))
             .ToList();
 
@@ -547,7 +568,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         }));
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await RecordMovementSnapshotsAsync(context, affectedAnimals, departureDate, arrivalDate, healthDocumentNumber, cancellationToken);
+        await RecordMovementSnapshotsAsync(context, affectedAnimals, departureDay, arrivalDay, healthDocumentNumber, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 
@@ -795,12 +816,12 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             LivestockFarmId = context.CurrentFarm.Id,
             Identification = identification,
             BirthYear = sharedAnimalData.BirthYear,
-            Breed = NormalizeNullable(sharedAnimalData.Breed),
+            Breed = NormalizeOfficialBreed(context.Species, sharedAnimalData.Breed),
             Sex = NormalizeNullable(sharedAnimalData.Sex),
             RegistrationDate = arrivalDate ?? departureDate,
-            RegistrationCause = sharedAnimalData.RegistrationCause ?? ParseRegistrationCause(context.Cause),
-            OriginCode = NormalizeNullable(sharedAnimalData.OriginCode) ?? context.CounterpartyCode,
-            HealthDocumentNumber = NormalizeNullable(healthDocumentNumber) ?? NormalizeNullable(sharedAnimalData.HealthDocumentNumber),
+            RegistrationCause = ParseRegistrationCause(context.Cause),
+            OriginCode = context.CounterpartyCode,
+            HealthDocumentNumber = NormalizeNullable(healthDocumentNumber),
             DischargeDate = null,
             DischargeCause = null,
             DestinationCode = null
@@ -1212,6 +1233,8 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             throw new DomainException("La raza común de los animales es obligatoria.");
         }
 
+        _ = NormalizeOfficialBreed(context.Species, sharedAnimalData.Breed);
+
         if (string.IsNullOrWhiteSpace(sharedAnimalData.Sex))
         {
             throw new DomainException("El sexo común de los animales es obligatorio.");
@@ -1252,6 +1275,17 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         {
             throw new DomainException("La causa de baja debe ser Salida (S) o Muerte (M).");
         }
+    }
+
+    private static string NormalizeOfficialBreed(LivestockSpecies species, string? breed)
+    {
+        if (BookDocumentSupport.TryNormalizeBreed(species, breed, out var normalizedBreed) &&
+            !string.IsNullOrWhiteSpace(normalizedBreed))
+        {
+            return normalizedBreed;
+        }
+
+        throw new DomainException("La raza indicada no es válida para la especie de la guía.");
     }
 
     private static void ValidateMovementCause(MovementDirection direction, string cause)
@@ -1328,9 +1362,9 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
     private static MovementCertificate BuildMovementCertificate(
         MovementContext context,
         string? serie,
-        DateOnly departureDate,
-        DateOnly? arrivalDate,
-        DateOnly? solicitationDate,
+        DateTime departureDate,
+        DateTime? arrivalDate,
+        DateTime? solicitationDate,
         string? meansOfTransport,
         string? transportName,
         string? vehicleRegistrationNumber,
@@ -1424,6 +1458,27 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
     private static string BuildMovementStatus(MovementCertificate movement)
     {
         return movement.ArrivalDate is null ? "Pending" : "Confirmed";
+    }
+
+    private static void ValidateMovementTimeline(
+        DateTime departureDate,
+        DateTime arrivalDate,
+        DateTime? solicitationDate)
+    {
+        if (arrivalDate < departureDate)
+        {
+            throw new DomainException("La fecha de llegada no puede ser anterior a la fecha de salida.");
+        }
+
+        if (solicitationDate is not null && solicitationDate > departureDate)
+        {
+            throw new DomainException("La fecha de solicitud no puede ser posterior a la fecha de salida.");
+        }
+    }
+
+    private static DateOnly ToDateOnly(DateTime value)
+    {
+        return DateOnly.FromDateTime(value.Date);
     }
 
     private static string? NormalizeNullable(string? value)

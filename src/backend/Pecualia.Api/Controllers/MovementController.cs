@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Pecualia.Api.Contracts.Movements;
 using Pecualia.Api.Infrastructure.Security;
+using Pecualia.Api.Models.Enums;
 using Pecualia.Api.Services;
 
 namespace Pecualia.Api.Controllers;
@@ -10,6 +11,9 @@ public static class MovementController
     public static IEndpointRouteBuilder MapMovementController(this IEndpointRouteBuilder endpoints)
     {
         var movementGroup = endpoints.MapGroup("/api/movements").RequireAuthorization(AuthorizationPolicies.FarmerOrManager);
+
+        movementGroup.MapGet("/breeds/{species}", (LivestockSpecies species, IMovementService service) =>
+            service.GetBreedOptions(species));
 
         movementGroup.MapGet("/{movementId:long}", async (ClaimsPrincipal user, long movementId, IMovementService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetMovementAsync(user.GetUserId(), user.GetRole(), movementId, cancellationToken)));

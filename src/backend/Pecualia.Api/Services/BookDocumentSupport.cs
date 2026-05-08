@@ -83,6 +83,35 @@ internal static class BookDocumentSupport
 
     internal static IReadOnlyList<KeyValuePair<string, string>> GetPorcineBreedCodes() => PorcineBreedCodes.ToList();
 
+    internal static IReadOnlyList<KeyValuePair<string, string>> GetBreedCodes(LivestockSpecies species) => species switch
+    {
+        LivestockSpecies.Ovine => GetOvineBreedCodes(),
+        LivestockSpecies.Caprine => GetCaprineBreedCodes(),
+        LivestockSpecies.Porcine => GetPorcineBreedCodes(),
+        _ => []
+    };
+
+    internal static bool TryNormalizeBreed(LivestockSpecies species, string? breed, out string? normalizedBreed)
+    {
+        normalizedBreed = null;
+        if (string.IsNullOrWhiteSpace(breed))
+        {
+            return false;
+        }
+
+        var trimmedBreed = breed.Trim();
+        foreach (var option in GetBreedCodes(species))
+        {
+            if (string.Equals(option.Key, trimmedBreed, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedBreed = option.Key;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     internal static void ConfigureOfficialLedgerPage(PageDescriptor page, BookAggregate aggregate, string title, bool includePorcineRegistry)
     {
         page.Size(PageSizes.A4.Landscape());

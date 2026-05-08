@@ -12,6 +12,7 @@ public interface IAnimalService
         long userId,
         UserRole role,
         long? farmId,
+        long? movementId,
         string? search,
         string? species,
         string? sex,
@@ -31,6 +32,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         long userId,
         UserRole role,
         long? farmId,
+        long? movementId,
         string? search,
         string? species,
         string? sex,
@@ -39,7 +41,15 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
     {
         var query = BuildAccessibleAnimalQuery(userId, role).AsNoTracking();
 
-        if (farmId is not null)
+        if (movementId is not null && farmId is not null)
+        {
+            query = query.Where(entity =>
+                dbContext.MovementCertificateAnimals.Any(link =>
+                    link.AnimalId == entity.Id &&
+                    link.MovementCertificateId == movementId.Value &&
+                    (link.MovementCertificate.OriginLivestockId == farmId.Value || link.MovementCertificate.DestinationLivestockId == farmId.Value)));
+        }
+        else if (farmId is not null)
         {
             query = query.Where(entity => entity.LivestockFarmId == farmId.Value);
         }

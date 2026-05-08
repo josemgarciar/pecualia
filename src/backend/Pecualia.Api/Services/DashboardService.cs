@@ -75,9 +75,9 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
             Increment(chartPoints, birth.BirthDate, point => point.Births += birth.OffspringNumber);
         }
 
-        foreach (var movement in movements.Where(entity => entity.DepartureDate >= chartStartMonth && entity.DepartureDate <= today))
+        foreach (var movement in movements.Where(entity => ToDateOnly(entity.DepartureDate) >= chartStartMonth && ToDateOnly(entity.DepartureDate) <= today))
         {
-            Increment(chartPoints, movement.DepartureDate, point => point.Movements += movement.NumberOfAnimals);
+            Increment(chartPoints, ToDateOnly(movement.DepartureDate), point => point.Movements += movement.NumberOfAnimals);
         }
 
         var farmNamesById = farms.ToDictionary(entity => entity.Id, entity => entity.Name);
@@ -97,7 +97,7 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
                 ? await dbContext.Farmers.CountAsync(entity => entity.ManagerId == userId, cancellationToken)
                 : 0,
             MovementsThisMonth: movements
-                .Where(entity => entity.DepartureDate >= monthStart && entity.DepartureDate <= today)
+                .Where(entity => ToDateOnly(entity.DepartureDate) >= monthStart && ToDateOnly(entity.DepartureDate) <= today)
                 .Sum(entity => entity.NumberOfAnimals),
             PendingActivations: role == UserRole.Manager
                 ? await dbContext.Farmers.CountAsync(entity => entity.ManagerId == userId && entity.Status == FarmerStatus.PendingActivation, cancellationToken)
@@ -114,6 +114,11 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
                     entity.Movements))
                 .ToList(),
             PendingTasks: pendingTasks);
+    }
+
+    private static DateOnly ToDateOnly(DateTime value)
+    {
+        return DateOnly.FromDateTime(value.Date);
     }
 
     private async Task<List<long>> GetAccessibleFarmIdsAsync(long userId, UserRole role, CancellationToken cancellationToken)
