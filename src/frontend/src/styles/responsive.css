@@ -96,6 +96,7 @@
   .profile-hero-card,
   .summary-grid,
   .detail-grid,
+  .farm-settings-grid,
   .quick-actions-grid {
     grid-template-columns: 1fr;
   }
@@ -113,6 +114,7 @@
   .profile-status-list div,
   .detail-header,
   .farmer-wizard-header,
+  .farm-detail-hero-main,
   .farm-detail-hero-top,
   .farm-card-header,
   .farm-modal-header,

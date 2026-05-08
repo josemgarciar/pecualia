@@ -19,6 +19,9 @@ public static class FarmController
         group.MapPost("/", async (ClaimsPrincipal user, CreateFarmRequest request, IFarmService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.CreateFarmAsync(user.GetUserId(), user.GetRole(), request, cancellationToken)));
 
+        group.MapPut("/{farmId:long}", async (ClaimsPrincipal user, long farmId, UpdateFarmRequest request, IFarmService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.UpdateFarmAsync(user.GetUserId(), user.GetRole(), farmId, request, cancellationToken)));
+
         group.MapGet("/{farmId:long}/summary", async (ClaimsPrincipal user, long farmId, IFarmService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetSummaryAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
 
@@ -31,8 +34,10 @@ public static class FarmController
             string? species,
             string? sex,
             string? status,
+            int? page,
+            int? pageSize,
             CancellationToken cancellationToken) =>
-            await ControllerResults.ExecuteAsync(() => service.GetAnimalsAsync(
+            await ControllerResults.ExecuteAsync(() => service.GetFarmAnimalsPageAsync(
                 user.GetUserId(),
                 user.GetRole(),
                 farmId,
@@ -41,6 +46,8 @@ public static class FarmController
                 species,
                 sex,
                 status,
+                page ?? 1,
+                pageSize ?? 25,
                 cancellationToken)));
 
         group.MapGet("/{farmId:long}/births", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>

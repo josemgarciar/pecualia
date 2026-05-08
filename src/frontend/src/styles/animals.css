@@ -151,7 +151,7 @@
   border-bottom: 1px solid #f0f2f0;
   color: #637168;
   font-size: 0.88rem;
-  white-space: nowrap;
+  vertical-align: top;
 }
 
 .animal-table tbody tr {
@@ -180,6 +180,18 @@
   font-weight: 700;
 }
 
+.animal-entry-cell {
+  display: grid;
+  gap: 8px;
+  min-width: 180px;
+}
+
+.animal-entry-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .animal-chip {
   display: inline-flex;
   align-items: center;
@@ -206,3 +218,76 @@
   font-size: 0.82rem;
 }
 
+.animal-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.farm-inline-error {
+  color: #dc2626;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.animal-table-footer-paginated {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.animal-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.animal-pagination-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #637168;
+}
+
+.animal-pagination-size span {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.animal-pagination-size select {
+  min-width: 72px;
+  width: auto;
+  background: #f6f8f5;
+}
+
+.animal-pagination-button {
+  min-width: 38px;
+  padding: 8px 12px;
+  border: 1px solid #d7ded8;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #405247;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.animal-pagination-button:hover:not(:disabled) {
+  background: #f0f7f4;
+  border-color: #b8c8bd;
+}
+
+.animal-pagination-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.animal-pagination-button-active {
+  background: #214d39;
+  border-color: #214d39;
+  color: #ffffff;
+}

@@ -19,6 +19,21 @@ public sealed record CreateFarmRequest(
     double? XCoordinate,
     double? YCoordinate);
 
+public sealed record UpdateFarmRequest(
+    string Name,
+    string RegaCode,
+    FarmRegime Regime,
+    string? Town,
+    string? Province,
+    string? Address,
+    string? ZipCode,
+    int? AuthorisedCapacity,
+    string? PorcineRegistryNumber,
+    string? Responsible,
+    string? ZootechnicClassification,
+    double? XCoordinate,
+    double? YCoordinate);
+
 public sealed record FarmListItemResponse(
     long Id,
     long FarmerId,

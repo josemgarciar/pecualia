@@ -32,6 +32,18 @@ public sealed record PorcinoAnimalRequest(
     string? PigRegistrationNumber,
     string? Tag);
 
+public sealed record UpdateAnimalRequest(
+    string Identification,
+    int? BirthYear,
+    string? Breed,
+    string? Sex,
+    DateOnly? RegistrationDate,
+    AnimalRegistrationCause? RegistrationCause,
+    string? OriginCode,
+    string? HealthDocumentNumber,
+    OvinoCaprinoAnimalRequest? OvinoCaprino,
+    PorcinoAnimalRequest? Porcino);
+
 public sealed record AnimalListItemResponse(
     long Id,
     long FarmId,
@@ -39,13 +51,30 @@ public sealed record AnimalListItemResponse(
     string LivestockSpecies,
     string FarmName,
     string? Breed,
+    string? BreedCode,
     string? Sex,
+    string? SexCode,
     int? BirthYear,
+    DateOnly? IdentificationDate,
     DateOnly? RegistrationDate,
     string? RegistrationCause,
+    string? RegistrationCauseCode,
+    string? OriginCode,
     DateOnly? DischargeDate,
     string? DischargeCause,
+    string? DischargeCauseCode,
+    string? DestinationCode,
+    string? HealthDocumentNumber,
+    string? EntryGuideSerie,
+    string? ExitGuideSerie,
     string Status);
+
+public sealed record AnimalPageResponse(
+    IReadOnlyList<AnimalListItemResponse> Items,
+    int TotalCount,
+    int ActiveCount,
+    int Page,
+    int PageSize);
 
 public sealed record AnimalDetailResponse(
     long Id,
@@ -59,10 +88,12 @@ public sealed record AnimalDetailResponse(
     int? BirthYear,
     DateOnly? RegistrationDate,
     string? RegistrationCause,
+    string? RegistrationCauseValue,
     string? OriginCode,
     string? HealthDocumentNumber,
     DateOnly? DischargeDate,
     string? DischargeCause,
+    string? DischargeCauseValue,
     string? DestinationCode,
     string Status,
     OvinoCaprinoAnimalResponse? OvinoCaprino,

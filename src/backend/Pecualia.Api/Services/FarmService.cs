@@ -12,6 +12,8 @@ public interface IFarmService
 
     Task<FarmListItemResponse> CreateFarmAsync(long userId, UserRole role, CreateFarmRequest request, CancellationToken cancellationToken);
 
+    Task<FarmDetailResponse> UpdateFarmAsync(long userId, UserRole role, long farmId, UpdateFarmRequest request, CancellationToken cancellationToken);
+
     Task<FarmSummaryResponse> GetSummaryAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
 
     Task<FarmDetailResponse> GetDetailAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
@@ -96,6 +98,71 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             .SingleAsync(entity => entity.Id == farm.Id, cancellationToken);
 
         return Map(createdFarm);
+    }
+
+    public async Task<FarmDetailResponse> UpdateFarmAsync(long userId, UserRole role, long farmId, UpdateFarmRequest request, CancellationToken cancellationToken)
+    {
+        var farm = await BuildAccessibleQuery(userId, role)
+            .SingleOrDefaultAsync(entity => entity.Id == farmId, cancellationToken);
+
+        if (farm is null)
+        {
+            throw new DomainException("Explotación no encontrada.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            throw new DomainException("El nombre de la explotación es obligatorio.");
+        }
+
+        var normalizedRegaCode = request.RegaCode.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(normalizedRegaCode))
+        {
+            throw new DomainException("El código REGA es obligatorio.");
+        }
+
+        if (await dbContext.Farms.AnyAsync(entity => entity.Id != farmId && entity.RegaCode == normalizedRegaCode, cancellationToken))
+        {
+            throw new DomainException("Ya existe una explotación con ese código REGA.");
+        }
+
+        if (request.Regime is not (FarmRegime.Extensive or FarmRegime.SemiExtensive or FarmRegime.Intensive))
+        {
+            throw new DomainException("El régimen indicado no es válido.");
+        }
+
+        if (farm.LivestockSpecies == LivestockSpecies.Porcine && string.IsNullOrWhiteSpace(request.PorcineRegistryNumber))
+        {
+            throw new DomainException("El número de registro porcino es obligatorio para explotaciones porcinas.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Town))
+        {
+            throw new DomainException("La localidad es obligatoria.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Province))
+        {
+            throw new DomainException("La provincia es obligatoria.");
+        }
+
+        farm.Name = request.Name.Trim();
+        farm.RegaCode = normalizedRegaCode;
+        farm.Regime = request.Regime;
+        farm.Town = Normalize(request.Town);
+        farm.Province = Normalize(request.Province);
+        farm.Address = Normalize(request.Address);
+        farm.ZipCode = Normalize(request.ZipCode);
+        farm.AuthorisedCapacity = farm.LivestockSpecies == LivestockSpecies.Porcine ? request.AuthorisedCapacity : null;
+        farm.PorcineRegistryNumber = farm.LivestockSpecies == LivestockSpecies.Porcine ? Normalize(request.PorcineRegistryNumber).ToUpperInvariant() : string.Empty;
+        farm.Responsible = Normalize(request.Responsible);
+        farm.ZootechnicClassification = Normalize(request.ZootechnicClassification);
+        farm.XCoordinate = request.XCoordinate;
+        farm.YCoordinate = request.YCoordinate;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return await GetDetailAsync(userId, role, farmId, cancellationToken);
     }
 
     public async Task<FarmSummaryResponse> GetSummaryAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken)

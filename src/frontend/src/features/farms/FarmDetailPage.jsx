@@ -7,6 +7,7 @@ import {
   Building2,
   ArrowLeftRight,
   Check,
+  ChevronDown,
   ClipboardCheck,
   Edit3,
   MapPin,
@@ -53,9 +54,19 @@ const regimeLabelMap = {
   Intensive: 'Intensivo'
 };
 
-const registrationCauseLabelMap = {
+const animalSexLabelMap = {
+  Female: 'Hembra',
+  Male: 'Macho'
+};
+
+const animalRegistrationCauseLabelMap = {
   Entrada: 'Entrada (E)',
   Autorreposicion: 'Autorreposición (A)'
+};
+
+const animalDischargeCauseLabelMap = {
+  Salida: 'Salida (S)',
+  Muerte: 'Muerte (M)'
 };
 
 const detailTabs = [
@@ -76,6 +87,22 @@ const monthLabels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Se
 const BOOK_PREVIEW_MAX_PAGES = 3;
 const BOOK_PREVIEW_DEBOUNCE_MS = 450;
 const BOOK_PREVIEW_TARGET_WIDTH = 760;
+const FARM_ANIMALS_SEARCH_DEBOUNCE_MS = 300;
+const FARM_ANIMALS_DEFAULT_PAGE_SIZE = 25;
+const FARM_ANIMALS_PAGE_SIZE_OPTIONS = [10, 25, 50];
+const regimeOptions = [
+  { value: 'Extensive', label: 'Extensivo' },
+  { value: 'SemiExtensive', label: 'Semiextensivo' },
+  { value: 'Intensive', label: 'Intensivo' }
+];
+const provinceOptions = [
+  'Álava', 'Albacete', 'Alicante', 'Almería', 'Asturias', 'Ávila', 'Badajoz', 'Barcelona', 'Burgos', 'Cáceres',
+  'Cádiz', 'Cantabria', 'Castellón', 'Ciudad Real', 'Córdoba', 'Cuenca', 'Girona', 'Granada', 'Guadalajara',
+  'Guipúzcoa', 'Huelva', 'Huesca', 'Islas Baleares', 'Jaén', 'La Coruña', 'La Rioja', 'Las Palmas', 'León',
+  'Lleida', 'Lugo', 'Madrid', 'Málaga', 'Murcia', 'Navarra', 'Ourense', 'Palencia', 'Pontevedra', 'Salamanca',
+  'Santa Cruz de Tenerife', 'Segovia', 'Sevilla', 'Soria', 'Tarragona', 'Teruel', 'Toledo', 'Valencia',
+  'Valladolid', 'Vizcaya', 'Zamora', 'Zaragoza'
+];
 
 function formatText(value, fallback = 'No informado') {
   return value ?? fallback;
@@ -87,10 +114,6 @@ function formatRegime(value) {
   }
 
   return regimeLabelMap[value] ?? value;
-}
-
-function formatRegistrationCause(value) {
-  return registrationCauseLabelMap[value] ?? value ?? '—';
 }
 
 function formatCoordinate(value) {
@@ -106,6 +129,14 @@ function formatCoordinate(value) {
 
 function formatDate(value) {
   return value ? new Intl.DateTimeFormat('es-ES').format(new Date(`${value}T00:00:00`)) : '—';
+}
+
+function formatAnimalSex(value) {
+  return animalSexLabelMap[value] ?? value ?? 'No informado';
+}
+
+function formatAnimalCause(value) {
+  return animalRegistrationCauseLabelMap[value] ?? animalDischargeCauseLabelMap[value] ?? value ?? 'No informada';
 }
 
 function getDeathDestinationOptions(species) {
@@ -128,6 +159,101 @@ function parseOptionalInteger(value) {
 function emptyToNull(value) {
   const normalized = value?.trim();
   return normalized ? normalized : null;
+}
+
+function createAnimalDetailForm(animal) {
+  return {
+    identification: animal?.identification ?? '',
+    birthYear: animal?.birthYear != null ? String(animal.birthYear) : '',
+    breed: animal?.breed ?? '',
+    sex: animal?.sex ?? '',
+    registrationDate: animal?.registrationDate ?? '',
+    registrationCause: animal?.registrationCauseValue ?? '',
+    originCode: animal?.originCode ?? '',
+    healthDocumentNumber: animal?.healthDocumentNumber ?? '',
+    genotyping: animal?.ovinoCaprino?.genotyping ?? '',
+    dominantAllele: animal?.ovinoCaprino?.dominantAllele ?? '',
+    lowAllele: animal?.ovinoCaprino?.lowAllele ?? '',
+    animalType: animal?.porcino?.animalType ?? '',
+    identificationDate: animal?.porcino?.identificationDate ?? '',
+    pigRegistrationNumber: animal?.porcino?.pigRegistrationNumber ?? '',
+    tag: animal?.porcino?.tag ?? ''
+  };
+}
+
+function validateAnimalDetailForm(form, species) {
+  const errors = {};
+
+  if (!form.identification.trim()) {
+    errors.identification = 'Campo obligatorio';
+  }
+
+  if (species === 'Porcine' && !form.animalType.trim()) {
+    errors.animalType = 'Campo obligatorio para porcino';
+  }
+
+  if (form.birthYear !== '') {
+    const birthYear = Number(form.birthYear);
+    if (!Number.isInteger(birthYear) || birthYear < 1900 || birthYear > 2100) {
+      errors.birthYear = 'Debe ser un año válido';
+    }
+  }
+
+  return errors;
+}
+
+function createFarmSettingsForm(farm) {
+  return {
+    name: farm?.name ?? '',
+    regaCode: farm?.regaCode ?? '',
+    regime: farm?.regime ?? '',
+    town: farm?.town ?? '',
+    province: farm?.province ?? '',
+    address: farm?.address ?? '',
+    zipCode: farm?.zipCode ?? '',
+    authorisedCapacity: farm?.authorisedCapacity != null ? String(farm.authorisedCapacity) : '',
+    porcineRegistryNumber: farm?.porcineRegistryNumber ?? '',
+    responsible: farm?.responsible ?? '',
+    zootechnicClassification: farm?.zootechnicClassification ?? '',
+    xCoordinate: farm?.xCoordinate != null ? String(farm.xCoordinate) : '',
+    yCoordinate: farm?.yCoordinate != null ? String(farm.yCoordinate) : ''
+  };
+}
+
+function validateFarmSettingsForm(form, species) {
+  const errors = {};
+
+  if (!form.name.trim()) {
+    errors.name = 'Campo obligatorio';
+  }
+  if (!form.regaCode.trim()) {
+    errors.regaCode = 'Campo obligatorio';
+  } else if (!/^ES\d{12}$/i.test(form.regaCode.trim())) {
+    errors.regaCode = 'Formato REGA inválido (ej: ES061230000145)';
+  }
+  if (!form.regime) {
+    errors.regime = 'Selecciona un régimen';
+  }
+  if (!form.town.trim()) {
+    errors.town = 'Campo obligatorio';
+  }
+  if (!form.province) {
+    errors.province = 'Selecciona una provincia';
+  }
+  if (species === 'Porcine' && !form.porcineRegistryNumber.trim()) {
+    errors.porcineRegistryNumber = 'Campo obligatorio para porcino';
+  }
+  if (form.authorisedCapacity !== '' && Number(form.authorisedCapacity) < 0) {
+    errors.authorisedCapacity = 'Debe ser igual o mayor que cero';
+  }
+  if (form.xCoordinate !== '' && Number.isNaN(Number(form.xCoordinate))) {
+    errors.xCoordinate = 'Debe ser un número válido';
+  }
+  if (form.yCoordinate !== '' && Number.isNaN(Number(form.yCoordinate))) {
+    errors.yCoordinate = 'Debe ser un número válido';
+  }
+
+  return errors;
 }
 
 function buildBookPdfPath(farmId, sectionIds) {
@@ -165,62 +291,546 @@ function SummaryMetric({ label, value, tone = 'default' }) {
   );
 }
 
+function FarmSettingsModal({ farm, form, errors, requestError, submitting, onChange, onClose, onSubmit }) {
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal-card modal-wide farm-modal-shell">
+        <div className="farm-modal-header">
+          <div className="farm-modal-title">
+            <div className="modal-panel-icon">
+              <Edit3 size={18} />
+            </div>
+            <div>
+              <h2>Ajustes de la explotación</h2>
+              <p>Edita los datos administrativos y operativos de {farm.name}.</p>
+            </div>
+          </div>
+          <button className="farm-modal-close" type="button" onClick={onClose} aria-label="Cerrar modal">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="farm-modal-body farm-settings-body">
+          {requestError && <div className="error-banner">{requestError}</div>}
+
+          <div className="farm-settings-grid">
+            <div className="farm-form-field">
+              <span className="farm-field-label">NOMBRE DE LA EXPLOTACIÓN <span className="farm-field-label-required">*</span></span>
+              <input className={errors.name ? 'farm-input farm-input-error' : 'farm-input'} value={form.name} onChange={(event) => onChange('name', event.target.value)} />
+              {errors.name && <p className="farm-field-error">{errors.name}</p>}
+            </div>
+
+            <div className="farm-form-field">
+              <span className="farm-field-label">CÓDIGO REGA <span className="farm-field-label-required">*</span></span>
+              <input className={errors.regaCode ? 'farm-input farm-input-error' : 'farm-input'} value={form.regaCode} onChange={(event) => onChange('regaCode', event.target.value)} />
+              {errors.regaCode && <p className="farm-field-error">{errors.regaCode}</p>}
+            </div>
+
+            <div className="farm-form-field">
+              <span className="farm-field-label">ESPECIE</span>
+              <input className="farm-input" value={speciesToneMap[farm.livestockSpecies]?.label ?? farm.livestockSpecies} disabled />
+            </div>
+
+            <div className="farm-form-field">
+              <span className="farm-field-label">RÉGIMEN <span className="farm-field-label-required">*</span></span>
+              <div className="select-wrapper">
+                <select className={errors.regime ? 'farm-input farm-input-error' : 'farm-input'} value={form.regime} onChange={(event) => onChange('regime', event.target.value)}>
+                  <option value="">Selecciona régimen</option>
+                  {regimeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              {errors.regime && <p className="farm-field-error">{errors.regime}</p>}
+            </div>
+
+            {farm.livestockSpecies === 'Porcine' && (
+              <>
+                <div className="farm-form-field">
+                  <span className="farm-field-label">Nº REGISTRO PORCINO <span className="farm-field-label-required">*</span></span>
+                  <input className={errors.porcineRegistryNumber ? 'farm-input farm-input-error' : 'farm-input'} value={form.porcineRegistryNumber} onChange={(event) => onChange('porcineRegistryNumber', event.target.value)} />
+                  {errors.porcineRegistryNumber && <p className="farm-field-error">{errors.porcineRegistryNumber}</p>}
+                </div>
+
+                <div className="farm-form-field">
+                  <span className="farm-field-label">CAPACIDAD AUTORIZADA</span>
+                  <input type="number" min="0" className={errors.authorisedCapacity ? 'farm-input farm-input-error' : 'farm-input'} value={form.authorisedCapacity} onChange={(event) => onChange('authorisedCapacity', event.target.value)} />
+                  {errors.authorisedCapacity && <p className="farm-field-error">{errors.authorisedCapacity}</p>}
+                </div>
+              </>
+            )}
+
+            <div className="farm-form-field">
+              <span className="farm-field-label">RESPONSABLE</span>
+              <input className="farm-input" value={form.responsible} onChange={(event) => onChange('responsible', event.target.value)} />
+            </div>
+
+            <div className="farm-form-field">
+              <span className="farm-field-label">CLASIFICACIÓN ZOOTÉCNICA</span>
+              <input className="farm-input" value={form.zootechnicClassification} onChange={(event) => onChange('zootechnicClassification', event.target.value)} />
+            </div>
+
+            <div className="farm-form-field farm-settings-grid-full">
+              <span className="farm-field-label">DIRECCIÓN / PARAJE</span>
+              <input className="farm-input" value={form.address} onChange={(event) => onChange('address', event.target.value)} />
+            </div>
+
+            <div className="farm-form-field">
+              <span className="farm-field-label">LOCALIDAD <span className="farm-field-label-required">*</span></span>
+              <input className={errors.town ? 'farm-input farm-input-error' : 'farm-input'} value={form.town} onChange={(event) => onChange('town', event.target.value)} />
+              {errors.town && <p className="farm-field-error">{errors.town}</p>}
+            </div>
+
+            <div className="farm-form-field">
+              <span className="farm-field-label">PROVINCIA <span className="farm-field-label-required">*</span></span>
+              <div className="select-wrapper">
+                <select className={errors.province ? 'farm-input farm-input-error' : 'farm-input'} value={form.province} onChange={(event) => onChange('province', event.target.value)}>
+                  <option value="">Selecciona una provincia</option>
+                  {provinceOptions.map((province) => (
+                    <option key={province} value={province}>{province}</option>
+                  ))}
+                </select>
+              </div>
+              {errors.province && <p className="farm-field-error">{errors.province}</p>}
+            </div>
+
+            <div className="farm-form-field">
+              <span className="farm-field-label">CÓDIGO POSTAL</span>
+              <input className="farm-input" value={form.zipCode} onChange={(event) => onChange('zipCode', event.target.value)} />
+            </div>
+
+            <div className="farm-form-field">
+              <span className="farm-field-label">COORDENADA X</span>
+              <input className={errors.xCoordinate ? 'farm-input farm-input-error' : 'farm-input'} value={form.xCoordinate} onChange={(event) => onChange('xCoordinate', event.target.value)} />
+              {errors.xCoordinate && <p className="farm-field-error">{errors.xCoordinate}</p>}
+            </div>
+
+            <div className="farm-form-field">
+              <span className="farm-field-label">COORDENADA Y</span>
+              <input className={errors.yCoordinate ? 'farm-input farm-input-error' : 'farm-input'} value={form.yCoordinate} onChange={(event) => onChange('yCoordinate', event.target.value)} />
+              {errors.yCoordinate && <p className="farm-field-error">{errors.yCoordinate}</p>}
+            </div>
+          </div>
+
+          <div className="farm-settings-note">
+            La especie y el titular no se editan desde esta ventana para evitar inconsistencias con animales y permisos asociados.
+          </div>
+        </div>
+
+        <div className="farm-modal-footer">
+          <button className="secondary-button" type="button" onClick={onClose}>Cancelar</button>
+          <button className="primary-button" type="button" onClick={onSubmit} disabled={submitting}>
+            {submitting ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnimalDetailModal({
+  animal,
+  form,
+  errors,
+  loading,
+  saving,
+  deleting,
+  requestError,
+  onChange,
+  onClose,
+  onSave,
+  onDelete
+}) {
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal-card modal-wide animal-modal">
+        <div className="farm-modal-header">
+          <div className="farm-modal-title">
+            <div className="modal-panel-icon">
+              <Tag size={18} />
+            </div>
+            <div>
+              <h2>Detalle del animal</h2>
+              <p>{animal ? `${animal.identification} · ${animal.farmName}` : 'Cargando datos del animal...'}</p>
+            </div>
+          </div>
+          <button className="farm-modal-close" type="button" onClick={onClose} aria-label="Cerrar modal">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="farm-modal-body">
+          {requestError && <div className="error-banner">{requestError}</div>}
+          {loading || !animal ? (
+            <div className="empty-state">Cargando detalle del animal...</div>
+          ) : (
+            <>
+              <div className="profile-grid">
+                <div>
+                  <span>Explotación</span>
+                  <strong>{animal.farmName}</strong>
+                </div>
+                <div>
+                  <span>Especie</span>
+                  <strong>{speciesToneMap[animal.livestockSpecies]?.label ?? animal.livestockSpecies}</strong>
+                </div>
+                <div>
+                  <span>Estado</span>
+                  <strong>{animal.status === 'Discharged' ? 'Baja' : 'Activo'}</strong>
+                </div>
+              </div>
+
+              <div className="grid-form">
+                <label>
+                  Identificación / crotal
+                  <input value={form.identification} onChange={(event) => onChange('identification', event.target.value)} />
+                  {errors.identification && <span className="farm-inline-error">{errors.identification}</span>}
+                </label>
+                <label>
+                  Raza
+                  <input value={form.breed} onChange={(event) => onChange('breed', event.target.value)} />
+                </label>
+                <label>
+                  Sexo
+                  <div className="select-wrapper">
+                    <select value={form.sex} onChange={(event) => onChange('sex', event.target.value)}>
+                      <option value="">No informado</option>
+                      <option value="Female">Hembra</option>
+                      <option value="Male">Macho</option>
+                    </select>
+                    <ChevronDown size={16} />
+                  </div>
+                </label>
+                <label>
+                  Año nacimiento
+                  <input type="number" min="1900" max="2100" value={form.birthYear} onChange={(event) => onChange('birthYear', event.target.value)} />
+                  {errors.birthYear && <span className="farm-inline-error">{errors.birthYear}</span>}
+                </label>
+                <label>
+                  Fecha alta
+                  <input type="date" value={form.registrationDate} onChange={(event) => onChange('registrationDate', event.target.value)} />
+                </label>
+                <label>
+                  Causa alta
+                  <div className="select-wrapper">
+                    <select value={form.registrationCause} onChange={(event) => onChange('registrationCause', event.target.value)}>
+                      <option value="">No informada</option>
+                      <option value="Entrada">Entrada (E)</option>
+                      <option value="Autorreposicion">Autorreposición (A)</option>
+                    </select>
+                    <ChevronDown size={16} />
+                  </div>
+                </label>
+                <label>
+                  Procedencia
+                  <input value={form.originCode} onChange={(event) => onChange('originCode', event.target.value)} />
+                </label>
+                <label className="form-full">
+                  Documento sanitario / guía
+                  <input value={form.healthDocumentNumber} onChange={(event) => onChange('healthDocumentNumber', event.target.value)} />
+                </label>
+              </div>
+
+              {animal.ovinoCaprino && (
+                <div className="animal-specific-block">
+                  <h3>Datos ovino/caprino</h3>
+                  <div className="grid-form">
+                    <label>
+                      Genotipado
+                      <input value={form.genotyping} onChange={(event) => onChange('genotyping', event.target.value)} />
+                    </label>
+                    <label>
+                      Alelo dominante
+                      <input value={form.dominantAllele} onChange={(event) => onChange('dominantAllele', event.target.value)} />
+                    </label>
+                    <label>
+                      Alelo bajo
+                      <input value={form.lowAllele} onChange={(event) => onChange('lowAllele', event.target.value)} />
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {animal.porcino && (
+                <div className="animal-specific-block">
+                  <h3>Datos porcino</h3>
+                  <div className="grid-form">
+                    <label>
+                      Tipo de animal
+                      <input value={form.animalType} onChange={(event) => onChange('animalType', event.target.value)} />
+                      {errors.animalType && <span className="farm-inline-error">{errors.animalType}</span>}
+                    </label>
+                    <label>
+                      Fecha identificación
+                      <input type="date" value={form.identificationDate} onChange={(event) => onChange('identificationDate', event.target.value)} />
+                    </label>
+                    <label>
+                      Nº registro porcino
+                      <input value={form.pigRegistrationNumber} onChange={(event) => onChange('pigRegistrationNumber', event.target.value)} />
+                    </label>
+                    <label>
+                      Marca / crotal
+                      <input value={form.tag} onChange={(event) => onChange('tag', event.target.value)} />
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              <div className="animal-specific-block">
+                <h3>Histórico de baja</h3>
+                <div className="grid-form">
+                  <label>
+                    Estado actual
+                    <input value={animal.status === 'Discharged' ? 'Baja' : 'Activo'} disabled />
+                  </label>
+                  <label>
+                    Causa de baja
+                    <input value={formatAnimalCause(animal.dischargeCause)} disabled />
+                  </label>
+                  <label>
+                    Fecha de baja
+                    <input value={formatDate(animal.dischargeDate)} disabled />
+                  </label>
+                  <label>
+                    Destino
+                    <input value={animal.destinationCode ?? 'No informado'} disabled />
+                  </label>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="farm-modal-footer">
+          <button className="danger-button" type="button" onClick={onDelete} disabled={!animal || loading || saving || deleting}>
+            <Trash2 size={15} />
+            {deleting ? 'Eliminando...' : 'Eliminar registro'}
+          </button>
+          <div className="animal-modal-actions">
+            <button className="secondary-button" type="button" onClick={onClose}>Cerrar</button>
+            <button className="primary-button" type="button" onClick={onSave} disabled={!animal || loading || saving || deleting}>
+              {saving ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter }) {
   const [animals, setAnimals] = useState([]);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(FARM_ANIMALS_DEFAULT_PAGE_SIZE);
+  const [totalCount, setTotalCount] = useState(0);
+  const [activeCount, setActiveCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedAnimal, setSelectedAnimal] = useState(null);
+  const [animalForm, setAnimalForm] = useState(createAnimalDetailForm(null));
+  const [animalFormErrors, setAnimalFormErrors] = useState({});
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailSaving, setDetailSaving] = useState(false);
+  const [detailDeleting, setDetailDeleting] = useState(false);
+  const [detailError, setDetailError] = useState('');
   const identificationLabel = farm.livestockSpecies === 'Porcine' ? 'Lote' : 'Crotal';
-  const activeAnimals = animals.filter((animal) => animal.status === 'Active').length;
   const isInitialLoading = loading && animals.length === 0 && !error;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const visiblePageNumbers = useMemo(() => {
+    const maxVisiblePages = 5;
+    const startPage = Math.max(1, Math.min(page - 2, totalPages - maxVisiblePages + 1));
+    const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    return Array.from({ length: endPage - startPage + 1 }, (_, index) => startPage + index);
+  }, [page, totalPages]);
+  const currentRangeStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const currentRangeEnd = totalCount === 0 ? 0 : Math.min(page * pageSize, totalCount);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadAnimals() {
-      setLoading(true);
-      setError('');
-
-      try {
-        const params = new URLSearchParams();
-        if (search.trim()) {
-          params.set('search', search.trim());
-        }
-        if (status) {
-          params.set('status', status);
-        }
-        if (movementFilter?.movementId) {
-          params.set('movementId', String(movementFilter.movementId));
-        }
-
-        const response = await apiRequest(`/api/farms/${farm.id}/animals${params.toString() ? `?${params}` : ''}`, { token });
-        if (!cancelled) {
-          setAnimals(response);
-        }
-      } catch (requestError) {
-        if (!cancelled) {
-          setError(requestError.message);
-          setAnimals([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadAnimals();
+    const timeoutId = window.setTimeout(() => {
+      setPage(1);
+      setDebouncedSearch(search.trim());
+    }, FARM_ANIMALS_SEARCH_DEBOUNCE_MS);
 
     return () => {
-      cancelled = true;
+      window.clearTimeout(timeoutId);
     };
-  }, [farm.id, movementFilter?.movementId, search, status, token]);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [movementFilter?.movementId]);
+
+  async function loadAnimals() {
+    setLoading(true);
+    setError('');
+
+    try {
+      const params = new URLSearchParams();
+      if (debouncedSearch) {
+        params.set('search', debouncedSearch);
+      }
+      if (status) {
+        params.set('status', status);
+      }
+      if (movementFilter?.movementId) {
+        params.set('movementId', String(movementFilter.movementId));
+      }
+      params.set('page', String(page));
+      params.set('pageSize', String(pageSize));
+
+      const response = await apiRequest(`/api/farms/${farm.id}/animals${params.toString() ? `?${params}` : ''}`, { token });
+      setAnimals(response.items);
+      setTotalCount(response.totalCount);
+      setActiveCount(response.activeCount);
+      setPage(response.page);
+    } catch (requestError) {
+      setError(requestError.message);
+      setAnimals([]);
+      setTotalCount(0);
+      setActiveCount(0);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAnimals();
+  }, [debouncedSearch, farm.id, movementFilter?.movementId, page, pageSize, reloadKey, status, token]);
+
+  function updateAnimalField(field, value) {
+    setAnimalForm((current) => ({ ...current, [field]: value }));
+    setAnimalFormErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  async function openAnimalModal(animalId) {
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setDetailSaving(false);
+    setDetailDeleting(false);
+    setDetailError('');
+    setAnimalFormErrors({});
+
+    try {
+      const response = await apiRequest(`/api/animals/${animalId}`, { token });
+      setSelectedAnimal(response);
+      setAnimalForm(createAnimalDetailForm(response));
+    } catch (requestError) {
+      setDetailError(requestError.message);
+      setSelectedAnimal(null);
+      setAnimalForm(createAnimalDetailForm(null));
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function closeAnimalModal() {
+    setDetailOpen(false);
+    setSelectedAnimal(null);
+    setAnimalForm(createAnimalDetailForm(null));
+    setAnimalFormErrors({});
+    setDetailError('');
+    setDetailLoading(false);
+    setDetailSaving(false);
+    setDetailDeleting(false);
+  }
+
+  async function saveAnimalChanges() {
+    if (!selectedAnimal) {
+      return;
+    }
+
+    const validationErrors = validateAnimalDetailForm(animalForm, selectedAnimal.livestockSpecies);
+    if (Object.keys(validationErrors).length > 0) {
+      setAnimalFormErrors(validationErrors);
+      return;
+    }
+
+    setDetailSaving(true);
+    setDetailError('');
+
+    try {
+      const updatedAnimal = await apiRequest(`/api/animals/${selectedAnimal.id}`, {
+        method: 'PUT',
+        token,
+        body: {
+          identification: animalForm.identification.trim(),
+          birthYear: animalForm.birthYear === '' ? null : Number(animalForm.birthYear),
+          breed: emptyToNull(animalForm.breed),
+          sex: emptyToNull(animalForm.sex),
+          registrationDate: animalForm.registrationDate || null,
+          registrationCause: animalForm.registrationCause || null,
+          originCode: emptyToNull(animalForm.originCode),
+          healthDocumentNumber: emptyToNull(animalForm.healthDocumentNumber),
+          ovinoCaprino: selectedAnimal.ovinoCaprino
+            ? {
+                speciesType: selectedAnimal.ovinoCaprino.speciesType,
+                genotyping: emptyToNull(animalForm.genotyping),
+                dominantAllele: emptyToNull(animalForm.dominantAllele),
+                lowAllele: emptyToNull(animalForm.lowAllele)
+              }
+            : null,
+          porcino: selectedAnimal.porcino
+            ? {
+                animalType: animalForm.animalType,
+                identificationDate: animalForm.identificationDate || null,
+                pigRegistrationNumber: emptyToNull(animalForm.pigRegistrationNumber),
+                tag: emptyToNull(animalForm.tag)
+              }
+            : null
+        }
+      });
+
+      setSelectedAnimal(updatedAnimal);
+      setAnimalForm(createAnimalDetailForm(updatedAnimal));
+      setReloadKey((current) => current + 1);
+    } catch (requestError) {
+      setDetailError(requestError.message);
+    } finally {
+      setDetailSaving(false);
+    }
+  }
+
+  async function deleteAnimal() {
+    if (!selectedAnimal) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Se eliminará el animal ${selectedAnimal.identification}. Esta acción no se puede deshacer.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDetailDeleting(true);
+    setDetailError('');
+
+    try {
+      await apiRequest(`/api/animals/${selectedAnimal.id}`, { method: 'DELETE', token });
+      closeAnimalModal();
+      setReloadKey((current) => current + 1);
+    } catch (requestError) {
+      setDetailError(requestError.message);
+    } finally {
+      setDetailDeleting(false);
+    }
+  }
 
   return (
     <section className="panel-card stack">
       <div className="farm-animals-header">
-        <p>{loading && !isInitialLoading ? 'Actualizando animales...' : `${activeAnimals} activos · ${animals.length} en total`}</p>
+        <p>{loading && !isInitialLoading ? 'Actualizando animales...' : `${activeCount} activos · ${totalCount} en total`}</p>
       </div>
 
       {movementFilter && (
@@ -241,7 +851,10 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
           <Search size={14} />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Buscar ${identificationLabel.toLowerCase()} o raza...`} />
         </div>
-        <select value={status} onChange={(event) => setStatus(event.target.value)}>
+        <select value={status} onChange={(event) => {
+          setPage(1);
+          setStatus(event.target.value);
+        }}>
           <option value="">Todos los estados</option>
           <option value="Active">Activo</option>
           <option value="Discharged">Baja</option>
@@ -261,42 +874,92 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
             <table className="animal-table">
               <thead>
                 <tr>
-                  {[identificationLabel, 'Especie', 'Raza', 'Sexo', 'Año', 'Fecha identificación', 'Causa alta', 'Estado'].map((header) => (
+                  {[identificationLabel, 'Año', 'Raza', 'Sexo', 'Causa alta', 'Procedencia', 'Causa baja', 'Destino', 'Guía entrada/salida'].map((header) => (
                     <th key={header}>{header}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {animals.map((animal) => {
-                  const speciesTone = speciesToneMap[animal.livestockSpecies] ?? { bg: '#F3F4F6', color: '#6B7280', label: animal.livestockSpecies };
-                  const statusTone = animal.status === 'Discharged'
-                    ? { bg: '#FEE2E2', color: '#DC2626', label: 'Baja' }
-                    : { bg: '#DDEBDF', color: '#2F6B4F', label: 'Activo' };
-                  const sexLabel = animal.sex === 'Female' ? 'Hembra' : animal.sex === 'Male' ? 'Macho' : 'No informado';
+                  const sexLabel = formatAnimalSex(animal.sex);
+                  const breedValue = animal.breed ?? '—';
+                  const registrationCauseValue = animal.registrationCause ?? '—';
+                  const dischargeCauseValue = animal.dischargeCause ?? '—';
+                  const guideSeriesValue = animal.entryGuideSerie || animal.exitGuideSerie
+                    ? `${animal.entryGuideSerie ?? '—'} / ${animal.exitGuideSerie ?? '—'}`
+                    : '—';
 
                   return (
-                    <tr key={animal.id}>
+                    <tr key={animal.id} onClick={() => openAnimalModal(animal.id)}>
                       <td>
                         <div className="animal-identification-cell">
                           <Tag size={13} />
                           <strong>{animal.identification}</strong>
                         </div>
                       </td>
-                      <td><span className="animal-chip" style={{ background: speciesTone.bg, color: speciesTone.color }}>{speciesTone.label}</span></td>
-                      <td>{animal.breed ?? '—'}</td>
-                      <td>{animal.sex === 'Female' ? '♀' : animal.sex === 'Male' ? '♂' : ''} {sexLabel}</td>
-                      <td>{animal.birthYear ?? '—'}</td>
-                      <td>{animal.registrationDate ? new Intl.DateTimeFormat('es-ES').format(new Date(`${animal.registrationDate}T00:00:00`)) : '—'}</td>
-                      <td>{formatRegistrationCause(animal.registrationCause)}</td>
-                      <td><span className="animal-chip" style={{ background: statusTone.bg, color: statusTone.color }}>{statusTone.label}</span></td>
+                      <td>{animal.birthYear != null ? String(animal.birthYear) : '—'}</td>
+                      <td>{breedValue}</td>
+                      <td>{sexLabel}</td>
+                      <td>{registrationCauseValue}</td>
+                      <td>{animal.originCode ?? '—'}</td>
+                      <td>{dischargeCauseValue}</td>
+                      <td>{animal.destinationCode ?? '—'}</td>
+                      <td>{guideSeriesValue}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-          <div className="animal-table-footer">{animals.length} animales</div>
+          <div className="animal-table-footer animal-table-footer-paginated">
+            <span>{`Mostrando ${currentRangeStart}-${currentRangeEnd} de ${totalCount} animales`}</span>
+            <div className="animal-pagination">
+              <label className="animal-pagination-size">
+                <span>Filas</span>
+                <select value={pageSize} onChange={(event) => {
+                  setPage(1);
+                  setPageSize(Number(event.target.value));
+                }}>
+                  {FARM_ANIMALS_PAGE_SIZE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" className="animal-pagination-button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1}>
+                Anterior
+              </button>
+              {visiblePageNumbers.map((pageNumber) => (
+                <button
+                  key={pageNumber}
+                  type="button"
+                  className={pageNumber === page ? 'animal-pagination-button animal-pagination-button-active' : 'animal-pagination-button'}
+                  onClick={() => setPage(pageNumber)}
+                >
+                  {pageNumber}
+                </button>
+              ))}
+              <button type="button" className="animal-pagination-button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages}>
+                Siguiente
+              </button>
+            </div>
+          </div>
         </div>
+      )}
+
+      {detailOpen && (
+        <AnimalDetailModal
+          animal={selectedAnimal}
+          form={animalForm}
+          errors={animalFormErrors}
+          loading={detailLoading}
+          saving={detailSaving}
+          deleting={detailDeleting}
+          requestError={detailError}
+          onChange={updateAnimalField}
+          onClose={closeAnimalModal}
+          onSave={saveAnimalChanges}
+          onDelete={deleteAnimal}
+        />
       )}
     </section>
   );
@@ -2000,48 +2663,118 @@ export function FarmDetailPage() {
   const navigate = useNavigate();
   const { token } = useAuth();
   const [farm, setFarm] = useState(null);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [settingsForm, setSettingsForm] = useState(createFarmSettingsForm(null));
+  const [settingsErrors, setSettingsErrors] = useState({});
+  const [settingsRequestError, setSettingsRequestError] = useState('');
+  const [settingsSubmitting, setSettingsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
   const [movementAnimalFilter, setMovementAnimalFilter] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  async function loadFarmDetail(targetFarmId) {
+    setLoading(true);
+    setError('');
 
-    async function loadFarmDetail() {
-      setLoading(true);
-      setError('');
-
-      try {
-        const response = await apiRequest(`/api/farms/${farmId}`, { token });
-        if (!cancelled) {
-          setFarm(response);
-        }
-      } catch (requestError) {
-        if (!cancelled) {
-          setError(requestError.message);
-          setFarm(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+    try {
+      const response = await apiRequest(`/api/farms/${targetFarmId}`, { token });
+      setFarm(response);
+    } catch (requestError) {
+      setError(requestError.message);
+      setFarm(null);
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     if (farmId) {
       setActiveTab('summary');
       setMovementAnimalFilter(null);
-      loadFarmDetail();
+      setSettingsModalOpen(false);
+      loadFarmDetail(farmId);
     } else {
       setLoading(false);
       setError('Explotación no encontrada.');
     }
-
-    return () => {
-      cancelled = true;
-    };
   }, [farmId, token]);
+
+  function openSettingsModal() {
+    if (!farm) {
+      return;
+    }
+
+    setSettingsForm(createFarmSettingsForm(farm));
+    setSettingsErrors({});
+    setSettingsRequestError('');
+    setSettingsSubmitting(false);
+    setSettingsModalOpen(true);
+  }
+
+  function closeSettingsModal() {
+    setSettingsModalOpen(false);
+    setSettingsErrors({});
+    setSettingsRequestError('');
+    setSettingsSubmitting(false);
+  }
+
+  function updateSettingsField(field, value) {
+    setSettingsForm((current) => ({ ...current, [field]: value }));
+    setSettingsErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  async function submitSettingsForm() {
+    if (!farm) {
+      return;
+    }
+
+    const validationErrors = validateFarmSettingsForm(settingsForm, farm.livestockSpecies);
+    if (Object.keys(validationErrors).length > 0) {
+      setSettingsErrors(validationErrors);
+      return;
+    }
+
+    setSettingsSubmitting(true);
+    setSettingsRequestError('');
+
+    try {
+      const updatedFarm = await apiRequest(`/api/farms/${farm.id}`, {
+        method: 'PUT',
+        token,
+        body: {
+          name: settingsForm.name.trim(),
+          regaCode: settingsForm.regaCode.trim().toUpperCase(),
+          regime: settingsForm.regime,
+          town: emptyToNull(settingsForm.town),
+          province: emptyToNull(settingsForm.province),
+          address: emptyToNull(settingsForm.address),
+          zipCode: emptyToNull(settingsForm.zipCode),
+          authorisedCapacity: settingsForm.authorisedCapacity === '' ? null : Number(settingsForm.authorisedCapacity),
+          porcineRegistryNumber: emptyToNull(settingsForm.porcineRegistryNumber),
+          responsible: emptyToNull(settingsForm.responsible),
+          zootechnicClassification: emptyToNull(settingsForm.zootechnicClassification),
+          xCoordinate: settingsForm.xCoordinate === '' ? null : Number(settingsForm.xCoordinate),
+          yCoordinate: settingsForm.yCoordinate === '' ? null : Number(settingsForm.yCoordinate)
+        }
+      });
+
+      setFarm(updatedFarm);
+      closeSettingsModal();
+    } catch (requestError) {
+      setSettingsRequestError(requestError.message);
+    } finally {
+      setSettingsSubmitting(false);
+    }
+  }
 
   const occupancy = useMemo(() => {
     if (farm?.livestockSpecies !== 'Porcine' || !farm?.authorisedCapacity) {
@@ -2085,20 +2818,28 @@ export function FarmDetailPage() {
 
       <section className="panel-card stack farm-detail-hero">
         <div className="farm-detail-hero-top">
-          <div className="farm-card-icon farm-detail-hero-icon">
-            <Building2 size={22} />
-          </div>
-          <div className="farm-detail-hero-copy">
-            <div className="farm-detail-hero-badges">
-              <span className="farm-badge" style={{ background: speciesTone.bg, color: speciesTone.color }}>
-                {speciesTone.label}
-              </span>
-              <span className="farm-badge" style={{ background: statusTone.bg, color: statusTone.color }}>
-                {statusTone.label}
-              </span>
+          <div className="farm-detail-hero-main">
+            <div className="farm-card-icon farm-detail-hero-icon">
+              <Building2 size={22} />
             </div>
-            <h1>{farm.name}</h1>
-            <p>REGA: {farm.regaCode}</p>
+            <div className="farm-detail-hero-copy">
+              <div className="farm-detail-hero-badges">
+                <span className="farm-badge" style={{ background: speciesTone.bg, color: speciesTone.color }}>
+                  {speciesTone.label}
+                </span>
+                <span className="farm-badge" style={{ background: statusTone.bg, color: statusTone.color }}>
+                  {statusTone.label}
+                </span>
+              </div>
+              <h1>{farm.name}</h1>
+              <p>REGA: {farm.regaCode}</p>
+            </div>
+          </div>
+          <div className="farm-detail-hero-actions">
+            <button className="secondary-button" type="button" onClick={openSettingsModal}>
+              <Edit3 size={15} />
+              Ajustes
+            </button>
           </div>
         </div>
 
@@ -2245,6 +2986,19 @@ export function FarmDetailPage() {
       {activeTab === 'book' && <FarmBookSection farm={farm} token={token} />}
       {activeTab === 'incidents' && <FarmIncidentsSection farm={farm} token={token} />}
       {activeTab === 'inspections' && <FarmInspectionsSection farm={farm} token={token} />}
+
+      {settingsModalOpen && (
+        <FarmSettingsModal
+          farm={farm}
+          form={settingsForm}
+          errors={settingsErrors}
+          requestError={settingsRequestError}
+          submitting={settingsSubmitting}
+          onChange={updateSettingsField}
+          onClose={closeSettingsModal}
+          onSubmit={submitSettingsForm}
+        />
+      )}
     </div>
   );
 }

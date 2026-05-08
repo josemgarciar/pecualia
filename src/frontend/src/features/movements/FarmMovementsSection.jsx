@@ -908,11 +908,6 @@ export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) 
             <div className="animal-table-footer">{filteredMovements.length} movimientos</div>
           </div>
         )}
-
-        <div className="movement-impact-note">
-          <AlertTriangle size={16} />
-          <p>Cada guía actualiza automáticamente el estado de los animales afectados y registra entradas operativas en balance y censo.</p>
-        </div>
       </section>
 
       {importOpen && (

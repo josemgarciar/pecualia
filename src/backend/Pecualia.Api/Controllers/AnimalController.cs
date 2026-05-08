@@ -38,8 +38,24 @@ public static class AnimalController
         group.MapPost("/", async (ClaimsPrincipal user, CreateAnimalRequest request, IAnimalService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.CreateAnimalAsync(user.GetUserId(), user.GetRole(), request, cancellationToken)));
 
+        group.MapPut("/{animalId:long}", async (ClaimsPrincipal user, long animalId, UpdateAnimalRequest request, IAnimalService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.UpdateAnimalAsync(user.GetUserId(), user.GetRole(), animalId, request, cancellationToken)));
+
         group.MapPost("/{animalId:long}/discharge", async (ClaimsPrincipal user, long animalId, DischargeAnimalRequest request, IAnimalService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.DischargeAnimalAsync(user.GetUserId(), user.GetRole(), animalId, request, cancellationToken)));
+
+        group.MapDelete("/{animalId:long}", async (ClaimsPrincipal user, long animalId, IAnimalService service, CancellationToken cancellationToken) =>
+        {
+            try
+            {
+                await service.DeleteAnimalAsync(user.GetUserId(), user.GetRole(), animalId, cancellationToken);
+                return Results.NoContent();
+            }
+            catch (DomainException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+        });
 
         return endpoints;
     }
