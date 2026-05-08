@@ -20,7 +20,7 @@ export function ProfilePage() {
     () => `${user?.name?.[0] ?? ''}${user?.surname?.[0] ?? ''}`.toUpperCase() || 'P',
     [user]
   );
-  const roleLabel = user?.role === 'Manager' ? 'Gestora' : 'Ganadero';
+  const roleLabel = user?.role === 'Manager' ? 'Gestor@' : 'Ganader@';
   const planLabel = getPlanLabel(user);
   const statusLabel = user?.isActive ? 'Activo' : 'Pendiente';
   const heroDescription = user?.role === 'Manager'
@@ -39,7 +39,7 @@ export function ProfilePage() {
   }
 
   if (user?.farmerStatus) {
-    detailCards.push({ label: 'Estado ganadero', value: user.farmerStatus, icon: Building2 });
+    detailCards.push({ label: 'Estado de Ganader@', value: user.farmerStatus, icon: Building2 });
   }
 
   return (

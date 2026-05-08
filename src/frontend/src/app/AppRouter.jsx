@@ -144,10 +144,6 @@ function AppShell() {
               </div>
             </div>
 
-            <div className="sidebar-profile-note">
-              <ShieldCheck size={15} />
-              <span>{isManager ? 'Acceso centralizado a ganaderos y explotaciones' : 'Acceso directo a tu operativa y documentación'}</span>
-            </div>
           </button>
         </section>
 

@@ -2126,7 +2126,6 @@ export function FarmDetailPage() {
         <div className="detail-header">
           <div>
             <h2>Navegación de secciones</h2>
-            <p>Accede a cada bloque del detalle sin depender de un scroll horizontal.</p>
           </div>
           <strong>{activeTabConfig.label}</strong>
         </div>
@@ -2172,7 +2171,7 @@ export function FarmDetailPage() {
               <DetailField label="Especie" value={speciesTone.label} />
               <DetailField label="Régimen" value={formatRegime(farm.regime)} />
               <DetailField label="Estado" value={statusTone.label} />
-              <DetailField label="Tipo ganadero" value={formatText(farm.livestockType)} />
+              <DetailField label="Tipo de Ganader@" value={formatText(farm.livestockType)} />
               <DetailField label="Capacidad productiva" value={formatText(farm.productionCapacity)} />
               {farm.livestockSpecies === 'Porcine' && (
                 <DetailField label="Registro porcino" value={formatText(farm.porcineRegistryNumber)} />

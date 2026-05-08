@@ -5,7 +5,6 @@
 @media (max-width: 1120px) {
   .auth-layout,
   .dashboard-grid,
-  .farmers-layout,
   .two-column-layout,
   .toolbar-row,
   .step-progress,
@@ -44,10 +43,6 @@
   .farm-detail-grid,
   .farm-detail-metrics {
     grid-template-columns: 1fr;
-  }
-
-  .detail-panel {
-    position: static;
   }
 }
 
@@ -95,6 +90,7 @@
   .auth-footer,
   .grid-form,
   .farmer-person-grid,
+  .farmer-detail-summary-grid,
   .profile-hero-card,
   .summary-grid,
   .detail-grid,
@@ -124,6 +120,11 @@
   .auth-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .farmer-detail-hero {
+    grid-template-columns: 1fr;
+    justify-items: start;
   }
 
   .farm-stepper {

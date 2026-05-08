@@ -17,6 +17,8 @@ public interface IFarmerService
     Task<FarmerListItemResponse> UpdateManagedFarmerAsync(long managerUserId, long farmerUserId, UpdateFarmerRequest request, CancellationToken cancellationToken);
 
     Task<bool> ResendActivationAsync(long managerUserId, long farmerUserId, CancellationToken cancellationToken);
+
+    Task UnlinkManagedFarmerAsync(long managerUserId, long farmerUserId, CancellationToken cancellationToken);
 }
 
 public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService authService, IClock clock) : IFarmerService
@@ -188,6 +190,13 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
 
         await ((AuthService)authService).CreateActivationAsync(farmer.User, managerUserId, cancellationToken);
         return true;
+    }
+
+    public async Task UnlinkManagedFarmerAsync(long managerUserId, long farmerUserId, CancellationToken cancellationToken)
+    {
+        var farmer = await LoadManagedFarmerAsync(managerUserId, farmerUserId, cancellationToken);
+        farmer.ManagerId = null;
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<Farmer> LoadManagedFarmerAsync(long managerUserId, long farmerUserId, CancellationToken cancellationToken)

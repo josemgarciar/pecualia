@@ -85,7 +85,7 @@ export function SubscriptionPage() {
           </div>
           <div>
             <span>Modalidad</span>
-            <strong>{user?.role === 'Manager' ? 'Gestor' : 'Ganadero'}</strong>
+            <strong>{user?.role === 'Manager' ? 'Gestor' : 'Ganader@'}</strong>
           </div>
         </div>
 

@@ -90,7 +90,7 @@ export function SettingsPage() {
   const planLabel = getPlanLabel(user);
   const accountSummary = useMemo(
     () => ({
-      role: isManager ? 'Gestora' : 'Ganadero',
+      role: isManager ? 'Gestor@' : 'Ganader@',
       email: user?.email ?? 'No informado',
       username: user?.username || 'Pendiente de activación'
     }),
@@ -201,7 +201,7 @@ export function SettingsPage() {
         <div className="settings-hero-copy">
           <span className="settings-hero-kicker">Cuenta y preferencias</span>
           <h2>{user?.name} {user?.surname}</h2>
-          <p>Actualiza correo, usuario, contraseña y, si eres gestora, la organización asociada a la cuenta. También puedes preparar la suscripción a notificaciones.</p>
+          <p>Actualiza correo, usuario, contraseña y, si eres Gestor@, la organización asociada a la cuenta. También puedes preparar la suscripción a notificaciones.</p>
         </div>
         <div className="settings-hero-actions">
           <button className="secondary-button" type="button" onClick={refreshProfile}>

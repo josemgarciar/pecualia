@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, CheckCircle2, ChevronRight, Mail, MapPin, Phone, User, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronRight, Mail, MapPin, Phone, Plus, User, X } from 'lucide-react';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { apiRequest } from '../../shared/api/client';
+import { FarmerDetailPage } from './FarmerDetailPage';
 
 const initialForm = {
   personType: 'Individual',
@@ -75,10 +76,6 @@ function mapDetailToForm(detail) {
   };
 }
 
-function formatStatus(status) {
-  return status === 'PendingActivation' ? 'Pendiente' : 'Activo';
-}
-
 function formatPersonType(personType) {
   return personType === 'Company' ? 'Persona jurídica' : 'Persona física';
 }
@@ -129,8 +126,8 @@ function FarmerWizardModal({
   const validationMessage = buildValidationMessage(form, step);
   const isCreate = mode === 'create';
   const displayName = form.personType === 'Company'
-    ? form.companyName || 'Ganadero sin nombre'
-    : [form.name, form.firstSurname, form.secondSurname].filter(Boolean).join(' ') || 'Ganadero sin nombre';
+    ? form.companyName || 'Ganader@ sin nombre'
+    : [form.name, form.firstSurname, form.secondSurname].filter(Boolean).join(' ') || 'Ganader@ sin nombre';
   const idDocument = form.nifCif || 'Sin NIF/CIF';
 
   return (
@@ -142,7 +139,8 @@ function FarmerWizardModal({
               <User size={18} />
             </div>
             <div>
-              <h2>{isCreate ? 'Nuevo ganadero' : 'Editar ganadero'}</h2>
+              <h2>
+                {isCreate ? 'Nuevo Ganader@' : 'Editar Ganader@'}</h2>
               <p>Paso {step} de {wizardSteps.length}</p>
             </div>
           </div>
@@ -189,7 +187,7 @@ function FarmerWizardModal({
                     onClick={() => onChange('personType', 'Individual')}
                   >
                     <strong>Persona física</strong>
-                    <span>Ganadero individual (NIF)</span>
+                    <span>Ganader@ individual (NIF)</span>
                   </button>
                   <button
                     className={form.personType === 'Company' ? 'farmer-person-card farmer-person-card-active' : 'farmer-person-card'}
@@ -208,74 +206,34 @@ function FarmerWizardModal({
                 {form.personType === 'Individual' ? (
                   <>
                     <FormField label="Nombre" required>
-                      <input
-                        className="farm-input"
-                        value={form.name}
-                        onChange={(event) => onChange('name', event.target.value)}
-                        placeholder="ej: Miguel"
-                      />
+                      <input className="farm-input" value={form.name} onChange={(event) => onChange('name', event.target.value)} placeholder="ej: Miguel" />
                     </FormField>
                     <FormField label="Primer apellido" required>
-                      <input
-                        className="farm-input"
-                        value={form.firstSurname}
-                        onChange={(event) => onChange('firstSurname', event.target.value)}
-                        placeholder="ej: Torres"
-                      />
+                      <input className="farm-input" value={form.firstSurname} onChange={(event) => onChange('firstSurname', event.target.value)} placeholder="ej: Torres" />
                     </FormField>
                     <FormField label="Segundo apellido">
-                      <input
-                        className="farm-input"
-                        value={form.secondSurname}
-                        onChange={(event) => onChange('secondSurname', event.target.value)}
-                        placeholder="ej: Vega"
-                      />
+                      <input className="farm-input" value={form.secondSurname} onChange={(event) => onChange('secondSurname', event.target.value)} placeholder="ej: Vega" />
                     </FormField>
                     <FormField label="NIF" required>
-                      <input
-                        className="farm-input"
-                        value={form.nifCif}
-                        onChange={(event) => onChange('nifCif', event.target.value)}
-                        placeholder="ej: 12345678A"
-                      />
+                      <input className="farm-input" value={form.nifCif} onChange={(event) => onChange('nifCif', event.target.value)} placeholder="ej: 12345678A" />
                     </FormField>
                     <div className="form-full">
                       <FormField label="Fecha de nacimiento">
-                        <input
-                          className="farm-input"
-                          type="date"
-                          value={form.birthDate}
-                          onChange={(event) => onChange('birthDate', event.target.value)}
-                        />
+                        <input className="farm-input" type="date" value={form.birthDate} onChange={(event) => onChange('birthDate', event.target.value)} />
                       </FormField>
                     </div>
                   </>
                 ) : (
                   <>
                     <FormField label="Razón social" required>
-                      <input
-                        className="farm-input"
-                        value={form.companyName}
-                        onChange={(event) => onChange('companyName', event.target.value)}
-                        placeholder="ej: Ganados Sierra Norte S.L."
-                      />
+                      <input className="farm-input" value={form.companyName} onChange={(event) => onChange('companyName', event.target.value)} placeholder="ej: Ganados Sierra Norte S.L." />
                     </FormField>
                     <FormField label="CIF" required>
-                      <input
-                        className="farm-input"
-                        value={form.nifCif}
-                        onChange={(event) => onChange('nifCif', event.target.value)}
-                        placeholder="ej: B12345678"
-                      />
+                      <input className="farm-input" value={form.nifCif} onChange={(event) => onChange('nifCif', event.target.value)} placeholder="ej: B12345678" />
                     </FormField>
                     <div className="form-full">
                       <FormField label="Representante legal" required>
-                        <input
-                          className="farm-input"
-                          value={form.legalRepresentative}
-                          onChange={(event) => onChange('legalRepresentative', event.target.value)}
-                          placeholder="Nombre y apellidos del representante"
-                        />
+                        <input className="farm-input" value={form.legalRepresentative} onChange={(event) => onChange('legalRepresentative', event.target.value)} placeholder="Nombre y apellidos del representante" />
                       </FormField>
                     </div>
                   </>
@@ -303,55 +261,24 @@ function FarmerWizardModal({
 
               <div className="grid-form">
                 <FormField label="Teléfono principal" required>
-                  <input
-                    className="farm-input"
-                    value={form.phoneNumber}
-                    onChange={(event) => onChange('phoneNumber', event.target.value)}
-                    placeholder="ej: 627 891 234"
-                  />
+                  <input className="farm-input" value={form.phoneNumber} onChange={(event) => onChange('phoneNumber', event.target.value)} placeholder="ej: 627 891 234" />
                 </FormField>
                 <FormField label="Email" required>
-                  <input
-                    className="farm-input"
-                    type="email"
-                    value={form.email}
-                    onChange={(event) => onChange('email', event.target.value)}
-                    placeholder="ej: miguel@example.com"
-                  />
+                  <input className="farm-input" type="email" value={form.email} onChange={(event) => onChange('email', event.target.value)} placeholder="ej: miguel@example.com" />
                 </FormField>
                 <div className="form-full">
                   <FormField label="Dirección">
-                    <input
-                      className="farm-input"
-                      value={form.residence}
-                      onChange={(event) => onChange('residence', event.target.value)}
-                      placeholder="Calle, número, piso..."
-                    />
+                    <input className="farm-input" value={form.residence} onChange={(event) => onChange('residence', event.target.value)} placeholder="Calle, número, piso..." />
                   </FormField>
                 </div>
                 <FormField label="Localidad" required>
-                  <input
-                    className="farm-input"
-                    value={form.town}
-                    onChange={(event) => onChange('town', event.target.value)}
-                    placeholder="ej: Cáceres"
-                  />
+                  <input className="farm-input" value={form.town} onChange={(event) => onChange('town', event.target.value)} placeholder="ej: Cáceres" />
                 </FormField>
                 <FormField label="Provincia" required>
-                  <input
-                    className="farm-input"
-                    value={form.province}
-                    onChange={(event) => onChange('province', event.target.value)}
-                    placeholder="ej: Cáceres"
-                  />
+                  <input className="farm-input" value={form.province} onChange={(event) => onChange('province', event.target.value)} placeholder="ej: Cáceres" />
                 </FormField>
                 <FormField label="Código postal">
-                  <input
-                    className="farm-input"
-                    value={form.zipCode}
-                    onChange={(event) => onChange('zipCode', event.target.value)}
-                    placeholder="ej: 10001"
-                  />
+                  <input className="farm-input" value={form.zipCode} onChange={(event) => onChange('zipCode', event.target.value)} placeholder="ej: 10001" />
                 </FormField>
               </div>
             </div>
@@ -446,7 +373,7 @@ function FarmerWizardModal({
 
               <div className="farm-confirmation-note">
                 <CheckCircle2 size={15} />
-                <p>Revisa los datos antes de confirmar. Después podrás editar la ficha desde el detalle del ganadero.</p>
+                <p>Revisa los datos antes de confirmar. Después podrás editar la ficha desde el detalle del Ganader@.</p>
               </div>
             </div>
           )}
@@ -482,19 +409,14 @@ function FarmerWizardModal({
               {step > 1 ? 'Atrás' : 'Cancelar'}
             </button>
             {step < 3 ? (
-              <button
-                className="primary-button"
-                type="button"
-                onClick={() => onStepChange(step + 1)}
-                disabled={Boolean(validationMessage)}
-              >
+              <button className="primary-button" type="button" onClick={() => onStepChange(step + 1)} disabled={Boolean(validationMessage)}>
                 Siguiente
                 <ChevronRight size={15} />
               </button>
             ) : (
               <button className="primary-button" type="button" onClick={onSubmit} disabled={submitting}>
                 <CheckCircle2 size={15} />
-                {submitting ? 'Guardando...' : isCreate ? 'Guardar ganadero' : 'Guardar cambios'}
+                {submitting ? 'Guardando...' : isCreate ? 'Guardar Ganader@' : 'Guardar cambios'}
               </button>
             )}
           </div>
@@ -510,12 +432,11 @@ export function FarmersPage() {
   const { token, user } = useAuth();
   const [farmers, setFarmers] = useState([]);
   const [selectedFarmerId, setSelectedFarmerId] = useState(null);
-  const [selectedFarmer, setSelectedFarmer] = useState(null);
   const [search, setSearch] = useState('');
   const [province, setProvince] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [modalMode, setModalMode] = useState('create');
@@ -529,25 +450,6 @@ export function FarmersPage() {
     () => [...new Set(farmers.map((farmer) => farmer.province).filter(Boolean))].sort((left, right) => left.localeCompare(right)),
     [farmers]
   );
-
-  const loadFarmerDetail = async (farmerId) => {
-    if (!farmerId) {
-      setSelectedFarmer(null);
-      return;
-    }
-
-    setDetailLoading(true);
-    setError('');
-
-    try {
-      const response = await apiRequest(`/api/farmers/${farmerId}`, { token });
-      setSelectedFarmer(response);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setDetailLoading(false);
-    }
-  };
 
   const loadFarmers = async (preferredFarmerId = null) => {
     setLoading(true);
@@ -571,13 +473,12 @@ export function FarmersPage() {
       const candidateId = preferredFarmerId ?? selectedFarmerId;
       if (candidateId && response.some((farmer) => farmer.id === candidateId)) {
         setSelectedFarmerId(candidateId);
-      } else if (!selectedFarmerId && response.length > 0) {
-        setSelectedFarmerId(response[0].id);
-      } else if (selectedFarmerId && !response.some((farmer) => farmer.id === selectedFarmerId)) {
-        setSelectedFarmerId(response[0]?.id ?? null);
+      } else if (candidateId && !response.some((farmer) => farmer.id === candidateId)) {
+        setSelectedFarmerId(null);
+        setDetailModalOpen(false);
       } else if (response.length === 0) {
         setSelectedFarmerId(null);
-        setSelectedFarmer(null);
+        setDetailModalOpen(false);
       }
     } catch (requestError) {
       setError(requestError.message);
@@ -591,15 +492,6 @@ export function FarmersPage() {
       loadFarmers();
     }
   }, [token, user, search, province, status]);
-
-  useEffect(() => {
-    if (!selectedFarmerId || user?.role !== 'Manager') {
-      setSelectedFarmer(null);
-      return;
-    }
-
-    loadFarmerDetail(selectedFarmerId);
-  }, [selectedFarmerId, token, user]);
 
   const closeModal = () => {
     setModalOpen(false);
@@ -626,14 +518,11 @@ export function FarmersPage() {
     navigate(location.pathname, { replace: true, state: {} });
   }, [location.pathname, location.state, navigate, user?.role]);
 
-  const openEditModal = () => {
-    if (!selectedFarmer) {
-      return;
-    }
-
+  const openEditModal = (farmerDetail) => {
+    setDetailModalOpen(false);
     setModalMode('edit');
     setModalStep(1);
-    setModalForm(mapDetailToForm(selectedFarmer));
+    setModalForm(mapDetailToForm(farmerDetail));
     setModalError('');
     setModalOpen(true);
   };
@@ -678,36 +567,14 @@ export function FarmersPage() {
         : await apiRequest(`/api/farmers/${selectedFarmerId}`, { method: 'PUT', token, body: payload });
 
       closeModal();
-      setSuccess(modalMode === 'create' ? 'Ganadero creado correctamente.' : 'Ganadero actualizado correctamente.');
+      setSuccess(modalMode === 'create' ? 'Ganader@ creado correctamente.' : 'Ganader@ actualizado correctamente.');
       setSelectedFarmerId(response.id);
       await loadFarmers(response.id);
-      await loadFarmerDetail(response.id);
+      setDetailModalOpen(true);
     } catch (requestError) {
       setModalError(requestError.message);
     } finally {
       setModalSubmitting(false);
-    }
-  };
-
-  const handleResend = async () => {
-    if (!selectedFarmerId) {
-      return;
-    }
-
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await apiRequest(`/api/farmers/${selectedFarmerId}/send-activation`, {
-        method: 'POST',
-        token
-      });
-
-      setSuccess(response.resent ? 'Invitación reenviada correctamente.' : 'La cuenta ya está activa.');
-      await loadFarmers(selectedFarmerId);
-      await loadFarmerDetail(selectedFarmerId);
-    } catch (requestError) {
-      setError(requestError.message);
     }
   };
 
@@ -722,7 +589,10 @@ export function FarmersPage() {
           <h1>Ganaderos</h1>
           <p>Gestión de titulares, activaciones pendientes y acceso a sus explotaciones.</p>
         </div>
-        <button className="primary-button" onClick={openCreateModal}>Nuevo ganadero</button>
+        <button className="primary-button" onClick={openCreateModal}>
+          <Plus size={16} />
+          Nuevo Ganader@
+        </button>
       </header>
 
       {error && <div className="error-banner">{error}</div>}
@@ -739,11 +609,7 @@ export function FarmersPage() {
         <div className="toolbar-row">
           <label className="toolbar-field toolbar-search">
             <span>Buscar</span>
-            <input
-              placeholder="Nombre, NIF/CIF o localidad"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
+            <input placeholder="Nombre, NIF/CIF o localidad" value={search} onChange={(event) => setSearch(event.target.value)} />
           </label>
           <label className="toolbar-field">
             <span>Provincia</span>
@@ -775,137 +641,72 @@ export function FarmersPage() {
           </button>
         </div>
 
-        <div className="farmers-layout">
-          <div className="table-card">
-            <div className="farmer-table">
-              <div className="farmer-table-header">
-                <span>Ganadero</span>
-                <span>NIF/CIF</span>
-                <span>Teléfono</span>
-                <span>Localidad</span>
-                <span>Provincia</span>
-                <span>Explot.</span>
-                <span>Estado</span>
-              </div>
+        <div className="table-card">
+          <div className="farmer-table">
+            <div className="farmer-table-header">
+              <span>Ganader@</span>
+              <span>NIF/CIF</span>
+              <span>Teléfono</span>
+              <span>Localidad</span>
+              <span>Provincia</span>
+              <span>Explot.</span>
+              <span>Estado</span>
+            </div>
 
-              <div className="farmer-table-body">
-                {farmers.map((farmer) => (
-                  <button
-                    className={farmer.id === selectedFarmerId ? 'farmer-table-row farmer-table-row-active' : 'farmer-table-row'}
-                    key={farmer.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedFarmerId(farmer.id);
-                      setSuccess('');
-                    }}
-                  >
-                    <span>
-                      <strong>{farmer.displayName}</strong>
-                      <small>{formatPersonType(farmer.personType)}</small>
-                    </span>
-                    <span>{farmer.nifCif}</span>
-                    <span>{farmer.phoneNumber || 'Sin teléfono'}</span>
-                    <span>{farmer.town || 'Sin localidad'}</span>
-                    <span>{farmer.province || 'Sin provincia'}</span>
-                    <span>{farmer.farmCount}</span>
-                    <span>
-                      <span className={`status-chip status-${farmer.status}`}>{formatStatus(farmer.status)}</span>
-                    </span>
-                  </button>
-                ))}
+            <div className="farmer-table-body">
+              {farmers.map((farmer) => (
+                <button
+                  className={detailModalOpen && farmer.id === selectedFarmerId ? 'farmer-table-row farmer-table-row-active' : 'farmer-table-row'}
+                  key={farmer.id}
+                  type="button"
+                  onClick={() => {
+                    setSuccess('');
+                    setSelectedFarmerId(farmer.id);
+                    setDetailModalOpen(true);
+                  }}
+                >
+                  <span>
+                    <strong>{farmer.displayName}</strong>
+                    <small>{formatPersonType(farmer.personType)}</small>
+                  </span>
+                  <span>{farmer.nifCif}</span>
+                  <span>{farmer.phoneNumber || 'Sin teléfono'}</span>
+                  <span>{farmer.town || 'Sin localidad'}</span>
+                  <span>{farmer.province || 'Sin provincia'}</span>
+                  <span>{farmer.farmCount}</span>
+                  <span className={`status-chip status-${farmer.status}`}>{farmer.status === 'PendingActivation' ? 'Pendiente' : 'Activo'}</span>
+                </button>
+              ))}
 
-                {!loading && farmers.length === 0 && (
-                  <div className="empty-state">No hay ganaderos para los filtros actuales.</div>
-                )}
-              </div>
+              {!loading && farmers.length === 0 && (
+                <div className="empty-state">No hay ganaderos para los filtros actuales.</div>
+              )}
             </div>
           </div>
-
-          <aside className="panel-card detail-panel">
-            {detailLoading ? (
-              <div className="empty-state">Cargando ficha del ganadero...</div>
-            ) : !selectedFarmer ? (
-              <div className="empty-state">Selecciona un ganadero para ver el detalle.</div>
-            ) : (
-              <div className="stack">
-                <div className="detail-header">
-                  <div>
-                    <h2>{selectedFarmer.displayName}</h2>
-                    <p>{formatPersonType(selectedFarmer.personType)}</p>
-                  </div>
-                  <span className={`status-chip status-${selectedFarmer.status}`}>{formatStatus(selectedFarmer.status)}</span>
-                </div>
-
-                <div className="detail-grid">
-                  <div><span>Email</span><strong>{selectedFarmer.email}</strong></div>
-                  <div><span>NIF/CIF</span><strong>{selectedFarmer.nifCif}</strong></div>
-                  <div><span>Teléfono</span><strong>{selectedFarmer.phoneNumber || 'No informado'}</strong></div>
-                  <div><span>Provincia</span><strong>{selectedFarmer.province || 'No informada'}</strong></div>
-                  <div><span>Localidad</span><strong>{selectedFarmer.town || 'No informada'}</strong></div>
-                  <div><span>Código postal</span><strong>{selectedFarmer.zipCode || 'No informado'}</strong></div>
-                  <div className="detail-full"><span>Dirección</span><strong>{selectedFarmer.residence || 'No informada'}</strong></div>
-                  {selectedFarmer.personType === 'Individual' ? (
-                    <>
-                      <div><span>Nombre</span><strong>{selectedFarmer.name || 'No informado'}</strong></div>
-                      <div><span>Primer apellido</span><strong>{selectedFarmer.firstSurname || 'No informado'}</strong></div>
-                      <div><span>Segundo apellido</span><strong>{selectedFarmer.secondSurname || 'No informado'}</strong></div>
-                      <div><span>Nacimiento</span><strong>{selectedFarmer.birthDate || 'No informado'}</strong></div>
-                    </>
-                  ) : (
-                    <>
-                      <div><span>Razón social</span><strong>{selectedFarmer.companyName || 'No informada'}</strong></div>
-                      <div className="detail-full"><span>Representante legal</span><strong>{selectedFarmer.legalRepresentative || 'No informado'}</strong></div>
-                    </>
-                  )}
-                </div>
-
-                <div className="detail-actions">
-                  <button
-                    className="primary-button"
-                    type="button"
-                    onClick={() => navigate(`/app/farms?farmerId=${selectedFarmer.id}`)}
-                  >
-                    Ver explotaciones
-                  </button>
-                  <button className="secondary-button" type="button" onClick={openEditModal}>
-                    Editar ganadero
-                  </button>
-                  {selectedFarmer.canResendActivation && (
-                    <button className="secondary-button" type="button" onClick={handleResend}>
-                      Reenviar invitación
-                    </button>
-                  )}
-                </div>
-
-                <section className="stack">
-                  <div className="panel-header-inline">
-                    <h3>Explotaciones asociadas</h3>
-                    <span>{selectedFarmer.farms.length}</span>
-                  </div>
-                  {selectedFarmer.farms.length === 0 ? (
-                    <div className="empty-state">Este ganadero todavía no tiene explotaciones registradas.</div>
-                  ) : (
-                    <div className="table-list">
-                      {selectedFarmer.farms.map((farm) => (
-                        <article className="list-row" key={farm.id}>
-                          <div>
-                            <strong>{farm.name}</strong>
-                            <div className="muted-text">{farm.regaCode} · {farm.livestockSpecies}</div>
-                          </div>
-                          <div className="row-actions">
-                            <span className={`status-chip status-${farm.status}`}>{farm.status}</span>
-                            <span className="muted-text">{farm.animalCount} animales</span>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              </div>
-            )}
-          </aside>
         </div>
       </section>
+
+      {detailModalOpen && selectedFarmerId && (
+        <FarmerDetailPage
+          farmerId={selectedFarmerId}
+          token={token}
+          onClose={() => setDetailModalOpen(false)}
+          onEdit={openEditModal}
+          onOpenFarms={(farmerId) => navigate(`/app/farms?farmerId=${farmerId}`)}
+          onSuccess={async (message, options = {}) => {
+            setSuccess(message);
+            if (options.reloadList) {
+              await loadFarmers(selectedFarmerId);
+            }
+          }}
+          onError={setError}
+          onUnlinked={async () => {
+            setDetailModalOpen(false);
+            setSelectedFarmerId(null);
+            await loadFarmers();
+          }}
+        />
+      )}
 
       {modalOpen && (
         <FarmerWizardModal

@@ -261,7 +261,7 @@ public sealed class AuthService(
 
         if (user.Role == UserRole.Manager && string.IsNullOrWhiteSpace(normalizedOrganizationName))
         {
-            throw new DomainException("La organización es obligatoria para cuentas gestoras.");
+            throw new DomainException("La organización es obligatoria para cuentas Gestor@s.");
         }
 
         if (normalizedNewPassword is not null)

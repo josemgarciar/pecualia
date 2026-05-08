@@ -9,7 +9,7 @@ const managerPlans = [
     summary: 'Para gestores que empiezan con una cartera reducida.',
     limits: [
       'Hasta 2 explotaciones',
-      'Hasta 1 ganadero'
+      'Hasta 1 Ganader@'
     ]
   },
   {

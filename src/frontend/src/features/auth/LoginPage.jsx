@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { BriefcaseBusiness, Eye, EyeOff, UserRound } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { AuthLayout } from './AuthLayout';
@@ -37,12 +37,12 @@ export function LoginPage() {
       footer={(
         <>
           <Link className="auth-choice-card" to="/register/farmer">
-            <span className="auth-choice-icon">🐑</span>
-            <strong>Soy ganadero</strong>
+            <UserRound className="auth-choice-icon" size={24} strokeWidth={2} />
+            <strong>Soy Ganader@</strong>
             <span>particular</span>
           </Link>
           <Link className="auth-choice-card" to="/register/manager">
-            <span className="auth-choice-icon">👩‍💼</span>
+            <BriefcaseBusiness className="auth-choice-icon" size={24} strokeWidth={2} />
             <strong>Soy gestor</strong>
             <span>profesional</span>
           </Link>

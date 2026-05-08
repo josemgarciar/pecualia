@@ -52,7 +52,7 @@ export function RegisterFarmerPage() {
 
   return (
     <AuthLayout
-      title="Registro de ganadero"
+      title="Registro de Ganader@"
       subtitle="Crea tu acceso directamente o asóciate a un gestor existente mediante código o correo."
     >
       <form className="grid-form" onSubmit={handleSubmit}>
@@ -79,7 +79,7 @@ export function RegisterFarmerPage() {
         <label><span>Correo del gestor</span><input type="email" value={form.managerEmail} onChange={(event) => setForm({ ...form, managerEmail: event.target.value })} /></label>
 
         {error && <div className="error-banner form-full">{error}</div>}
-        <button className="primary-button form-full" disabled={submitting}>{submitting ? 'Creando cuenta...' : 'Crear cuenta de ganadero'}</button>
+        <button className="primary-button form-full" disabled={submitting}>{submitting ? 'Creando cuenta...' : 'Crear cuenta de Ganader@'}</button>
       </form>
     </AuthLayout>
   );

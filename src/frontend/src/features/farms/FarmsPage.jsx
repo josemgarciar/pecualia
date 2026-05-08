@@ -112,7 +112,7 @@ function buildFarmErrors(form, step, isManager) {
       errors.porcineRegistryNumber = 'Campo obligatorio para porcino';
     }
     if (isManager && !form.farmerId) {
-      errors.farmerId = 'Selecciona un ganadero';
+      errors.farmerId = 'Selecciona un Ganader@';
     }
   }
 
@@ -317,11 +317,11 @@ function FarmModal({
               </div>
               {user?.role === 'Manager' && (
                 <SelectField
-                  label="Ganadero titular"
+                  label="Ganader@ titular"
                   value={form.farmerId}
                   onChange={(value) => onChange('farmerId', value)}
                   options={farmers.map((farmer) => ({ value: String(farmer.id), label: farmer.displayName }))}
-                  placeholder="Selecciona un ganadero"
+                  placeholder="Selecciona un Ganader@"
                   required
                   error={currentStepErrors.farmerId}
                 />
@@ -414,7 +414,7 @@ function FarmModal({
                   <SummaryRow label="Código REGA" value={form.regaCode || '—'} />
                   <SummaryRow label="Especie" value={formatSpecies(form.livestockSpecies) || '—'} />
                   <SummaryRow label="Régimen" value={formatRegime(form.regime) || '—'} />
-                  <SummaryRow label="Ganadero titular" value={ownerName} />
+                  <SummaryRow label="Ganader@ titular" value={ownerName} />
                   {form.livestockSpecies === 'Porcine' && form.porcineRegistryNumber && (
                     <SummaryRow label="Registro porcino" value={form.porcineRegistryNumber} />
                   )}

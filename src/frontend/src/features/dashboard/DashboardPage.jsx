@@ -81,7 +81,7 @@ export function DashboardPage() {
 
   const quickActions = user?.role === 'Manager'
     ? [
-        { label: 'Nuevo ganadero', icon: Users, to: '/app/farmers', state: { openCreateModal: true } },
+        { label: 'Nuevo Ganader@', icon: Users, to: '/app/farmers', state: { openCreateModal: true } },
         { label: 'Nueva explotación', icon: Building2, to: '/app/farms', state: { openCreateModal: true } },
       ]
     : [
@@ -95,7 +95,7 @@ export function DashboardPage() {
         <div>
           <h1>Buenos días, {user?.name}</h1>
           <div className="dashboard-subheader">
-            <span className="dashboard-role-chip">{user?.role === 'Manager' ? 'Gestora Profesional' : 'Ganadero'}</span>
+            <span className="dashboard-role-chip">{user?.role === 'Manager' ? 'Gestor@ Profesional' : 'Ganader@'}</span>
             <span>{user?.role === 'Manager' ? `Plan ${planLabel} activo` : `Plan ${planLabel} activo`}</span>
           </div>
         </div>

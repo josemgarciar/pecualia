@@ -81,24 +81,27 @@
 }
 
 .farm-stepper {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: flex-start;
-  justify-content: center;
   gap: 12px;
-  width: min(100%, 720px);
+  width: min(100%, 760px);
   margin: 0 auto;
   padding: 20px 24px 16px;
 }
 
 .farm-stepper-item {
-  flex: 0 1 220px;
-  max-width: 220px;
+  position: relative;
+  display: grid;
+  justify-items: center;
   min-width: 0;
 }
 
 .farm-stepper-marker-group {
-  display: flex;
-  align-items: center;
+  position: relative;
+  display: grid;
+  justify-items: center;
+  width: 100%;
 }
 
 .farm-stepper-marker {
@@ -119,9 +122,12 @@
 }
 
 .farm-stepper-connector {
-  flex: 1;
+  position: absolute;
+  top: 50%;
+  left: calc(50% + 24px);
+  width: calc(100% - 48px);
   height: 2px;
-  margin: 0 8px;
+  transform: translateY(-50%);
   background: #e5e7eb;
 }
 
@@ -135,6 +141,7 @@
   color: #9ca3af;
   font-size: 0.78rem;
   font-weight: 600;
+  text-align: center;
 }
 
 .farm-stepper-label-active {
