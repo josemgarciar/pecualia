@@ -16,6 +16,7 @@ using Pecualia.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 DotEnvLoader.LoadFromNearest(builder.Environment.ContentRootPath);
 builder.Configuration.AddEnvironmentVariables();
+ApplyRenderDerivedConfiguration(builder.Configuration);
 
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 QuestPDF.Settings.EnableDebugging = builder.Environment.IsDevelopment();
@@ -24,6 +25,7 @@ builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptio
 builder.Services.Configure<ActivationOptions>(builder.Configuration.GetSection(ActivationOptions.SectionName));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
+builder.Services.Configure<DatabaseBootstrapOptions>(builder.Configuration.GetSection(DatabaseBootstrapOptions.SectionName));
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
 ValidateRequiredSetting(jwtOptions.Issuer, "Jwt:Issuer");
@@ -123,6 +125,7 @@ builder.Services.AddScoped<IAnimalService, AnimalService>();
 builder.Services.AddScoped<IMovementService, MovementService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IBookService, BookService>();
+builder.Services.AddSingleton<IDatabaseBootstrapper, DatabaseBootstrapper>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 
 var emailOptions = builder.Configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>() ?? new EmailOptions();
@@ -142,11 +145,24 @@ else
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var bootstrapper = scope.ServiceProvider.GetRequiredService<IDatabaseBootstrapper>();
+    await bootstrapper.BootstrapAsync(CancellationToken.None);
+}
+
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+
+var hasFrontendBuild = File.Exists(Path.Combine(app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"), "index.html"));
+if (hasFrontendBuild)
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
+}
 
 app.MapGet("/health", async (PecualiaDbContext dbContext, CancellationToken cancellationToken) =>
 {
@@ -166,6 +182,11 @@ app.MapAnimalController();
 app.MapMovementController();
 app.MapDashboardController();
 
+if (hasFrontendBuild)
+{
+    app.MapFallbackToFile("index.html");
+}
+
 app.Run();
 
 static string RequireConfigurationValue(IConfiguration configuration, string key)
@@ -184,5 +205,25 @@ static void ValidateRequiredSetting(string value, string key)
     if (string.IsNullOrWhiteSpace(value))
     {
         throw new InvalidOperationException($"Falta la configuración obligatoria '{key}'. Revísala en el entorno o en el fichero .env.");
+    }
+}
+
+static void ApplyRenderDerivedConfiguration(IConfiguration configuration)
+{
+    var renderExternalHostname = configuration["RENDER_EXTERNAL_HOSTNAME"];
+    if (string.IsNullOrWhiteSpace(renderExternalHostname))
+    {
+        return;
+    }
+
+    var publicBaseUrl = $"https://{renderExternalHostname}";
+    if (string.IsNullOrWhiteSpace(configuration["Frontend:Origin"]))
+    {
+        configuration["Frontend:Origin"] = publicBaseUrl;
+    }
+
+    if (string.IsNullOrWhiteSpace(configuration["Activation:BaseUrl"]))
+    {
+        configuration["Activation:BaseUrl"] = $"{publicBaseUrl}/activate-account";
     }
 }

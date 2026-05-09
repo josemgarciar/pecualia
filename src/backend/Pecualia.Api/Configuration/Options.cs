@@ -53,3 +53,12 @@ public sealed class FrontendOptions
 
     public string Origin { get; init; } = string.Empty;
 }
+
+public sealed class DatabaseBootstrapOptions
+{
+    public const string SectionName = "Database";
+
+    public bool BootstrapOnStartup { get; init; }
+
+    public bool SeedDemoData { get; init; }
+}

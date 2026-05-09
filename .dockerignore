@@ -1,0 +1,11 @@
+.git
+.github
+.playwright-mcp
+.tmp
+output
+src/frontend/node_modules
+src/frontend/dist
+src/backend/Pecualia.Api/bin
+src/backend/Pecualia.Api/obj
+.env
+.env.*

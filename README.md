@@ -119,6 +119,56 @@ Apagar la base de datos:
 docker compose down
 ```
 
+## Despliegue en Render
+
+La opción preparada en este repositorio despliega la SPA y la API en un único servicio Docker de Render, con PostgreSQL gestionado por Render y seed de demo opcional en el arranque.
+
+### Archivos preparados
+
+- `render.yaml`: define el servicio `pecualia-app` y la base `pecualia-db`
+- `Dockerfile`: construye frontend y backend en una sola imagen
+- `.github/workflows/deploy-render.yml`: despliega en Render en cada push a `main`
+
+### Flujo recomendado
+
+1. Sube este repositorio a GitHub.
+2. En Render, crea un nuevo Blueprint apuntando a este repositorio y a `render.yaml`.
+3. Lanza el primer despliegue desde Render para que se creen:
+   - el servicio web `pecualia-app`
+   - la base de datos `pecualia-db`
+4. En el servicio web, abre `Settings > Deploy Hook` y copia la URL del hook.
+5. En GitHub, crea el secreto del repositorio `RENDER_DEPLOY_HOOK_URL` con esa URL.
+6. En Render, deja `Auto-Deploy` del servicio web en `Off` para evitar despliegues duplicados, porque el workflow de GitHub ya se encargará del despliegue por cada push a `main`.
+
+### Variables de entorno en Render
+
+El `render.yaml` ya deja configuradas las claves principales:
+
+- `ConnectionStrings__Postgres` desde la base de datos gestionada por Render
+- `Database__BootstrapOnStartup=true`
+- `Database__SeedDemoData=true`
+- `Jwt__Issuer`
+- `Jwt__Audience`
+- `Jwt__SigningKey` generado automáticamente
+- `Email__Mode=File`
+
+Si más adelante usas dominio propio, puedes sobrescribir manualmente:
+
+- `Frontend__Origin`
+- `Activation__BaseUrl`
+
+Si no las defines, la aplicación deriva ambos valores automáticamente a partir del hostname público de Render.
+
+### Seed y validación con cliente
+
+Con la configuración actual de Render:
+
+- la base de datos se inicializa automáticamente si está vacía
+- se aplican los scripts SQL estructurales
+- se cargan los datos demo para validación (`Database__SeedDemoData=true`)
+
+Si quieres un entorno limpio sin demo, cambia `Database__SeedDemoData` a `false` y reprovisiona la base de datos.
+
 ## Notas de despliegue
 
 - `Activation__BaseUrl` debe apuntar al frontend público cuando la aplicación se publique.

@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: pecualia-app
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: ConnectionStrings__Postgres
+        fromDatabase:
+          name: pecualia-db
+          property: connectionString
+      - key: Database__BootstrapOnStartup
+        value: "true"
+      - key: Database__SeedDemoData
+        value: "true"
+      - key: Jwt__Issuer
+        value: Pecualia.Api
+      - key: Jwt__Audience
+        value: Pecualia.Frontend
+      - key: Jwt__SigningKey
+        generateValue: true
+      - key: Jwt__ExpirationMinutes
+        value: "720"
+      - key: Activation__TokenHours
+        value: "72"
+      - key: Email__Mode
+        value: File
+      - key: Email__From
+        value: no-reply@pecualia.es
+      - key: Email__ReplyTo
+        value: soporte@pecualia.es
+      - key: Email__PickupDirectory
+        value: App_Data/outbox
+
+databases:
+  - name: pecualia-db
+    plan: basic-256mb
+    region: frankfurt
+    databaseName: livestock
+    user: livestock
+    ipAllowList: []
