@@ -33,7 +33,7 @@ ValidateRequiredSetting(jwtOptions.Audience, "Jwt:Audience");
 ValidateRequiredSetting(jwtOptions.SigningKey, "Jwt:SigningKey");
 
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey));
-var postgresConnectionString = RequireConfigurationValue(builder.Configuration, "ConnectionStrings:Postgres");
+var postgresConnectionString = PostgresConnectionStringResolver.RequireNormalized(builder.Configuration);
 var frontendOrigin = RequireConfigurationValue(builder.Configuration, "Frontend:Origin");
 
 builder.Services.AddDbContext<PecualiaDbContext>(options =>

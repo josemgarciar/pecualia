@@ -26,11 +26,7 @@ public sealed class DatabaseBootstrapper(
             return;
         }
 
-        var connectionString = configuration.GetConnectionString("Postgres") ?? configuration["ConnectionStrings:Postgres"];
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException("ConnectionStrings:Postgres es obligatoria para inicializar la base de datos.");
-        }
+        var connectionString = PostgresConnectionStringResolver.RequireNormalized(configuration);
 
         var dbDirectory = ResolveDbDirectory(environment.ContentRootPath);
         var allScripts = BuildAllKnownScripts(dbDirectory);
