@@ -43,7 +43,6 @@ jobs:
       - name: Trigger Render deploy
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-          GITHUB_SHA: ${{ github.sha }}
         run: |
           test -n "$RENDER_DEPLOY_HOOK_URL"
-          curl --fail --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}?ref=${GITHUB_SHA}"
+          curl --fail --silent --show-error --request POST "$RENDER_DEPLOY_HOOK_URL"
