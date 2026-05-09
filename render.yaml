@@ -2,7 +2,7 @@ services:
   - type: web
     name: pecualia-app
     runtime: docker
-    plan: starter
+    plan: free
     region: frankfurt
     dockerfilePath: ./Dockerfile
     dockerContext: .
@@ -38,7 +38,7 @@ services:
 
 databases:
   - name: pecualia-db
-    plan: basic-256mb
+    plan: free
     region: frankfurt
     databaseName: livestock
     user: livestock

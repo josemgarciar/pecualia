@@ -121,7 +121,7 @@ docker compose down
 
 ## Despliegue en Render
 
-La opción preparada en este repositorio despliega la SPA y la API en un único servicio Docker de Render, con PostgreSQL gestionado por Render y seed de demo opcional en el arranque.
+La opción preparada en este repositorio despliega la SPA y la API en un único servicio Docker de Render, con PostgreSQL gestionado por Render y seed de demo opcional en el arranque. La configuración actual está orientada al plan `free` tanto para el servicio web como para la base de datos.
 
 ### Archivos preparados
 
@@ -168,6 +168,16 @@ Con la configuración actual de Render:
 - se cargan los datos demo para validación (`Database__SeedDemoData=true`)
 
 Si quieres un entorno limpio sin demo, cambia `Database__SeedDemoData` a `false` y reprovisiona la base de datos.
+
+### Limitaciones del plan free
+
+En Render Free debes contar con estas restricciones:
+
+- el servicio web entra en reposo tras 15 minutos sin tráfico y tarda alrededor de 1 minuto en despertar
+- la base de datos Postgres `free` expira 30 días después de su creación si no se sube a un plan de pago
+- no hay backups en la base de datos `free`
+
+Para una demo con cliente sirve, pero no es una configuración válida como entorno estable.
 
 ## Notas de despliegue
 
