@@ -161,6 +161,113 @@ function emptyToNull(value) {
   return normalized ? normalized : null;
 }
 
+function createAutorepositionForm(farm) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  return {
+    startIdentification: '',
+    numberOfAnimals: '1',
+    breed: '',
+    sex: '',
+    birthYear: '',
+    registrationDate: today,
+    genotyping: '',
+    dominantAllele: '',
+    lowAllele: '',
+    animalType: '',
+    identificationDate: farm?.livestockSpecies === 'Porcine' ? today : '',
+    pigRegistrationNumber: '',
+    tag: ''
+  };
+}
+
+function buildConsecutiveIdentificationPreview(startIdentification, numberOfAnimals) {
+  const normalizedIdentification = startIdentification.trim().toUpperCase();
+  const count = Number(numberOfAnimals);
+
+  if (!normalizedIdentification || !Number.isInteger(count) || count <= 0) {
+    return null;
+  }
+
+  let numericStartIndex = normalizedIdentification.length;
+  while (numericStartIndex > 0 && /\d/.test(normalizedIdentification[numericStartIndex - 1])) {
+    numericStartIndex -= 1;
+  }
+
+  if (numericStartIndex === normalizedIdentification.length) {
+    throw new Error('La identificación inicial debe terminar en una secuencia numérica.');
+  }
+
+  const prefix = normalizedIdentification.slice(0, numericStartIndex);
+  const numericPart = normalizedIdentification.slice(numericStartIndex);
+  const initialNumber = BigInt(numericPart);
+  const width = numericPart.length;
+  const lastNumber = initialNumber + BigInt(count - 1);
+  const lastDigits = lastNumber.toString().padStart(width, '0');
+
+  if (lastDigits.length > width) {
+    throw new Error('El rango solicitado desborda la longitud numérica de la identificación inicial.');
+  }
+
+  return {
+    firstIdentification: `${prefix}${initialNumber.toString().padStart(width, '0')}`,
+    lastIdentification: `${prefix}${lastDigits}`,
+    count
+  };
+}
+
+function validateAutorepositionForm(form, species) {
+  const errors = {};
+  const count = Number(form.numberOfAnimals);
+
+  if (!form.startIdentification.trim()) {
+    errors.startIdentification = 'Campo obligatorio';
+  }
+
+  if (!Number.isInteger(count) || count <= 0) {
+    errors.numberOfAnimals = 'Debe ser un número entero mayor que cero';
+  }
+
+  if (!form.breed.trim()) {
+    errors.breed = 'Campo obligatorio';
+  }
+
+  if (!form.sex.trim()) {
+    errors.sex = 'Campo obligatorio';
+  }
+
+  if (form.birthYear === '') {
+    errors.birthYear = 'Campo obligatorio';
+  }
+
+  if (form.birthYear !== '') {
+    const birthYear = Number(form.birthYear);
+    if (!Number.isInteger(birthYear) || birthYear < 1900 || birthYear > 2100) {
+      errors.birthYear = 'Debe ser un año válido';
+    }
+  }
+
+  if (!form.registrationDate) {
+    errors.registrationDate = 'Campo obligatorio';
+  }
+
+  if (species === 'Porcine' && !form.animalType.trim()) {
+    errors.animalType = 'Campo obligatorio para porcino';
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return errors;
+  }
+
+  try {
+    buildConsecutiveIdentificationPreview(form.startIdentification, form.numberOfAnimals);
+  } catch (error) {
+    errors.startIdentification = error.message;
+  }
+
+  return errors;
+}
+
 function createAnimalDetailForm(animal) {
   return {
     identification: animal?.identification ?? '',
@@ -605,6 +712,158 @@ function AnimalDetailModal({
   );
 }
 
+function AnimalAutorepositionModal({
+  farm,
+  form,
+  errors,
+  requestError,
+  submitting,
+  breedOptions,
+  loadingBreedOptions,
+  onChange,
+  onClose,
+  onSubmit
+}) {
+  let rangePreview = null;
+  let rangePreviewError = '';
+
+  try {
+    rangePreview = buildConsecutiveIdentificationPreview(form.startIdentification, form.numberOfAnimals);
+  } catch (error) {
+    rangePreviewError = error.message;
+  }
+
+  return (
+    <ModalDialog cardAs="form" size="wide" onSubmit={onSubmit}>
+      <ModalHeader
+        icon={<Tag size={18} />}
+        title="Autoreposición"
+        subtitle={`Alta múltiple con causa Autorreposición en ${farm.name}.`}
+        onClose={onClose}
+      />
+      <ModalBody className="operation-modal-body">
+          {requestError && <div className="error-banner">{requestError}</div>}
+
+          <div className="info-callout">
+            <Tag size={16} />
+            <p>Todos los animales se registrarán con la causa de alta <strong>Autorreposición</strong> y compartirán las mismas características.</p>
+          </div>
+
+          <div className="grid-form">
+            <label className="farm-form-field">
+              <span className="farm-field-label">Identificación inicial <span className="farm-field-label-required">*</span></span>
+              <input value={form.startIdentification} onChange={(event) => onChange('startIdentification', event.target.value)} placeholder="ES100003542349" required />
+              {errors.startIdentification && <span className="farm-inline-error">{errors.startIdentification}</span>}
+            </label>
+            <label className="farm-form-field">
+              <span className="farm-field-label">Número de animales <span className="farm-field-label-required">*</span></span>
+              <input type="number" min="1" step="1" value={form.numberOfAnimals} onChange={(event) => onChange('numberOfAnimals', event.target.value)} required />
+              {errors.numberOfAnimals && <span className="farm-inline-error">{errors.numberOfAnimals}</span>}
+            </label>
+            <label className="farm-form-field">
+              <span className="farm-field-label">Raza <span className="farm-field-label-required">*</span></span>
+              <div className="select-wrapper">
+                <select value={form.breed} onChange={(event) => onChange('breed', event.target.value)} disabled={loadingBreedOptions} required>
+                  <option value="">{loadingBreedOptions ? 'Cargando razas...' : 'Selecciona una raza'}</option>
+                  {breedOptions.map((option) => (
+                    <option key={option.name} value={option.name}>
+                      {option.name} ({option.code})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={16} />
+              </div>
+              {errors.breed && <span className="farm-inline-error">{errors.breed}</span>}
+            </label>
+            <label className="farm-form-field">
+              <span className="farm-field-label">Sexo <span className="farm-field-label-required">*</span></span>
+              <div className="select-wrapper">
+                <select value={form.sex} onChange={(event) => onChange('sex', event.target.value)} required>
+                  <option value="">Selecciona sexo</option>
+                  <option value="Female">Hembra</option>
+                  <option value="Male">Macho</option>
+                </select>
+                <ChevronDown size={16} />
+              </div>
+              {errors.sex && <span className="farm-inline-error">{errors.sex}</span>}
+            </label>
+            <label className="farm-form-field">
+              <span className="farm-field-label">Año nacimiento <span className="farm-field-label-required">*</span></span>
+              <input type="number" min="1900" max="2100" value={form.birthYear} onChange={(event) => onChange('birthYear', event.target.value)} required />
+              {errors.birthYear && <span className="farm-inline-error">{errors.birthYear}</span>}
+            </label>
+            <label className="farm-form-field">
+              <span className="farm-field-label">Fecha alta <span className="farm-field-label-required">*</span></span>
+              <input type="date" value={form.registrationDate} onChange={(event) => onChange('registrationDate', event.target.value)} required />
+              {errors.registrationDate && <span className="farm-inline-error">{errors.registrationDate}</span>}
+            </label>
+          </div>
+
+          <div className={rangePreview ? 'farm-settings-note' : 'info-callout info-callout-danger'}>
+            {rangePreview ? (
+              <>
+                <strong>Rango generado</strong>
+                <p>{rangePreview.count} animales: {rangePreview.firstIdentification} a {rangePreview.lastIdentification}</p>
+              </>
+            ) : (
+              <p>{rangePreviewError || 'Introduce una identificación inicial y el número de animales para previsualizar la serie.'}</p>
+            )}
+          </div>
+
+          {farm.livestockSpecies === 'Porcine' ? (
+            <div className="animal-specific-block">
+              <h3>Datos porcino</h3>
+              <div className="grid-form">
+                <label>
+                  Tipo de animal
+                  <input value={form.animalType} onChange={(event) => onChange('animalType', event.target.value)} />
+                  {errors.animalType && <span className="farm-inline-error">{errors.animalType}</span>}
+                </label>
+                <label>
+                  Fecha identificación
+                  <input type="date" value={form.identificationDate} onChange={(event) => onChange('identificationDate', event.target.value)} />
+                </label>
+                <label>
+                  Nº registro porcino
+                  <input value={form.pigRegistrationNumber} onChange={(event) => onChange('pigRegistrationNumber', event.target.value)} />
+                </label>
+                <label>
+                  Marca / tag
+                  <input value={form.tag} onChange={(event) => onChange('tag', event.target.value)} />
+                </label>
+              </div>
+            </div>
+          ) : (
+            <div className="animal-specific-block">
+              <h3>Datos ovino/caprino</h3>
+              <div className="grid-form">
+                <label>
+                  Genotipado
+                  <input value={form.genotyping} onChange={(event) => onChange('genotyping', event.target.value)} />
+                </label>
+                <label>
+                  Alelo dominante
+                  <input value={form.dominantAllele} onChange={(event) => onChange('dominantAllele', event.target.value)} />
+                </label>
+                <label>
+                  Alelo bajo
+                  <input value={form.lowAllele} onChange={(event) => onChange('lowAllele', event.target.value)} />
+                </label>
+              </div>
+            </div>
+          )}
+      </ModalBody>
+
+      <ModalFooter align="end">
+          <button className="secondary-button" type="button" onClick={onClose}>Cancelar</button>
+          <button className="primary-button" type="submit" disabled={submitting}>
+            {submitting ? 'Registrando...' : 'Crear animales'}
+          </button>
+      </ModalFooter>
+    </ModalDialog>
+  );
+}
+
 function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter }) {
   const [animals, setAnimals] = useState([]);
   const [search, setSearch] = useState('');
@@ -624,6 +883,14 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
   const [detailSaving, setDetailSaving] = useState(false);
   const [detailDeleting, setDetailDeleting] = useState(false);
   const [detailError, setDetailError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [autorepositionOpen, setAutorepositionOpen] = useState(false);
+  const [autorepositionSubmitting, setAutorepositionSubmitting] = useState(false);
+  const [autorepositionError, setAutorepositionError] = useState('');
+  const [autorepositionFormErrors, setAutorepositionFormErrors] = useState({});
+  const [autorepositionForm, setAutorepositionForm] = useState(() => createAutorepositionForm(farm));
+  const [breedOptions, setBreedOptions] = useState([]);
+  const [loadingBreedOptions, setLoadingBreedOptions] = useState(false);
   const identificationLabel = farm.livestockSpecies === 'Porcine' ? 'Lote' : 'Crotal';
   const isInitialLoading = loading && animals.length === 0 && !error;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -650,6 +917,43 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
   useEffect(() => {
     setPage(1);
   }, [movementFilter?.movementId]);
+
+  useEffect(() => {
+    setAutorepositionForm(createAutorepositionForm(farm));
+  }, [farm.id, farm.livestockSpecies]);
+
+  useEffect(() => {
+    if (!autorepositionOpen) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function loadBreedOptions() {
+      setLoadingBreedOptions(true);
+
+      try {
+        const response = await apiRequest(`/api/movements/breeds/${farm.livestockSpecies}`, { token });
+        if (!cancelled) {
+          setBreedOptions(response);
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setAutorepositionError(requestError.message);
+          setBreedOptions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingBreedOptions(false);
+        }
+      }
+    }
+
+    loadBreedOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, [autorepositionOpen, farm.livestockSpecies, token]);
 
   async function loadAnimals() {
     setLoading(true);
@@ -696,6 +1000,34 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
       delete next[field];
       return next;
     });
+  }
+
+  function openAutorepositionModal() {
+    setAutorepositionForm(createAutorepositionForm(farm));
+    setAutorepositionFormErrors({});
+    setAutorepositionError('');
+    setAutorepositionOpen(true);
+  }
+
+  function closeAutorepositionModal() {
+    setAutorepositionOpen(false);
+    setAutorepositionSubmitting(false);
+    setAutorepositionFormErrors({});
+    setAutorepositionError('');
+  }
+
+  function updateAutorepositionField(field, value) {
+    setAutorepositionForm((current) => ({ ...current, [field]: value }));
+    setAutorepositionFormErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setAutorepositionError('');
   }
 
   async function openAnimalModal(animalId) {
@@ -814,10 +1146,72 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
     }
   }
 
+  async function submitAutoreposition(event) {
+    event.preventDefault();
+
+    const validationErrors = validateAutorepositionForm(autorepositionForm, farm.livestockSpecies);
+    if (Object.keys(validationErrors).length > 0) {
+      setAutorepositionFormErrors(validationErrors);
+      return;
+    }
+
+    setAutorepositionSubmitting(true);
+    setAutorepositionError('');
+    setSuccess('');
+
+    try {
+      const response = await apiRequest(`/api/farms/${farm.id}/animals/autoreposition`, {
+        method: 'POST',
+        token,
+        body: {
+          startIdentification: autorepositionForm.startIdentification.trim(),
+          numberOfAnimals: Number(autorepositionForm.numberOfAnimals),
+          birthYear: autorepositionForm.birthYear === '' ? null : Number(autorepositionForm.birthYear),
+          breed: emptyToNull(autorepositionForm.breed),
+          sex: emptyToNull(autorepositionForm.sex),
+          registrationDate: autorepositionForm.registrationDate || null,
+          ovinoCaprino: farm.livestockSpecies === 'Porcine'
+            ? null
+            : {
+                speciesType: farm.livestockSpecies,
+                genotyping: emptyToNull(autorepositionForm.genotyping),
+                dominantAllele: emptyToNull(autorepositionForm.dominantAllele),
+                lowAllele: emptyToNull(autorepositionForm.lowAllele)
+              },
+          porcino: farm.livestockSpecies !== 'Porcine'
+            ? null
+            : {
+                animalType: autorepositionForm.animalType.trim(),
+                identificationDate: autorepositionForm.identificationDate || null,
+                pigRegistrationNumber: emptyToNull(autorepositionForm.pigRegistrationNumber),
+                tag: emptyToNull(autorepositionForm.tag)
+              }
+        }
+      });
+
+      setSuccess(`Se han creado ${response.createdAnimals} animales desde ${response.firstIdentification} hasta ${response.lastIdentification}.`);
+      closeAutorepositionModal();
+      setPage(1);
+      setReloadKey((current) => current + 1);
+    } catch (requestError) {
+      setAutorepositionError(requestError.message);
+    } finally {
+      setAutorepositionSubmitting(false);
+    }
+  }
+
   return (
     <section className="panel-card stack">
       <div className="farm-animals-header">
-        <p>{loading && !isInitialLoading ? 'Actualizando animales...' : `${activeCount} activos · ${totalCount} en total`}</p>
+        <div>
+          <p>{loading && !isInitialLoading ? 'Actualizando animales...' : `${activeCount} activos · ${totalCount} en total`}</p>
+        </div>
+        <div className="movement-toolbar-actions">
+          <button className="primary-button" type="button" onClick={openAutorepositionModal}>
+            <Plus size={16} />
+            Autoreposición
+          </button>
+        </div>
       </div>
 
       {movementFilter && (
@@ -832,6 +1226,7 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
       )}
 
       {error && <div className="error-banner">{error}</div>}
+      {success && <div className="success-banner">{success}</div>}
 
       <div className="animal-filters farm-animals-filters">
         <div className="animal-search">
@@ -938,6 +1333,21 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
           onClose={closeAnimalModal}
           onSave={saveAnimalChanges}
           onDelete={deleteAnimal}
+        />
+      )}
+
+      {autorepositionOpen && (
+        <AnimalAutorepositionModal
+          farm={farm}
+          form={autorepositionForm}
+          errors={autorepositionFormErrors}
+          requestError={autorepositionError}
+          submitting={autorepositionSubmitting}
+          breedOptions={breedOptions}
+          loadingBreedOptions={loadingBreedOptions}
+          onChange={updateAutorepositionField}
+          onClose={closeAutorepositionModal}
+          onSubmit={submitAutoreposition}
         />
       )}
     </section>

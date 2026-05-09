@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Pecualia.Api.Contracts.Animals;
 using Pecualia.Api.Contracts.Books;
 using Pecualia.Api.Contracts.FarmOperations;
 using Pecualia.Api.Contracts.Farms;
@@ -48,6 +49,19 @@ public static class FarmController
                 status,
                 page ?? 1,
                 pageSize ?? 25,
+                cancellationToken)));
+
+        group.MapPost("/{farmId:long}/animals/autoreposition", async (
+            ClaimsPrincipal user,
+            long farmId,
+            CreateAnimalsAutorepositionRequest request,
+            IAnimalService service,
+            CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.CreateAutorepositionAnimalsAsync(
+                user.GetUserId(),
+                user.GetRole(),
+                farmId,
+                request,
                 cancellationToken)));
 
         group.MapGet("/{farmId:long}/births", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>

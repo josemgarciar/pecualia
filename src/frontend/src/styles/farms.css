@@ -441,6 +441,12 @@
   text-transform: uppercase;
 }
 
+.operation-form .farm-field-label-required,
+.operation-modal-body .farm-field-label-required,
+.census-input-card .farm-field-label-required {
+  color: #dc2626;
+}
+
 .operation-form input,
 .operation-form textarea,
 .operation-form select,

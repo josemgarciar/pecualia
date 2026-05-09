@@ -1,3 +1,4 @@
+using System.Numerics;
 using Microsoft.EntityFrameworkCore;
 using Pecualia.Api.Contracts.Animals;
 using Pecualia.Api.Data;
@@ -35,6 +36,13 @@ public interface IAnimalService
     Task<AnimalDetailResponse> GetAnimalAsync(long userId, UserRole role, long animalId, CancellationToken cancellationToken);
 
     Task<AnimalDetailResponse> CreateAnimalAsync(long userId, UserRole role, CreateAnimalRequest request, CancellationToken cancellationToken);
+
+    Task<CreateAnimalsAutorepositionResponse> CreateAutorepositionAnimalsAsync(
+        long userId,
+        UserRole role,
+        long farmId,
+        CreateAnimalsAutorepositionRequest request,
+        CancellationToken cancellationToken);
 
     Task<AnimalDetailResponse> UpdateAnimalAsync(long userId, UserRole role, long animalId, UpdateAnimalRequest request, CancellationToken cancellationToken);
 
@@ -162,6 +170,114 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return await GetAnimalAsync(userId, role, animal.Id, cancellationToken);
+    }
+
+    public async Task<CreateAnimalsAutorepositionResponse> CreateAutorepositionAnimalsAsync(
+        long userId,
+        UserRole role,
+        long farmId,
+        CreateAnimalsAutorepositionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var farm = await BuildAccessibleFarmQuery(userId, role)
+            .SingleOrDefaultAsync(entity => entity.Id == farmId, cancellationToken);
+
+        if (farm is null)
+        {
+            throw new DomainException("Explotación no encontrada.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.StartIdentification))
+        {
+            throw new DomainException("La identificación inicial es obligatoria.");
+        }
+
+        if (request.NumberOfAnimals <= 0)
+        {
+            throw new DomainException("El número de animales debe ser mayor que cero.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Breed))
+        {
+            throw new DomainException("La raza es obligatoria.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Sex))
+        {
+            throw new DomainException("El sexo es obligatorio.");
+        }
+
+        if (request.BirthYear is null)
+        {
+            throw new DomainException("El año de nacimiento es obligatorio.");
+        }
+
+        if (request.BirthYear < 1900 || request.BirthYear > 2100)
+        {
+            throw new DomainException("El año de nacimiento debe ser válido.");
+        }
+
+        if (request.RegistrationDate is null)
+        {
+            throw new DomainException("La fecha de alta es obligatoria.");
+        }
+
+        var identifications = BuildConsecutiveIdentifications(request.StartIdentification, request.NumberOfAnimals);
+        var existingIdentifications = await dbContext.Animals
+            .Where(entity => identifications.Contains(entity.Identification))
+            .Select(entity => entity.Identification)
+            .OrderBy(entity => entity)
+            .ToListAsync(cancellationToken);
+
+        if (existingIdentifications.Count > 0)
+        {
+            throw new DomainException($"Ya existen identificaciones dentro del rango indicado: {string.Join(", ", existingIdentifications.Take(5))}.");
+        }
+
+        var createRequest = new CreateAnimalRequest(
+            farmId,
+            string.Empty,
+            request.BirthYear,
+            request.Breed,
+            request.Sex,
+            request.RegistrationDate,
+            AnimalRegistrationCause.Autorreposicion,
+            null,
+            null,
+            request.OvinoCaprino,
+            request.Porcino);
+
+        var animals = identifications
+            .Select(identification => BuildBaseAnimal(farm, identification, createRequest))
+            .ToList();
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        dbContext.Animals.AddRange(animals);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (farm.LivestockSpecies == LivestockSpecies.Porcine)
+        {
+            var porcinoAnimals = animals
+                .Select(animal => BuildPorcinoAnimal(animal.Id, createRequest))
+                .ToList();
+            dbContext.PorcinoAnimals.AddRange(porcinoAnimals);
+        }
+        else
+        {
+            var ovinoCaprinoAnimals = animals
+                .Select(animal => BuildOvinoCaprinoAnimal(animal.Id, farm, createRequest))
+                .ToList();
+            dbContext.OvinoCaprinoAnimals.AddRange(ovinoCaprinoAnimals);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return new CreateAnimalsAutorepositionResponse(
+            animals.Count,
+            animals[0].Identification,
+            animals[^1].Identification);
     }
 
     public async Task<AnimalDetailResponse> UpdateAnimalAsync(long userId, UserRole role, long animalId, UpdateAnimalRequest request, CancellationToken cancellationToken)
@@ -512,6 +628,50 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         }
 
         return ApplyCommonFields(new Animal(), farm, identification, request);
+    }
+
+    private static List<string> BuildConsecutiveIdentifications(string startIdentification, int numberOfAnimals)
+    {
+        var normalizedIdentification = startIdentification.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(normalizedIdentification))
+        {
+            throw new DomainException("La identificación inicial es obligatoria.");
+        }
+
+        var numericStartIndex = normalizedIdentification.Length;
+        while (numericStartIndex > 0 && char.IsDigit(normalizedIdentification[numericStartIndex - 1]))
+        {
+            numericStartIndex--;
+        }
+
+        if (numericStartIndex == normalizedIdentification.Length)
+        {
+            throw new DomainException("La identificación inicial debe terminar en una parte numérica consecutiva.");
+        }
+
+        var prefix = normalizedIdentification[..numericStartIndex];
+        var numericPart = normalizedIdentification[numericStartIndex..];
+        if (!BigInteger.TryParse(numericPart, out var startNumber))
+        {
+            throw new DomainException("La identificación inicial no tiene un formato válido.");
+        }
+
+        var width = numericPart.Length;
+        var identifications = new List<string>(numberOfAnimals);
+
+        for (var offset = 0; offset < numberOfAnimals; offset++)
+        {
+            var currentNumber = startNumber + offset;
+            var paddedNumber = currentNumber.ToString().PadLeft(width, '0');
+            if (paddedNumber.Length > width)
+            {
+                throw new DomainException("El rango solicitado desborda la longitud numérica de la identificación inicial.");
+            }
+
+            identifications.Add($"{prefix}{paddedNumber}");
+        }
+
+        return identifications;
     }
 
     private static OvinoCaprinoAnimal BuildOvinoCaprinoAnimal(long animalId, LivestockFarm farm, CreateAnimalRequest request)

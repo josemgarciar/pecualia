@@ -15,6 +15,21 @@ public sealed record CreateAnimalRequest(
     OvinoCaprinoAnimalRequest? OvinoCaprino,
     PorcinoAnimalRequest? Porcino);
 
+public sealed record CreateAnimalsAutorepositionRequest(
+    string StartIdentification,
+    int NumberOfAnimals,
+    int? BirthYear,
+    string? Breed,
+    string? Sex,
+    DateOnly? RegistrationDate,
+    OvinoCaprinoAnimalRequest? OvinoCaprino,
+    PorcinoAnimalRequest? Porcino);
+
+public sealed record CreateAnimalsAutorepositionResponse(
+    int CreatedAnimals,
+    string FirstIdentification,
+    string LastIdentification);
+
 public sealed record DischargeAnimalRequest(
     DateOnly DischargeDate,
     AnimalDischargeCause DischargeCause,

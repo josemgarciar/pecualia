@@ -42,7 +42,7 @@ SELECT
 FROM app_user farmer_user
 CROSS JOIN app_user manager_user
 WHERE farmer_user.email = 'raul@ibericovalle.com'
-  AND manager_user.email = 'lucia@asesoria.com'
+  AND manager_user.email = 'rosa@asesoria.com'
   AND NOT EXISTS (
       SELECT 1 FROM farmer f WHERE f.user_id = farmer_user.id
   );

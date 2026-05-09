@@ -1,22 +1,22 @@
 BEGIN;
 
 -- Demo credentials for active seeded accounts:
--- - lucia@asesoria.com / Secret123!
+-- - rosa@asesoria.com / Secret123!
 -- - miguel@ganaderia.com / Secret123!
 -- - raul@ibericovalle.com / Secret123!
 
 INSERT INTO app_user (email, name, surname, username, password_hash, role, email_verified_at, is_active)
 SELECT
-    'lucia@asesoria.com',
-    'Lucia',
-    'Martin Ramos',
-    'luciaasesoria',
+    'rosa@asesoria.com',
+    'Rosa',
+    'Rosa Murillo',
+    'rosaasesoria',
     '$2a$11$sPD1nixYU4MdOnuCnA9jkeO559cjRV8ljYnea3briWLKgizGLYhqG',
     'Manager',
     now(),
     true
 WHERE NOT EXISTS (
-    SELECT 1 FROM app_user WHERE email = 'lucia@asesoria.com'
+    SELECT 1 FROM app_user WHERE email = 'rosa@asesoria.com'
 );
 
 INSERT INTO manager (user_id, organization_name, professional_identifier, phone_number, province, town, invitation_code)
@@ -29,7 +29,7 @@ SELECT
     'Caceres',
     '52DVD7SG'
 FROM app_user u
-WHERE u.email = 'lucia@asesoria.com'
+WHERE u.email = 'rosa@asesoria.com'
   AND NOT EXISTS (
       SELECT 1 FROM manager m WHERE m.user_id = u.id
   );
@@ -43,7 +43,7 @@ SELECT
     'Professional',
     'Active'
 FROM app_user u
-WHERE u.email = 'lucia@asesoria.com'
+WHERE u.email = 'rosa@asesoria.com'
   AND NOT EXISTS (
       SELECT 1 FROM subscription s WHERE s.user_id = u.id
   );
@@ -90,7 +90,7 @@ SELECT
 FROM app_user farmer_user
 CROSS JOIN app_user manager_user
 WHERE farmer_user.email = 'miguel@ganaderia.com'
-  AND manager_user.email = 'lucia@asesoria.com'
+  AND manager_user.email = 'rosa@asesoria.com'
   AND NOT EXISTS (
       SELECT 1 FROM farmer f WHERE f.user_id = farmer_user.id
   );
@@ -167,7 +167,7 @@ SELECT
 FROM app_user farmer_user
 CROSS JOIN app_user manager_user
 WHERE farmer_user.email = 'contacto.sierra.norte@example.com'
-  AND manager_user.email = 'lucia@asesoria.com'
+  AND manager_user.email = 'rosa@asesoria.com'
   AND NOT EXISTS (
       SELECT 1 FROM farmer f WHERE f.user_id = farmer_user.id
   );
@@ -200,7 +200,7 @@ SELECT
 FROM app_user farmer_user
 CROSS JOIN app_user manager_user
 WHERE farmer_user.email = 'raul@ibericovalle.com'
-  AND manager_user.email = 'lucia@asesoria.com'
+  AND manager_user.email = 'rosa@asesoria.com'
   AND NOT EXISTS (
       SELECT 1 FROM farmer f WHERE f.user_id = farmer_user.id
   );
@@ -335,8 +335,9 @@ WHERE NOT EXISTS (
     WHERE a.identification = animal_data.identification
 );
 
-INSERT INTO animal_birth (mother_animal_id, father_animal_id, birth_date, offspring_number)
+INSERT INTO animal_birth (livestock_farm_id, mother_animal_id, father_animal_id, birth_date, offspring_number)
 SELECT
+    mother.livestock_farm_id,
     mother.id,
     father.id,
     birth_data.birth_date,
@@ -348,7 +349,7 @@ FROM (
         (CURRENT_DATE - INTERVAL '12 days', 3)
 ) AS birth_data(birth_date, offspring_number)
 CROSS JOIN LATERAL (
-    SELECT id
+    SELECT id, livestock_farm_id
     FROM animal
     WHERE identification = 'ES100008594601'
 ) mother
