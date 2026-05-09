@@ -37,11 +37,11 @@ public interface IAnimalService
 
     Task<AnimalDetailResponse> CreateAnimalAsync(long userId, UserRole role, CreateAnimalRequest request, CancellationToken cancellationToken);
 
-    Task<CreateAnimalsAutorepositionResponse> CreateAutorepositionAnimalsAsync(
+    Task<CreateAnimalsAutorrepositionResponse> CreateAutorrepositionAnimalsAsync(
         long userId,
         UserRole role,
         long farmId,
-        CreateAnimalsAutorepositionRequest request,
+        CreateAnimalsAutorrepositionRequest request,
         CancellationToken cancellationToken);
 
     Task<AnimalDetailResponse> UpdateAnimalAsync(long userId, UserRole role, long animalId, UpdateAnimalRequest request, CancellationToken cancellationToken);
@@ -172,11 +172,11 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         return await GetAnimalAsync(userId, role, animal.Id, cancellationToken);
     }
 
-    public async Task<CreateAnimalsAutorepositionResponse> CreateAutorepositionAnimalsAsync(
+    public async Task<CreateAnimalsAutorrepositionResponse> CreateAutorrepositionAnimalsAsync(
         long userId,
         UserRole role,
         long farmId,
-        CreateAnimalsAutorepositionRequest request,
+        CreateAnimalsAutorrepositionRequest request,
         CancellationToken cancellationToken)
     {
         var farm = await BuildAccessibleFarmQuery(userId, role)
@@ -274,7 +274,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return new CreateAnimalsAutorepositionResponse(
+        return new CreateAnimalsAutorrepositionResponse(
             animals.Count,
             animals[0].Identification,
             animals[^1].Identification);

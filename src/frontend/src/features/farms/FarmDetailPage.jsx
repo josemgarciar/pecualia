@@ -161,7 +161,7 @@ function emptyToNull(value) {
   return normalized ? normalized : null;
 }
 
-function createAutorepositionForm(farm) {
+function createAutorrepositionForm(farm) {
   const today = new Date().toISOString().slice(0, 10);
 
   return {
@@ -216,7 +216,7 @@ function buildConsecutiveIdentificationPreview(startIdentification, numberOfAnim
   };
 }
 
-function validateAutorepositionForm(form, species) {
+function validateAutorrepositionForm(form, species) {
   const errors = {};
   const count = Number(form.numberOfAnimals);
 
@@ -712,7 +712,7 @@ function AnimalDetailModal({
   );
 }
 
-function AnimalAutorepositionModal({
+function AnimalAutorrepositionModal({
   farm,
   form,
   errors,
@@ -737,7 +737,7 @@ function AnimalAutorepositionModal({
     <ModalDialog cardAs="form" size="wide" onSubmit={onSubmit}>
       <ModalHeader
         icon={<Tag size={18} />}
-        title="Autoreposición"
+        title="Autorreposición"
         subtitle={`Alta múltiple con causa Autorreposición en ${farm.name}.`}
         onClose={onClose}
       />
@@ -884,11 +884,11 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
   const [detailDeleting, setDetailDeleting] = useState(false);
   const [detailError, setDetailError] = useState('');
   const [success, setSuccess] = useState('');
-  const [autorepositionOpen, setAutorepositionOpen] = useState(false);
-  const [autorepositionSubmitting, setAutorepositionSubmitting] = useState(false);
-  const [autorepositionError, setAutorepositionError] = useState('');
-  const [autorepositionFormErrors, setAutorepositionFormErrors] = useState({});
-  const [autorepositionForm, setAutorepositionForm] = useState(() => createAutorepositionForm(farm));
+  const [autorrepositionOpen, setAutorrepositionOpen] = useState(false);
+  const [autorrepositionSubmitting, setAutorrepositionSubmitting] = useState(false);
+  const [autorrepositionError, setAutorrepositionError] = useState('');
+  const [autorrepositionFormErrors, setAutorrepositionFormErrors] = useState({});
+  const [autorrepositionForm, setAutorrepositionForm] = useState(() => createAutorrepositionForm(farm));
   const [breedOptions, setBreedOptions] = useState([]);
   const [loadingBreedOptions, setLoadingBreedOptions] = useState(false);
   const identificationLabel = farm.livestockSpecies === 'Porcine' ? 'Lote' : 'Crotal';
@@ -919,11 +919,11 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
   }, [movementFilter?.movementId]);
 
   useEffect(() => {
-    setAutorepositionForm(createAutorepositionForm(farm));
+    setAutorrepositionForm(createAutorrepositionForm(farm));
   }, [farm.id, farm.livestockSpecies]);
 
   useEffect(() => {
-    if (!autorepositionOpen) {
+    if (!autorrepositionOpen) {
       return undefined;
     }
 
@@ -939,7 +939,7 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
         }
       } catch (requestError) {
         if (!cancelled) {
-          setAutorepositionError(requestError.message);
+          setAutorrepositionError(requestError.message);
           setBreedOptions([]);
         }
       } finally {
@@ -953,7 +953,7 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
     return () => {
       cancelled = true;
     };
-  }, [autorepositionOpen, farm.livestockSpecies, token]);
+  }, [autorrepositionOpen, farm.livestockSpecies, token]);
 
   async function loadAnimals() {
     setLoading(true);
@@ -1002,23 +1002,23 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
     });
   }
 
-  function openAutorepositionModal() {
-    setAutorepositionForm(createAutorepositionForm(farm));
-    setAutorepositionFormErrors({});
-    setAutorepositionError('');
-    setAutorepositionOpen(true);
+  function openAutorrepositionModal() {
+    setAutorrepositionForm(createAutorrepositionForm(farm));
+    setAutorrepositionFormErrors({});
+    setAutorrepositionError('');
+    setAutorrepositionOpen(true);
   }
 
-  function closeAutorepositionModal() {
-    setAutorepositionOpen(false);
-    setAutorepositionSubmitting(false);
-    setAutorepositionFormErrors({});
-    setAutorepositionError('');
+  function closeAutorrepositionModal() {
+    setAutorrepositionOpen(false);
+    setAutorrepositionSubmitting(false);
+    setAutorrepositionFormErrors({});
+    setAutorrepositionError('');
   }
 
-  function updateAutorepositionField(field, value) {
-    setAutorepositionForm((current) => ({ ...current, [field]: value }));
-    setAutorepositionFormErrors((current) => {
+  function updateAutorrepositionField(field, value) {
+    setAutorrepositionForm((current) => ({ ...current, [field]: value }));
+    setAutorrepositionFormErrors((current) => {
       if (!current[field]) {
         return current;
       }
@@ -1027,7 +1027,7 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
       delete next[field];
       return next;
     });
-    setAutorepositionError('');
+    setAutorrepositionError('');
   }
 
   async function openAnimalModal(animalId) {
@@ -1146,57 +1146,57 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
     }
   }
 
-  async function submitAutoreposition(event) {
+  async function submitAutorreposition(event) {
     event.preventDefault();
 
-    const validationErrors = validateAutorepositionForm(autorepositionForm, farm.livestockSpecies);
+    const validationErrors = validateAutorrepositionForm(autorrepositionForm, farm.livestockSpecies);
     if (Object.keys(validationErrors).length > 0) {
-      setAutorepositionFormErrors(validationErrors);
+      setAutorrepositionFormErrors(validationErrors);
       return;
     }
 
-    setAutorepositionSubmitting(true);
-    setAutorepositionError('');
+    setAutorrepositionSubmitting(true);
+    setAutorrepositionError('');
     setSuccess('');
 
     try {
-      const response = await apiRequest(`/api/farms/${farm.id}/animals/autoreposition`, {
+      const response = await apiRequest(`/api/farms/${farm.id}/animals/autorreposition`, {
         method: 'POST',
         token,
         body: {
-          startIdentification: autorepositionForm.startIdentification.trim(),
-          numberOfAnimals: Number(autorepositionForm.numberOfAnimals),
-          birthYear: autorepositionForm.birthYear === '' ? null : Number(autorepositionForm.birthYear),
-          breed: emptyToNull(autorepositionForm.breed),
-          sex: emptyToNull(autorepositionForm.sex),
-          registrationDate: autorepositionForm.registrationDate || null,
+          startIdentification: autorrepositionForm.startIdentification.trim(),
+          numberOfAnimals: Number(autorrepositionForm.numberOfAnimals),
+          birthYear: autorrepositionForm.birthYear === '' ? null : Number(autorrepositionForm.birthYear),
+          breed: emptyToNull(autorrepositionForm.breed),
+          sex: emptyToNull(autorrepositionForm.sex),
+          registrationDate: autorrepositionForm.registrationDate || null,
           ovinoCaprino: farm.livestockSpecies === 'Porcine'
             ? null
             : {
                 speciesType: farm.livestockSpecies,
-                genotyping: emptyToNull(autorepositionForm.genotyping),
-                dominantAllele: emptyToNull(autorepositionForm.dominantAllele),
-                lowAllele: emptyToNull(autorepositionForm.lowAllele)
+                genotyping: emptyToNull(autorrepositionForm.genotyping),
+                dominantAllele: emptyToNull(autorrepositionForm.dominantAllele),
+                lowAllele: emptyToNull(autorrepositionForm.lowAllele)
               },
           porcino: farm.livestockSpecies !== 'Porcine'
             ? null
             : {
-                animalType: autorepositionForm.animalType.trim(),
-                identificationDate: autorepositionForm.identificationDate || null,
-                pigRegistrationNumber: emptyToNull(autorepositionForm.pigRegistrationNumber),
-                tag: emptyToNull(autorepositionForm.tag)
+                animalType: autorrepositionForm.animalType.trim(),
+                identificationDate: autorrepositionForm.identificationDate || null,
+                pigRegistrationNumber: emptyToNull(autorrepositionForm.pigRegistrationNumber),
+                tag: emptyToNull(autorrepositionForm.tag)
               }
         }
       });
 
       setSuccess(`Se han creado ${response.createdAnimals} animales desde ${response.firstIdentification} hasta ${response.lastIdentification}.`);
-      closeAutorepositionModal();
+      closeAutorrepositionModal();
       setPage(1);
       setReloadKey((current) => current + 1);
     } catch (requestError) {
-      setAutorepositionError(requestError.message);
+      setAutorrepositionError(requestError.message);
     } finally {
-      setAutorepositionSubmitting(false);
+      setAutorrepositionSubmitting(false);
     }
   }
 
@@ -1207,9 +1207,9 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
           <p>{loading && !isInitialLoading ? 'Actualizando animales...' : `${activeCount} activos · ${totalCount} en total`}</p>
         </div>
         <div className="movement-toolbar-actions">
-          <button className="primary-button" type="button" onClick={openAutorepositionModal}>
+          <button className="primary-button" type="button" onClick={openAutorrepositionModal}>
             <Plus size={16} />
-            Autoreposición
+            Autorreposición
           </button>
         </div>
       </div>
@@ -1336,18 +1336,18 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
         />
       )}
 
-      {autorepositionOpen && (
-        <AnimalAutorepositionModal
+      {autorrepositionOpen && (
+        <AnimalAutorrepositionModal
           farm={farm}
-          form={autorepositionForm}
-          errors={autorepositionFormErrors}
-          requestError={autorepositionError}
-          submitting={autorepositionSubmitting}
+          form={autorrepositionForm}
+          errors={autorrepositionFormErrors}
+          requestError={autorrepositionError}
+          submitting={autorrepositionSubmitting}
           breedOptions={breedOptions}
           loadingBreedOptions={loadingBreedOptions}
-          onChange={updateAutorepositionField}
-          onClose={closeAutorepositionModal}
-          onSubmit={submitAutoreposition}
+          onChange={updateAutorrepositionField}
+          onClose={closeAutorrepositionModal}
+          onSubmit={submitAutorreposition}
         />
       )}
     </section>

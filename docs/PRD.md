@@ -74,7 +74,7 @@ mindmap
       RF-06 Movimientos
         Alta/baja masiva por TXT de crotales
       RF-07 Muertes
-      RF-08 Autoreposiciones
+      RF-08 Autorreposiciones
       RF-09 Nacimientos
       RF-11 Consulta de Animales
     Documentación Oficial
@@ -146,7 +146,7 @@ mindmap
 | **Criterios de aceptación** | ✅ Baja del animal con causa "M" · ✅ Motivo específico de la baja · ✅ Actualización automática del balance |
 | **Entidades** | `Animal`, `Balance` |
 
-#### F8 — Autoreposición (RF-08)
+#### F8 — Autorreposición (RF-08)
 | Aspecto | Detalle |
 |---|---|
 | **Prioridad** | P1 |

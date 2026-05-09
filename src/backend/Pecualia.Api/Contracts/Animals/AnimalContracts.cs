@@ -15,7 +15,7 @@ public sealed record CreateAnimalRequest(
     OvinoCaprinoAnimalRequest? OvinoCaprino,
     PorcinoAnimalRequest? Porcino);
 
-public sealed record CreateAnimalsAutorepositionRequest(
+public sealed record CreateAnimalsAutorrepositionRequest(
     string StartIdentification,
     int NumberOfAnimals,
     int? BirthYear,
@@ -25,7 +25,7 @@ public sealed record CreateAnimalsAutorepositionRequest(
     OvinoCaprinoAnimalRequest? OvinoCaprino,
     PorcinoAnimalRequest? Porcino);
 
-public sealed record CreateAnimalsAutorepositionResponse(
+public sealed record CreateAnimalsAutorrepositionResponse(
     int CreatedAnimals,
     string FirstIdentification,
     string LastIdentification);

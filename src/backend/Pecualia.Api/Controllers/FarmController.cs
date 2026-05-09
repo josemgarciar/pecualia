@@ -51,13 +51,13 @@ public static class FarmController
                 pageSize ?? 25,
                 cancellationToken)));
 
-        group.MapPost("/{farmId:long}/animals/autoreposition", async (
+        group.MapPost("/{farmId:long}/animals/autorreposition", async (
             ClaimsPrincipal user,
             long farmId,
-            CreateAnimalsAutorepositionRequest request,
+            CreateAnimalsAutorrepositionRequest request,
             IAnimalService service,
             CancellationToken cancellationToken) =>
-            await ControllerResults.ExecuteAsync(() => service.CreateAutorepositionAnimalsAsync(
+            await ControllerResults.ExecuteAsync(() => service.CreateAutorrepositionAnimalsAsync(
                 user.GetUserId(),
                 user.GetRole(),
                 farmId,

@@ -121,7 +121,7 @@ La plataforma se enmarca dentro del ecosistema normativo español de trazabilida
 - **Prioridad:** Alta
 - **Relación:** Extiende RF-05
 
-### RF-08: Registrar Autoreposición
+### RF-08: Registrar Autorreposición
 - **Actor:** Ganadero
 - **Descripción:** El sistema debe permitir registrar autorreposiciones (cambio de categoría de animales dentro de la misma explotación). Debe actualizar alta/baja y el balance.
 - **Entidades:** `Animal`, `Balance`
