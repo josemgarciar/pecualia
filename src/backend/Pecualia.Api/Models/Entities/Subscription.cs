@@ -18,5 +18,11 @@ public sealed class Subscription
 
     public SubscriptionState State { get; set; }
 
+    public string? StripeCustomerId { get; set; }
+
+    public string? StripeSubscriptionId { get; set; }
+
+    public string? StripePriceId { get; set; }
+
     public AppUser User { get; set; } = null!;
 }

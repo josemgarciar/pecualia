@@ -44,7 +44,7 @@ export function RegisterManagerPage() {
   return (
     <AuthLayout
       title="Registro de gestor"
-      subtitle="Crea la cuenta profesional y activa automáticamente tu espacio de trabajo."
+      subtitle="Crea la cuenta profesional y empieza en Free. Después podrás contratar Pro o Max desde Stripe."
     >
       <form className="grid-form" onSubmit={handleSubmit}>
         <label><span>Nombre</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
@@ -57,15 +57,6 @@ export function RegisterManagerPage() {
         <label><span>Teléfono</span><input value={form.phoneNumber} onChange={(event) => setForm({ ...form, phoneNumber: event.target.value })} /></label>
         <label><span>Provincia</span><input value={form.province} onChange={(event) => setForm({ ...form, province: event.target.value })} /></label>
         <label><span>Localidad</span><input value={form.town} onChange={(event) => setForm({ ...form, town: event.target.value })} /></label>
-        <label>
-          <span>Plan inicial</span>
-          <select value={form.planType} onChange={(event) => setForm({ ...form, planType: event.target.value })}>
-            <option value="Basic">Free</option>
-            <option value="Professional">Pro</option>
-            <option value="Enterprise">Max</option>
-          </select>
-        </label>
-
         {error && <div className="error-banner form-full">{error}</div>}
         <button className="primary-button form-full" disabled={submitting}>{submitting ? 'Creando cuenta...' : 'Crear cuenta de gestor'}</button>
       </form>

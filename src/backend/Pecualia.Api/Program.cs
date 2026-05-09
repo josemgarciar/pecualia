@@ -25,6 +25,7 @@ builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptio
 builder.Services.Configure<ActivationOptions>(builder.Configuration.GetSection(ActivationOptions.SectionName));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
+builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection(StripeOptions.SectionName));
 builder.Services.Configure<DatabaseBootstrapOptions>(builder.Configuration.GetSection(DatabaseBootstrapOptions.SectionName));
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
@@ -125,6 +126,7 @@ builder.Services.AddScoped<IAnimalService, AnimalService>();
 builder.Services.AddScoped<IMovementService, MovementService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IBookService, BookService>();
+builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddSingleton<IDatabaseBootstrapper, DatabaseBootstrapper>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 
@@ -181,6 +183,7 @@ app.MapFarmController();
 app.MapAnimalController();
 app.MapMovementController();
 app.MapDashboardController();
+app.MapBillingController();
 
 if (hasFrontendBuild)
 {

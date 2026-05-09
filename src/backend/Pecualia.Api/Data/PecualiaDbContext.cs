@@ -120,6 +120,9 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         subscription.Property(entity => entity.InitialDate).HasColumnName("initial_date");
         subscription.Property(entity => entity.PlanType).HasColumnName("plan_type").HasConversion<string>().HasMaxLength(60).IsRequired();
         subscription.Property(entity => entity.State).HasColumnName("state").HasConversion<string>().HasMaxLength(40).IsRequired();
+        subscription.Property(entity => entity.StripeCustomerId).HasColumnName("stripe_customer_id").HasMaxLength(64);
+        subscription.Property(entity => entity.StripeSubscriptionId).HasColumnName("stripe_subscription_id").HasMaxLength(64);
+        subscription.Property(entity => entity.StripePriceId).HasColumnName("stripe_price_id").HasMaxLength(64);
         subscription.HasOne(entity => entity.User)
             .WithOne(entity => entity.Subscription)
             .HasForeignKey<Subscription>(entity => entity.UserId)

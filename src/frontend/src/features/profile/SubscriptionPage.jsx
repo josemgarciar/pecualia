@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, BadgeCheck, CircleAlert, CreditCard, ShieldCheck } from 'lucide-react';
+import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { getCurrentPlan, getPlansForRole } from '../../shared/subscription/plans';
 
@@ -21,8 +23,13 @@ function formatPrice(price) {
 }
 
 export function SubscriptionPage() {
-  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { token, user, refreshProfile } = useAuth();
   const [feedback, setFeedback] = useState('');
+  const [error, setError] = useState('');
+  const [loadingAction, setLoadingAction] = useState('');
+  const handledCheckoutRef = useRef('');
   const currentPlan = useMemo(() => getCurrentPlan(user), [user]);
   const plans = useMemo(() => getPlansForRole(user?.role), [user?.role]);
   const renewalDate = formatDate(user?.subscriptionExpirationDate);
@@ -34,8 +41,119 @@ export function SubscriptionPage() {
     ? 'Activada'
     : 'Pendiente de activar con Stripe';
 
-  function handlePlanSelection(planName) {
-    setFeedback(`La contratación del plan ${planName} se conectará con Stripe próximamente.`);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const checkoutState = params.get('checkout');
+    const sessionId = params.get('session_id');
+    const handledKey = checkoutState === 'success' && sessionId
+      ? `success:${sessionId}`
+      : checkoutState === 'cancelled'
+        ? 'cancelled'
+        : '';
+
+    if (checkoutState === 'cancelled') {
+      if (handledCheckoutRef.current === handledKey) {
+        return;
+      }
+
+      handledCheckoutRef.current = handledKey;
+      setError('');
+      setFeedback('La contratación se ha cancelado antes de completar el pago.');
+      navigate(location.pathname, { replace: true });
+      return;
+    }
+
+    if (checkoutState !== 'success' || !sessionId || !token) {
+      return;
+    }
+
+    if (handledCheckoutRef.current === handledKey) {
+      return;
+    }
+
+    handledCheckoutRef.current = handledKey;
+
+    let cancelled = false;
+    setError('');
+    setFeedback('Pago confirmado en Stripe. Sincronizando la suscripción...');
+    setLoadingAction('sync');
+
+    apiRequest(`/api/billing/checkout-session-status/${encodeURIComponent(sessionId)}`, { token })
+      .then(async () => {
+        await refreshProfile();
+        if (!cancelled) {
+          setFeedback('La suscripción se ha conectado correctamente con Stripe.');
+          navigate(location.pathname, { replace: true });
+        }
+      })
+      .catch((requestError) => {
+        if (!cancelled) {
+          setError(requestError.message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingAction('');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname, location.search, navigate, refreshProfile, token]);
+
+  async function handlePortalSession() {
+    if (!token) {
+      return;
+    }
+
+    setLoadingAction('portal');
+    setError('');
+    setFeedback('');
+
+    try {
+      const response = await apiRequest('/api/billing/portal-session', {
+        method: 'POST',
+        token
+      });
+
+      window.location.assign(response.portalUrl);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoadingAction('');
+    }
+  }
+
+  async function handlePlanSelection(plan) {
+    if (!token) {
+      return;
+    }
+
+    if (plan.price === 0) {
+      await handlePortalSession();
+      return;
+    }
+
+    setLoadingAction(plan.key);
+    setError('');
+    setFeedback('');
+
+    try {
+      const response = await apiRequest('/api/billing/checkout-session', {
+        method: 'POST',
+        token,
+        body: {
+          planType: plan.backendPlanType
+        }
+      });
+
+      window.location.assign(response.checkoutUrl);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoadingAction('');
+    }
   }
 
   return (
@@ -43,10 +161,11 @@ export function SubscriptionPage() {
       <header className="page-header">
         <div>
           <h1>Suscripción</h1>
-          <p>Configura {audienceTitle} con los límites y precios definitivos que se integrarán después con Stripe.</p>
+          <p>Configura {audienceTitle} con los límites y precios reales conectados con Stripe.</p>
         </div>
       </header>
 
+      {error && <div className="error-banner">{error}</div>}
       {feedback && <div className="success-banner">{feedback}</div>}
 
       <section className="subscription-current-card">
@@ -90,9 +209,14 @@ export function SubscriptionPage() {
         </div>
 
         <div className="subscription-current-actions">
-          <button className="secondary-button" type="button" onClick={() => handlePlanSelection(currentPlan.name)}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={hasPaidPlan ? handlePortalSession : undefined}
+            disabled={!hasPaidPlan || loadingAction === 'portal' || loadingAction === 'sync'}
+          >
             <CreditCard size={16} />
-            Gestionar facturación
+            {hasPaidPlan ? 'Gestionar facturación' : 'Disponible al contratar un plan de pago'}
           </button>
         </div>
       </section>
@@ -103,8 +227,8 @@ export function SubscriptionPage() {
           <strong>{hasPaidPlan ? 'Estado del plan de pago' : 'Plan gratuito activo'}</strong>
           <p>
             {hasPaidPlan
-              ? `Tu plan ${currentPlan.name} está preparado para conectarse con Stripe. La próxima fecha visible es ${renewalDate}.`
-              : 'Tu cuenta está en el plan Free. Podrás ampliar capacidad cuando la contratación online quede conectada con Stripe.'}
+              ? `Tu plan ${currentPlan.name} ya se gestiona con Stripe. La próxima fecha visible es ${renewalDate}.`
+              : 'Tu cuenta está en el plan Free. Puedes ampliar capacidad iniciando la contratación online con Stripe.'}
           </p>
         </div>
       </section>
@@ -112,12 +236,13 @@ export function SubscriptionPage() {
       <section className="subscription-plans-shell">
         <div className="subscription-section-heading">
           <h2>Comparativa de planes</h2>
-          <p>Estos límites y precios sustituyen a los del mockup anterior y reflejan las modalidades reales definidas para la aplicación.</p>
+          <p>Los planes de pago se contratan con Stripe. Las bajas y cambios desde un plan ya activo se gestionan desde el portal de facturación.</p>
         </div>
 
         <div className={`subscription-plan-grid${plans.length === 2 ? ' subscription-plan-grid-compact' : ''}`}>
           {plans.map((plan) => {
             const isCurrent = plan.key === currentPlan.key;
+            const isBusy = loadingAction === plan.key || loadingAction === 'portal' || loadingAction === 'sync';
 
             return (
               <article
@@ -156,8 +281,13 @@ export function SubscriptionPage() {
                       Plan actual
                     </button>
                   ) : (
-                    <button className="subscription-select-button" type="button" onClick={() => handlePlanSelection(plan.name)}>
-                      Cambiar a {plan.name}
+                    <button
+                      className="subscription-select-button"
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => handlePlanSelection(plan)}
+                    >
+                      {plan.price === 0 ? 'Gestionar baja o cambio' : `Cambiar a ${plan.name}`}
                       <ArrowRight size={16} />
                     </button>
                   )}

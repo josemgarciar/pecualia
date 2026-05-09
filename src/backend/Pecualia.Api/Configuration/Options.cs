@@ -54,6 +54,21 @@ public sealed class FrontendOptions
     public string Origin { get; init; } = string.Empty;
 }
 
+public sealed class StripeOptions
+{
+    public const string SectionName = "Stripe";
+
+    public string SecretKey { get; init; } = string.Empty;
+
+    public string WebhookSecret { get; init; } = string.Empty;
+
+    public string ManagerProfessionalMonthlyPriceId { get; init; } = string.Empty;
+
+    public string ManagerEnterpriseMonthlyPriceId { get; init; } = string.Empty;
+
+    public string FarmerProfessionalMonthlyPriceId { get; init; } = string.Empty;
+}
+
 public sealed class DatabaseBootstrapOptions
 {
     public const string SectionName = "Database";

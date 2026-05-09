@@ -17,7 +17,7 @@ const managerPlans = [
     backendPlanType: 'Professional',
     audience: 'Manager',
     name: 'Pro',
-    price: 25,
+    price: 7,
     cadence: '/mes',
     summary: 'Para gestores con operativa estable y varios clientes activos.',
     limits: [
@@ -31,7 +31,7 @@ const managerPlans = [
     backendPlanType: 'Enterprise',
     audience: 'Manager',
     name: 'Max',
-    price: 50,
+    price: 15,
     cadence: '/mes',
     summary: 'Para despachos y equipos que necesitan capacidad sin límites.',
     limits: [
@@ -59,7 +59,7 @@ const farmerPlans = [
     backendPlanType: 'Professional',
     audience: 'Farmer',
     name: 'Pro',
-    price: 20,
+    price: 4,
     cadence: '/mes',
     summary: 'Para ganaderos que superan el límite del plan gratuito.',
     limits: [

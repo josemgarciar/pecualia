@@ -49,6 +49,9 @@ CREATE TABLE subscription (
     initial_date DATE NOT NULL,
     plan_type VARCHAR(60) NOT NULL,
     state VARCHAR(40) NOT NULL,
+    stripe_customer_id VARCHAR(64),
+    stripe_subscription_id VARCHAR(64),
+    stripe_price_id VARCHAR(64),
     CONSTRAINT subscription_dates_chk CHECK (expiration_date >= initial_date)
 );
 

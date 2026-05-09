@@ -77,7 +77,7 @@ public sealed class AuthService(
             Autorenew = false,
             InitialDate = today,
             ExpirationDate = today.AddMonths(1),
-            PlanType = request.PlanType,
+            PlanType = PlanType.Basic,
             State = SubscriptionState.Active
         };
 

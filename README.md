@@ -54,6 +54,27 @@ Email__ReplyTo=soporte@pecualia.es
 Email__ApiKey=tu_api_key
 ```
 
+### Stripe
+
+En este proyecto la integración correcta de Stripe se divide entre frontend y backend:
+
+```env
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxx
+Stripe__SecretKey=sk_test_xxx
+Stripe__WebhookSecret=whsec_xxx
+Stripe__ManagerProfessionalMonthlyPriceId=price_xxx
+Stripe__ManagerEnterpriseMonthlyPriceId=price_xxx
+Stripe__FarmerProfessionalMonthlyPriceId=price_xxx
+```
+
+Mapeo actual de planes de la aplicación:
+
+- `Manager / Pro` -> `Stripe__ManagerProfessionalMonthlyPriceId`
+- `Manager / Max` -> `Stripe__ManagerEnterpriseMonthlyPriceId`
+- `Farmer / Pro` -> `Stripe__FarmerProfessionalMonthlyPriceId`
+
+Los planes `Free` no necesitan `Price ID`.
+
 ## Despliegue local
 
 ### 1. Levantar la base de datos
@@ -183,6 +204,10 @@ Para una demo con cliente sirve, pero no es una configuración válida como ento
 
 - `Activation__BaseUrl` debe apuntar al frontend público cuando la aplicación se publique.
 - `Frontend__Origin` debe coincidir con el dominio desde el que cargará la SPA.
+- `VITE_STRIPE_PUBLISHABLE_KEY` debe configurarse en el entorno del frontend con la clave pública de Stripe.
+- `Stripe__SecretKey` y `Stripe__WebhookSecret` deben configurarse solo en el entorno del backend.
+- Para Cloudflare Pages, usa la variable `VITE_STRIPE_PUBLISHABLE_KEY` en cada entorno de build que publiques.
+- Para Azure App Service, usa App Settings con los nombres `Stripe__...` y marca como secretos los valores sensibles.
 - Si usas Resend, el dominio del remitente debe estar verificado.
 - Si cambias `.env`, reinicia el backend para que recargue la configuración.
 
