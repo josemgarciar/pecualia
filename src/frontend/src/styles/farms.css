@@ -252,7 +252,7 @@
   gap: 12px;
 }
 
-.farm-settings-body {
+.farm-settings-body.farm-modal-body {
   padding-top: 24px;
 }
 

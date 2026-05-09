@@ -10,7 +10,10 @@ internal sealed record BookAggregate(
     IReadOnlyList<Census> Censuses,
     IReadOnlyList<Incident> Incidents,
     IReadOnlyList<Inspection> Inspections,
-    IReadOnlyList<MovementCertificate> Movements);
+    IReadOnlyList<MovementCertificate> Movements,
+    IReadOnlyDictionary<long, BookAnimalGuideSeries> GuideSeriesByAnimalId);
+
+internal sealed record BookAnimalGuideSeries(string? Entry, string? Exit);
 
 internal sealed record BookRenderContext(BookAggregate Aggregate, IReadOnlySet<string> IncludedSections)
 {

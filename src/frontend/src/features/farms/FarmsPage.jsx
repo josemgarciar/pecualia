@@ -9,11 +9,11 @@ import {
   ChevronRight,
   MapPin,
   Plus,
-  Search,
-  X
+  Search
 } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
+import { ModalBody, ModalDialog, ModalFooter, ModalHeader, ModalStepper } from '../../shared/components/modal/Modal';
 
 const initialForm = {
   farmerId: '',
@@ -211,70 +211,46 @@ function FarmModal({
 
   if (success) {
     return (
-      <div className="modal-backdrop" role="dialog" aria-modal="true">
-        <div className="farm-success-card">
-          <div className="farm-success-icon">
-            <CheckCircle2 size={40} />
+      <ModalDialog size="wide" shellClassName="farm-success-shell">
+        <ModalHeader
+          icon={<CheckCircle2 size={18} />}
+          title="¡Explotación registrada!"
+          subtitle="La alta se ha completado correctamente."
+          onClose={onClose}
+        />
+        <ModalBody className="farm-success-body">
+          <div className="farm-success-card">
+            <div className="farm-success-icon">
+              <CheckCircle2 size={40} />
+            </div>
+            <div className="farm-success-copy">
+              <h2>Registro completado</h2>
+              <p>
+                <strong>{form.name}</strong> ha sido creada correctamente en el sistema.
+              </p>
+              <span>Ya puedes seguir gestionando el listado y crear más explotaciones desde esta vista.</span>
+            </div>
           </div>
-          <div className="farm-success-copy">
-            <h2>¡Explotación registrada!</h2>
-            <p>
-              <strong>{form.name}</strong> ha sido creada correctamente en el sistema.
-            </p>
-            <span>Ya puedes seguir gestionando el listado y crear más explotaciones desde esta vista.</span>
-          </div>
+        </ModalBody>
+        <ModalFooter align="end">
           <button className="primary-button farm-success-button" type="button" onClick={onClose}>
             Entendido
           </button>
-        </div>
-      </div>
+        </ModalFooter>
+      </ModalDialog>
     );
   }
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="modal-card modal-wide farm-modal-shell">
-        <div className="farm-modal-header">
-          <div className="farm-modal-title">
-            <div className="modal-panel-icon">
-              <Building2 size={18} />
-            </div>
-            <div>
-              <h2>Nueva explotación</h2>
-              <p>Paso {step} de {wizardSteps.length}</p>
-            </div>
-          </div>
-          <button className="farm-modal-close" type="button" onClick={onClose} aria-label="Cerrar modal">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="farm-stepper">
-          {wizardSteps.map((item, index) => {
-            const currentStep = index + 1;
-            const isDone = step > currentStep;
-            const isActive = step === currentStep;
-            const Icon = item.icon;
-
-            return (
-              <div className="farm-stepper-item" key={item.label}>
-                <div className="farm-stepper-marker-group">
-                  <div className={isDone ? 'farm-stepper-marker farm-stepper-marker-done' : isActive ? 'farm-stepper-marker farm-stepper-marker-active' : 'farm-stepper-marker'}>
-                    {isDone ? <CheckCircle2 size={16} /> : <Icon size={15} />}
-                  </div>
-                  {index < wizardSteps.length - 1 && (
-                    <div className={isDone ? 'farm-stepper-connector farm-stepper-connector-done' : 'farm-stepper-connector'} />
-                  )}
-                </div>
-                <span className={isDone || isActive ? 'farm-stepper-label farm-stepper-label-active' : 'farm-stepper-label'}>
-                  {item.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="farm-modal-body">
+    <ModalDialog size="wide">
+      <ModalHeader
+        icon={<Building2 size={18} />}
+        title="Nueva explotación"
+        subtitle={`Paso ${step} de ${wizardSteps.length}`}
+        onClose={onClose}
+      />
+      <ModalStepper steps={wizardSteps} currentStep={step} />
+      <ModalBody>
           {requestError && <div className="error-banner">{requestError}</div>}
 
           {step === 1 && (
@@ -442,9 +418,9 @@ function FarmModal({
               </div>
             </div>
           )}
-        </div>
+      </ModalBody>
 
-        <div className="farm-modal-footer">
+      <ModalFooter>
           <button className="secondary-button" type="button" onClick={step === 1 ? onClose : onBack}>
             <ArrowLeft size={15} />
             {step === 1 ? 'Cancelar' : 'Anterior'}
@@ -474,9 +450,8 @@ function FarmModal({
               {submitting ? 'Guardando...' : 'Guardar explotación'}
             </button>
           )}
-        </div>
-      </div>
-    </div>
+      </ModalFooter>
+    </ModalDialog>
   );
 }
 

@@ -91,6 +91,7 @@ public sealed record AnimalDetailResponse(
     string? RegistrationCauseValue,
     string? OriginCode,
     string? HealthDocumentNumber,
+    string? EntryGuideSerie,
     DateOnly? DischargeDate,
     string? DischargeCause,
     string? DischargeCauseValue,

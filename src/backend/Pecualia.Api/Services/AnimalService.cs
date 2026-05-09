@@ -452,6 +452,15 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         var porcino = await dbContext.PorcinoAnimals
             .AsNoTracking()
             .SingleOrDefaultAsync(entity => entity.AnimalId == animal.Id, cancellationToken);
+        var entryGuideSerie = await dbContext.MovementCertificateAnimals
+            .AsNoTracking()
+            .Where(entity =>
+                entity.AnimalId == animal.Id &&
+                entity.MovementCertificate.DestinationLivestockId == animal.LivestockFarmId &&
+                !string.IsNullOrWhiteSpace(entity.MovementCertificate.Serie))
+            .OrderByDescending(entity => entity.MovementCertificate.DepartureDate)
+            .Select(entity => entity.MovementCertificate.Serie)
+            .FirstOrDefaultAsync(cancellationToken);
 
         return new AnimalDetailResponse(
             animal.Id,
@@ -468,6 +477,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
             animal.RegistrationCause?.ToString(),
             EmptyToNull(animal.OriginCode),
             EmptyToNull(animal.HealthDocumentNumber),
+            EmptyToNull(entryGuideSerie),
             animal.DischargeDate,
             FormatDischargeCause(animal.DischargeCause),
             animal.DischargeCause?.ToString(),

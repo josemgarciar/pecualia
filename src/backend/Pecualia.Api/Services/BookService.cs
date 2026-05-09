@@ -122,7 +122,37 @@ public sealed class BookService(PecualiaDbContext dbContext) : IBookService
             .ThenBy(entity => entity.Id)
             .ToListAsync(cancellationToken);
 
-        return new BookAggregate(farm, animals, balances, censuses, incidents, inspections, movements);
+        var animalIds = animals.Select(animal => animal.Id).ToArray();
+        var guideSeriesByAnimalId = await dbContext.MovementCertificateAnimals
+            .AsNoTracking()
+            .Where(entity => animalIds.Contains(entity.AnimalId))
+            .Select(entity => new
+            {
+                entity.AnimalId,
+                entity.MovementCertificate.Serie,
+                entity.MovementCertificate.DepartureDate,
+                IsEntry = entity.MovementCertificate.DestinationLivestockId == farm.Id,
+                IsExit = entity.MovementCertificate.OriginLivestockId == farm.Id
+            })
+            .ToListAsync(cancellationToken);
+
+        var guideSeriesLookup = guideSeriesByAnimalId
+            .GroupBy(entity => entity.AnimalId)
+            .ToDictionary(
+                entity => entity.Key,
+                entity => new BookAnimalGuideSeries(
+                    entity
+                        .Where(item => item.IsEntry && !string.IsNullOrWhiteSpace(item.Serie))
+                        .OrderByDescending(item => item.DepartureDate)
+                        .Select(item => item.Serie)
+                        .FirstOrDefault(),
+                    entity
+                        .Where(item => item.IsExit && !string.IsNullOrWhiteSpace(item.Serie))
+                        .OrderByDescending(item => item.DepartureDate)
+                        .Select(item => item.Serie)
+                        .FirstOrDefault()));
+
+        return new BookAggregate(farm, animals, balances, censuses, incidents, inspections, movements, guideSeriesLookup);
     }
 
     private IQueryable<LivestockFarm> BuildAccessibleFarmQuery(long userId, UserRole role)

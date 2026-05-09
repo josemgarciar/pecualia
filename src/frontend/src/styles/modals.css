@@ -253,6 +253,18 @@
   border-top: 1px solid #d7ded8;
 }
 
+.farm-modal-footer-start {
+  justify-content: flex-start;
+}
+
+.farm-modal-footer-end {
+  justify-content: flex-end;
+}
+
+.farm-modal-footer-between {
+  justify-content: space-between;
+}
+
 .farm-step-dots {
   display: flex;
   align-items: center;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Pencil, RefreshCw, User, UserMinus, X } from 'lucide-react';
+import { Pencil, RefreshCw, User, UserMinus } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
+import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 
 function formatStatus(status) {
   return status === 'PendingActivation' ? 'Pendiente' : 'Activo';
@@ -93,24 +94,14 @@ export function FarmerDetailPage({
   };
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="modal-card modal-wide farm-modal-shell farmer-detail-modal">
-        <div className="farm-modal-header">
-          <div className="farm-modal-title">
-            <div className="modal-panel-icon">
-              <User size={18} />
-            </div>
-            <div>
-              <h2>Ficha del Ganader@</h2>
-              <p>{loading || !farmer ? 'Cargando información...' : formatPersonType(farmer.personType)}</p>
-            </div>
-          </div>
-          <button className="farm-modal-close" type="button" onClick={onClose} aria-label="Cerrar modal">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="farm-modal-body farmer-detail-body">
+    <ModalDialog size="wide" shellClassName="farmer-detail-modal">
+      <ModalHeader
+        icon={<User size={18} />}
+        title="Ficha del Ganader@"
+        subtitle={loading || !farmer ? 'Cargando información...' : formatPersonType(farmer.personType)}
+        onClose={onClose}
+      />
+      <ModalBody className="farmer-detail-body">
           {loading ? (
             <div className="empty-state">Cargando ficha del Ganader@...</div>
           ) : !farmer ? (
@@ -217,8 +208,10 @@ export function FarmerDetailPage({
               </section>
             </div>
           )}
-        </div>
-      </div>
-    </div>
+      </ModalBody>
+      <ModalFooter align="end">
+        <button className="primary-button" type="button" onClick={onClose}>Cerrar</button>
+      </ModalFooter>
+    </ModalDialog>
   );
 }

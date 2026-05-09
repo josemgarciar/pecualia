@@ -440,6 +440,19 @@ internal static class BookDocumentSupport
 
     internal static string? EmptyToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    internal static string? FormatAnimalGuideSeries(string? entryGuideSerie, string? exitGuideSerie)
+    {
+        var entry = EmptyToNull(entryGuideSerie);
+        var exit = EmptyToNull(exitGuideSerie);
+
+        if (entry is null && exit is null)
+        {
+            return null;
+        }
+
+        return $"{entry ?? " "}\n{exit ?? " "}";
+    }
+
     internal static string? JoinValues(string separator, params string?[] values)
     {
         var existing = values

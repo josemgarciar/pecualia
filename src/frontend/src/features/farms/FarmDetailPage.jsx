@@ -20,8 +20,7 @@ import {
   Trash2,
   TrendingDown,
   TrendingUp,
-  TriangleAlert,
-  X
+  TriangleAlert
 } from 'lucide-react';
 import {
   BarChart,
@@ -34,6 +33,7 @@ import {
 } from 'recharts';
 import { apiBlobRequest, apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
+import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 import { FarmMovementsSection } from '../movements/FarmMovementsSection';
 
 const speciesToneMap = {
@@ -181,6 +181,20 @@ function createAnimalDetailForm(animal) {
   };
 }
 
+function resolveAnimalGuideField(animal, form) {
+  const registrationCause = form.registrationCause || animal?.registrationCauseValue || '';
+
+  if (registrationCause === 'Autorreposicion') {
+    return { value: '', disabled: true };
+  }
+
+  if (registrationCause === 'Entrada') {
+    return { value: animal?.entryGuideSerie ?? '', disabled: true };
+  }
+
+  return { value: form.healthDocumentNumber, disabled: false };
+}
+
 function validateAnimalDetailForm(form, species) {
   const errors = {};
 
@@ -293,24 +307,14 @@ function SummaryMetric({ label, value, tone = 'default' }) {
 
 function FarmSettingsModal({ farm, form, errors, requestError, submitting, onChange, onClose, onSubmit }) {
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="modal-card modal-wide farm-modal-shell">
-        <div className="farm-modal-header">
-          <div className="farm-modal-title">
-            <div className="modal-panel-icon">
-              <Edit3 size={18} />
-            </div>
-            <div>
-              <h2>Ajustes de la explotación</h2>
-              <p>Edita los datos administrativos y operativos de {farm.name}.</p>
-            </div>
-          </div>
-          <button className="farm-modal-close" type="button" onClick={onClose} aria-label="Cerrar modal">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="farm-modal-body farm-settings-body">
+    <ModalDialog size="wide">
+      <ModalHeader
+        icon={<Edit3 size={18} />}
+        title="Ajustes de la explotación"
+        subtitle={`Edita los datos administrativos y operativos de ${farm.name}.`}
+        onClose={onClose}
+      />
+      <ModalBody className="farm-settings-body">
           {requestError && <div className="error-banner">{requestError}</div>}
 
           <div className="farm-settings-grid">
@@ -411,20 +415,15 @@ function FarmSettingsModal({ farm, form, errors, requestError, submitting, onCha
               {errors.yCoordinate && <p className="farm-field-error">{errors.yCoordinate}</p>}
             </div>
           </div>
+      </ModalBody>
 
-          <div className="farm-settings-note">
-            La especie y el titular no se editan desde esta ventana para evitar inconsistencias con animales y permisos asociados.
-          </div>
-        </div>
-
-        <div className="farm-modal-footer">
+      <ModalFooter align="end">
           <button className="secondary-button" type="button" onClick={onClose}>Cancelar</button>
           <button className="primary-button" type="button" onClick={onSubmit} disabled={submitting}>
             {submitting ? 'Guardando...' : 'Guardar cambios'}
           </button>
-        </div>
-      </div>
-    </div>
+      </ModalFooter>
+    </ModalDialog>
   );
 }
 
@@ -441,25 +440,17 @@ function AnimalDetailModal({
   onSave,
   onDelete
 }) {
-  return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="modal-card modal-wide animal-modal">
-        <div className="farm-modal-header">
-          <div className="farm-modal-title">
-            <div className="modal-panel-icon">
-              <Tag size={18} />
-            </div>
-            <div>
-              <h2>Detalle del animal</h2>
-              <p>{animal ? `${animal.identification} · ${animal.farmName}` : 'Cargando datos del animal...'}</p>
-            </div>
-          </div>
-          <button className="farm-modal-close" type="button" onClick={onClose} aria-label="Cerrar modal">
-            <X size={18} />
-          </button>
-        </div>
+  const guideField = resolveAnimalGuideField(animal, form);
 
-        <div className="farm-modal-body">
+  return (
+    <ModalDialog size="wide" shellClassName="animal-modal">
+      <ModalHeader
+        icon={<Tag size={18} />}
+        title="Detalle del animal"
+        subtitle={animal ? `${animal.identification} · ${animal.farmName}` : 'Cargando datos del animal...'}
+        onClose={onClose}
+      />
+      <ModalBody>
           {requestError && <div className="error-banner">{requestError}</div>}
           {loading || !animal ? (
             <div className="empty-state">Cargando detalle del animal...</div>
@@ -473,10 +464,6 @@ function AnimalDetailModal({
                 <div>
                   <span>Especie</span>
                   <strong>{speciesToneMap[animal.livestockSpecies]?.label ?? animal.livestockSpecies}</strong>
-                </div>
-                <div>
-                  <span>Estado</span>
-                  <strong>{animal.status === 'Discharged' ? 'Baja' : 'Activo'}</strong>
                 </div>
               </div>
 
@@ -527,7 +514,12 @@ function AnimalDetailModal({
                 </label>
                 <label className="form-full">
                   Documento sanitario / guía
-                  <input value={form.healthDocumentNumber} onChange={(event) => onChange('healthDocumentNumber', event.target.value)} />
+                  <input
+                    value={guideField.value}
+                    onChange={(event) => onChange('healthDocumentNumber', event.target.value)}
+                    disabled={guideField.disabled}
+                    placeholder={guideField.disabled ? 'No aplica' : undefined}
+                  />
                 </label>
               </div>
 
@@ -580,10 +572,6 @@ function AnimalDetailModal({
                 <h3>Histórico de baja</h3>
                 <div className="grid-form">
                   <label>
-                    Estado actual
-                    <input value={animal.status === 'Discharged' ? 'Baja' : 'Activo'} disabled />
-                  </label>
-                  <label>
                     Causa de baja
                     <input value={formatAnimalCause(animal.dischargeCause)} disabled />
                   </label>
@@ -599,9 +587,9 @@ function AnimalDetailModal({
               </div>
             </>
           )}
-        </div>
+      </ModalBody>
 
-        <div className="farm-modal-footer">
+      <ModalFooter>
           <button className="danger-button" type="button" onClick={onDelete} disabled={!animal || loading || saving || deleting}>
             <Trash2 size={15} />
             {deleting ? 'Eliminando...' : 'Eliminar registro'}
@@ -612,9 +600,8 @@ function AnimalDetailModal({
               {saving ? 'Guardando...' : 'Guardar cambios'}
             </button>
           </div>
-        </div>
-      </div>
-    </div>
+      </ModalFooter>
+    </ModalDialog>
   );
 }
 
@@ -622,7 +609,6 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
   const [animals, setAnimals] = useState([]);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(FARM_ANIMALS_DEFAULT_PAGE_SIZE);
   const [totalCount, setTotalCount] = useState(0);
@@ -674,9 +660,6 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
       if (debouncedSearch) {
         params.set('search', debouncedSearch);
       }
-      if (status) {
-        params.set('status', status);
-      }
       if (movementFilter?.movementId) {
         params.set('movementId', String(movementFilter.movementId));
       }
@@ -700,7 +683,7 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
 
   useEffect(() => {
     loadAnimals();
-  }, [debouncedSearch, farm.id, movementFilter?.movementId, page, pageSize, reloadKey, status, token]);
+  }, [debouncedSearch, farm.id, movementFilter?.movementId, page, pageSize, reloadKey, token]);
 
   function updateAnimalField(field, value) {
     setAnimalForm((current) => ({ ...current, [field]: value }));
@@ -761,7 +744,11 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
     setDetailSaving(true);
     setDetailError('');
 
-    try {
+      try {
+      const normalizedHealthDocumentNumber = animalForm.registrationCause === 'Autorreposicion'
+        ? null
+        : emptyToNull(animalForm.healthDocumentNumber);
+
       const updatedAnimal = await apiRequest(`/api/animals/${selectedAnimal.id}`, {
         method: 'PUT',
         token,
@@ -773,7 +760,7 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
           registrationDate: animalForm.registrationDate || null,
           registrationCause: animalForm.registrationCause || null,
           originCode: emptyToNull(animalForm.originCode),
-          healthDocumentNumber: emptyToNull(animalForm.healthDocumentNumber),
+          healthDocumentNumber: normalizedHealthDocumentNumber,
           ovinoCaprino: selectedAnimal.ovinoCaprino
             ? {
                 speciesType: selectedAnimal.ovinoCaprino.speciesType,
@@ -839,7 +826,7 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
             <strong>Filtro activo:</strong> guía {movementFilter.codRemo}
           </div>
           <button className="secondary-button" type="button" onClick={onClearMovementFilter}>
-            Ver todos
+            Eliminar filtro
           </button>
         </div>
       )}
@@ -851,14 +838,6 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
           <Search size={14} />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Buscar ${identificationLabel.toLowerCase()} o raza...`} />
         </div>
-        <select value={status} onChange={(event) => {
-          setPage(1);
-          setStatus(event.target.value);
-        }}>
-          <option value="">Todos los estados</option>
-          <option value="Active">Activo</option>
-          <option value="Discharged">Baja</option>
-        </select>
       </div>
 
       {isInitialLoading ? (
@@ -1053,11 +1032,6 @@ function FarmBirthsSection({ farm, token }) {
         </button>
       </div>
 
-        <div className="info-callout">
-          <Sprout size={18} />
-          <p>El nacimiento registra trazabilidad agregada para censo y balance. No crea animales ni solicita crotales.</p>
-        </div>
-
         {error && <div className="error-banner">{error}</div>}
         {success && <div className="success-banner">{success}</div>}
 
@@ -1082,21 +1056,14 @@ function FarmBirthsSection({ farm, token }) {
         )}
 
         {modalOpen && (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <form className="modal-card modal-wide farm-modal-shell" onSubmit={handleSubmit}>
-              <div className="farm-modal-header">
-                <div className="farm-modal-title">
-                  <div className="modal-panel-icon"><Sprout size={18} /></div>
-                  <div>
-                    <h2>Nuevo nacimiento</h2>
-                    <p>{farm.name}</p>
-                  </div>
-                </div>
-                <button className="farm-modal-close" type="button" onClick={() => setModalOpen(false)} aria-label="Cerrar modal">
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="farm-modal-body operation-modal-body">
+          <ModalDialog cardAs="form" size="wide" onSubmit={handleSubmit}>
+            <ModalHeader
+              icon={<Sprout size={18} />}
+              title="Nuevo nacimiento"
+              subtitle={farm.name}
+              onClose={() => setModalOpen(false)}
+            />
+            <ModalBody className="operation-modal-body">
                 <label>
                   <span>Fecha de parto *</span>
                   <input type="date" value={form.birthDate} onChange={(event) => setForm({ ...form, birthDate: event.target.value })} />
@@ -1113,13 +1080,12 @@ function FarmBirthsSection({ farm, token }) {
                   <span>Observaciones</span>
                   <textarea value={form.observations} onChange={(event) => setForm({ ...form, observations: event.target.value })} placeholder="Notas sobre el parto, complicaciones, etc." />
                 </label>
-              </div>
-              <div className="farm-modal-footer">
+            </ModalBody>
+            <ModalFooter align="end">
                 <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
                 <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar nacimiento'}</button>
-              </div>
-            </form>
-          </div>
+            </ModalFooter>
+          </ModalDialog>
         )}
       </article>
     </section>
@@ -1263,21 +1229,14 @@ function FarmDeathsSection({ farm, token }) {
       </div>
 
       {modalOpen && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <form className="modal-card modal-wide farm-modal-shell" onSubmit={handleSubmit}>
-            <div className="farm-modal-header">
-              <div className="farm-modal-title">
-                <div className="modal-panel-icon"><Skull size={18} /></div>
-                <div>
-                  <h2>Registrar baja por muerte</h2>
-                  <p>{farm.name}</p>
-                </div>
-              </div>
-              <button className="farm-modal-close" type="button" onClick={() => setModalOpen(false)} aria-label="Cerrar modal">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="farm-modal-body operation-modal-body">
+        <ModalDialog cardAs="form" size="wide" onSubmit={handleSubmit}>
+          <ModalHeader
+            icon={<Skull size={18} />}
+            title="Registrar baja por muerte"
+            subtitle={farm.name}
+            onClose={() => setModalOpen(false)}
+          />
+          <ModalBody className="operation-modal-body">
               <label>
                 <span>Crotal / identificación *</span>
                 <input value={form.identification} onChange={(event) => setForm({ ...form, identification: event.target.value })} placeholder="Ej: ES0600005831" />
@@ -1300,16 +1259,15 @@ function FarmDeathsSection({ farm, token }) {
                 <p>
                   {farm.livestockSpecies === 'Porcine'
                     ? 'En porcino, la baja por muerte solo puede registrarse con destino MER.'
-                    : 'La causa oficial guardada será Baja - Causa Muerte. No se modificarán animales dados de baja por Salida.'}
+                  : 'La causa oficial guardada será Baja - Causa Muerte. No se modificarán animales dados de baja por Salida.'}
                 </p>
               </div>
-            </div>
-            <div className="farm-modal-footer">
+          </ModalBody>
+          <ModalFooter align="end">
               <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
               <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar baja'}</button>
-            </div>
-          </form>
-        </div>
+          </ModalFooter>
+        </ModalDialog>
       )}
     </section>
   );
@@ -1540,21 +1498,14 @@ function FarmVaccinationsSection({ farm, token }) {
       )}
 
       {modalOpen && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <form className="modal-card modal-wide farm-modal-shell" onSubmit={handleSubmit}>
-            <div className="farm-modal-header">
-              <div className="farm-modal-title">
-                <div className="modal-panel-icon"><Shield size={18} /></div>
-                <div>
-                  <h2>{editingVaccination ? 'Editar vacunación' : 'Nueva vacunación'}</h2>
-                  <p>{farm.name}</p>
-                </div>
-              </div>
-              <button className="farm-modal-close" type="button" onClick={closeModal} aria-label="Cerrar modal">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="farm-modal-body operation-modal-body">
+        <ModalDialog cardAs="form" size="wide" onSubmit={handleSubmit}>
+          <ModalHeader
+            icon={<Shield size={18} />}
+            title={editingVaccination ? 'Editar vacunación' : 'Nueva vacunación'}
+            subtitle={farm.name}
+            onClose={closeModal}
+          />
+          <ModalBody className="operation-modal-body">
               <label>
                 <span>{identificationLabel} *</span>
                 <input
@@ -1587,15 +1538,14 @@ function FarmVaccinationsSection({ farm, token }) {
                   placeholder="Lote de vacuna, reacción observada, pauta aplicada..."
                 />
               </label>
-            </div>
-            <div className="farm-modal-footer">
+          </ModalBody>
+          <ModalFooter align="end">
               <button className="secondary-button" type="button" onClick={closeModal}>Cancelar</button>
               <button className="primary-button" type="submit" disabled={submitting}>
                 {submitting ? 'Guardando...' : editingVaccination ? 'Guardar cambios' : 'Guardar vacunación'}
               </button>
-            </div>
-          </form>
-        </div>
+          </ModalFooter>
+        </ModalDialog>
       )}
     </section>
   );
@@ -2421,21 +2371,14 @@ function FarmIncidentsSection({ farm, token }) {
       )}
 
       {modalOpen && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <form className="modal-card modal-wide farm-modal-shell" onSubmit={handleSubmit}>
-            <div className="farm-modal-header">
-              <div className="farm-modal-title">
-                <div className="modal-panel-icon"><TriangleAlert size={18} /></div>
-                <div>
-                  <h2>Nueva incidencia</h2>
-                  <p>{farm.name}</p>
-                </div>
-              </div>
-              <button className="farm-modal-close" type="button" onClick={() => setModalOpen(false)} aria-label="Cerrar modal">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="farm-modal-body operation-modal-body">
+        <ModalDialog cardAs="form" size="wide" onSubmit={handleSubmit}>
+          <ModalHeader
+            icon={<TriangleAlert size={18} />}
+            title="Nueva incidencia"
+            subtitle={farm.name}
+            onClose={() => setModalOpen(false)}
+          />
+          <ModalBody className="operation-modal-body">
               <label>
                 <span>Animal relacionado</span>
                 <input value={form.animalIdentification} onChange={(event) => setForm({ ...form, animalIdentification: event.target.value })} placeholder="Ej: ES0600005831 / GT1800001004" />
@@ -2460,13 +2403,12 @@ function FarmIncidentsSection({ farm, token }) {
                 <span>Descripción</span>
                 <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Detalle de la incidencia y actuaciones realizadas." />
               </label>
-            </div>
-            <div className="farm-modal-footer">
+          </ModalBody>
+          <ModalFooter align="end">
               <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
               <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar incidencia'}</button>
-            </div>
-          </form>
-        </div>
+          </ModalFooter>
+        </ModalDialog>
       )}
     </section>
   );
@@ -2611,21 +2553,14 @@ function FarmInspectionsSection({ farm, token }) {
       )}
 
       {modalOpen && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <form className="modal-card modal-wide farm-modal-shell" onSubmit={handleSubmit}>
-            <div className="farm-modal-header">
-              <div className="farm-modal-title">
-                <div className="modal-panel-icon"><ClipboardCheck size={18} /></div>
-                <div>
-                  <h2>Nueva inspección</h2>
-                  <p>{farm.name}</p>
-                </div>
-              </div>
-              <button className="farm-modal-close" type="button" onClick={() => setModalOpen(false)} aria-label="Cerrar modal">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="farm-modal-body operation-modal-body">
+        <ModalDialog cardAs="form" size="wide" onSubmit={handleSubmit}>
+          <ModalHeader
+            icon={<ClipboardCheck size={18} />}
+            title="Nueva inspección"
+            subtitle={farm.name}
+            onClose={() => setModalOpen(false)}
+          />
+          <ModalBody className="operation-modal-body">
               <label>
                 <span>Fecha de inspección *</span>
                 <input type="date" value={form.inspectionDate} onChange={(event) => setForm({ ...form, inspectionDate: event.target.value })} />
@@ -2646,13 +2581,12 @@ function FarmInspectionsSection({ farm, token }) {
                 <span>Observaciones</span>
                 <textarea value={form.observations} onChange={(event) => setForm({ ...form, observations: event.target.value })} placeholder="Observaciones veterinarias y seguimiento de la inspección." />
               </label>
-            </div>
-            <div className="farm-modal-footer">
+          </ModalBody>
+          <ModalFooter align="end">
               <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
               <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar inspección'}</button>
-            </div>
-          </form>
-        </div>
+          </ModalFooter>
+        </ModalDialog>
       )}
     </section>
   );

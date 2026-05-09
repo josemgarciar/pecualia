@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ChevronDown, Plus, Search, Tag, Upload, X } from 'lucide-react';
+import { AlertCircle, ChevronDown, Plus, Search, Tag, Upload } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
+import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 
 const speciesToneMap = {
   Ovine: { bg: '#DDEBDF', color: '#2F6B4F', label: 'Ovino' },
   Caprine: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Caprino' },
   Porcine: { bg: '#FCE7F3', color: '#9D174D', label: 'Porcino' }
-};
-
-const statusToneMap = {
-  Active: { bg: '#DDEBDF', color: '#2F6B4F', label: 'Activo' },
-  Discharged: { bg: '#FEE2E2', color: '#DC2626', label: 'Baja' }
 };
 
 const sexLabelMap = {
@@ -50,10 +46,6 @@ const initialForm = {
 
 function formatSpecies(value) {
   return speciesToneMap[value]?.label ?? value ?? 'Sin especie';
-}
-
-function formatStatus(value) {
-  return statusToneMap[value]?.label ?? value ?? 'Sin estado';
 }
 
 function formatSex(value) {
@@ -137,24 +129,14 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
   }
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <form className="modal-card modal-wide animal-modal" onSubmit={handleSubmit}>
-        <div className="farm-modal-header">
-          <div className="farm-modal-title">
-            <div className="modal-panel-icon">
-              <Tag size={18} />
-            </div>
-            <div>
-              <h2>Registrar animal</h2>
-              <p>Alta individual dentro de una explotación activa</p>
-            </div>
-          </div>
-          <button className="farm-modal-close" type="button" onClick={onClose} aria-label="Cerrar modal">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="farm-modal-body">
+    <ModalDialog cardAs="form" size="wide" shellClassName="animal-modal" onSubmit={handleSubmit}>
+      <ModalHeader
+        icon={<Tag size={18} />}
+        title="Registrar animal"
+        subtitle="Alta individual dentro de una explotación activa"
+        onClose={onClose}
+      />
+      <ModalBody>
           {(formError || error) && (
             <div className="error-banner">
               <AlertCircle size={14} />
@@ -268,16 +250,15 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
               </div>
             </div>
           )}
-        </div>
+      </ModalBody>
 
-        <div className="farm-modal-footer">
+      <ModalFooter align="end">
           <button className="secondary-button" type="button" onClick={onClose}>Cancelar</button>
           <button className="primary-button" type="submit" disabled={loading}>
             {loading ? 'Guardando...' : 'Guardar animal'}
           </button>
-        </div>
-      </form>
-    </div>
+      </ModalFooter>
+    </ModalDialog>
   );
 }
 
@@ -371,7 +352,6 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
             <AnimalDetailField label="Explotación" value={animal.farmName} />
             <AnimalDetailField label="Fecha de alta" value={formatDate(animal.registrationDate)} />
             <AnimalDetailField label="Causa de alta" value={formatCause(animal.registrationCause)} />
-            <AnimalDetailField label="Estado" value={formatStatus(animal.status)} />
             <AnimalDetailField label="Documento sanitario" value={animal.healthDocumentNumber ?? 'No informado'} />
 
             {animal.ovinoCaprino && (
@@ -434,7 +414,7 @@ function AnimalsTable({ animals, selectedAnimalId, onSelect }) {
         <table className="animal-table">
           <thead>
             <tr>
-              {['Identificación', 'Especie', 'Raza', 'Sexo', 'Año Nac.', 'Explotación', 'Fecha alta', 'Causa', 'Estado'].map((header) => (
+              {['Identificación', 'Especie', 'Raza', 'Sexo', 'Año Nac.', 'Explotación', 'Fecha alta', 'Causa'].map((header) => (
                 <th key={header}>{header}</th>
               ))}
             </tr>
@@ -442,7 +422,6 @@ function AnimalsTable({ animals, selectedAnimalId, onSelect }) {
           <tbody>
             {animals.map((animal) => {
               const speciesTone = speciesToneMap[animal.livestockSpecies] ?? speciesToneMap.Ovine;
-              const statusTone = statusToneMap[animal.status] ?? statusToneMap.Active;
 
               return (
                 <tr key={animal.id} className={selectedAnimalId === animal.id ? 'animal-row-selected' : ''} onClick={() => onSelect(animal)}>
@@ -461,7 +440,6 @@ function AnimalsTable({ animals, selectedAnimalId, onSelect }) {
                   <td>{animal.farmName}</td>
                   <td>{formatDate(animal.registrationDate)}</td>
                   <td>{formatCause(animal.registrationCause)}</td>
-                  <td><span className="animal-chip" style={{ background: statusTone.bg, color: statusTone.color }}>{statusTone.label}</span></td>
                 </tr>
               );
             })}
@@ -484,7 +462,7 @@ export function AnimalsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [formError, setFormError] = useState('');
-  const [filters, setFilters] = useState({ search: '', species: '', sex: '', status: '' });
+  const [filters, setFilters] = useState({ search: '', species: '', sex: '' });
 
   async function loadAnimals() {
     setLoading(true);
@@ -533,7 +511,7 @@ export function AnimalsPage() {
 
   useEffect(() => {
     loadAnimals();
-  }, [filters.search, filters.species, filters.sex, filters.status, token]);
+  }, [filters.search, filters.species, filters.sex, token]);
 
   const counters = useMemo(() => ({
     active: animals.filter((animal) => animal.status === 'Active').length,
@@ -616,11 +594,6 @@ export function AnimalsPage() {
               <option value="">Sexo</option>
               <option value="Female">Hembra</option>
               <option value="Male">Macho</option>
-            </select>
-            <select value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>
-              <option value="">Estado</option>
-              <option value="Active">Activo</option>
-              <option value="Discharged">Baja</option>
             </select>
           </div>
 

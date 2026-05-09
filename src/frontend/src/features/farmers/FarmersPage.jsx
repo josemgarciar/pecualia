@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, CheckCircle2, ChevronRight, Mail, MapPin, Phone, Plus, User, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronRight, Mail, MapPin, Phone, Plus, User } from 'lucide-react';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { apiRequest } from '../../shared/api/client';
+import { ModalBody, ModalDialog, ModalFooter, ModalHeader, ModalStepper } from '../../shared/components/modal/Modal';
 import { FarmerDetailPage } from './FarmerDetailPage';
 
 const initialForm = {
@@ -131,50 +132,15 @@ function FarmerWizardModal({
   const idDocument = form.nifCif || 'Sin NIF/CIF';
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="modal-card modal-wide farm-modal-shell farmer-wizard-shell">
-        <div className="farm-modal-header">
-          <div className="farm-modal-title">
-            <div className="modal-panel-icon">
-              <User size={18} />
-            </div>
-            <div>
-              <h2>
-                {isCreate ? 'Nuevo Ganader@' : 'Editar Ganader@'}</h2>
-              <p>Paso {step} de {wizardSteps.length}</p>
-            </div>
-          </div>
-          <button className="farm-modal-close" type="button" onClick={onClose} aria-label="Cerrar modal">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="farm-stepper">
-          {wizardSteps.map((item, index) => {
-            const currentStep = index + 1;
-            const isDone = step > currentStep;
-            const isActive = step === currentStep;
-            const Icon = item.icon;
-
-            return (
-              <div className="farm-stepper-item" key={item.label}>
-                <div className="farm-stepper-marker-group">
-                  <div className={isDone ? 'farm-stepper-marker farm-stepper-marker-done' : isActive ? 'farm-stepper-marker farm-stepper-marker-active' : 'farm-stepper-marker'}>
-                    {isDone ? <CheckCircle2 size={16} /> : <Icon size={15} />}
-                  </div>
-                  {index < wizardSteps.length - 1 && (
-                    <div className={isDone ? 'farm-stepper-connector farm-stepper-connector-done' : 'farm-stepper-connector'} />
-                  )}
-                </div>
-                <span className={isDone || isActive ? 'farm-stepper-label farm-stepper-label-active' : 'farm-stepper-label'}>
-                  {item.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="farm-modal-body farmer-modal-body">
+    <ModalDialog size="wide" shellClassName="farmer-wizard-shell">
+      <ModalHeader
+        icon={<User size={18} />}
+        title={isCreate ? 'Nuevo Ganader@' : 'Editar Ganader@'}
+        subtitle={`Paso ${step} de ${wizardSteps.length}`}
+        onClose={onClose}
+      />
+      <ModalStepper steps={wizardSteps} currentStep={step} />
+      <ModalBody className="farmer-modal-body">
           {error && <div className="error-banner">{error}</div>}
 
           {step === 1 && (
@@ -377,9 +343,9 @@ function FarmerWizardModal({
               </div>
             </div>
           )}
-        </div>
+      </ModalBody>
 
-        <div className="farm-modal-footer">
+      <ModalFooter>
           <div className="validation-hint">
             {validationMessage ? (
               <span>
@@ -420,9 +386,8 @@ function FarmerWizardModal({
               </button>
             )}
           </div>
-        </div>
-      </div>
-    </div>
+      </ModalFooter>
+    </ModalDialog>
   );
 }
 

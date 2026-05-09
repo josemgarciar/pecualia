@@ -5,10 +5,17 @@ import {
   CheckCircle2,
   FileText,
   Search,
-  Upload,
-  X
+  Upload
 } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
+import { ModalBody, ModalDialog, ModalFooter, ModalHeader, ModalStepper } from '../../shared/components/modal/Modal';
+
+const movementImportSteps = [
+  { label: 'Configuración' },
+  { label: 'Archivo' },
+  { label: 'Validación' },
+  { label: 'Confirmación' }
+];
 
 const directionLabelMap = {
   Entry: 'Entrada',
@@ -168,24 +175,14 @@ function MovementDetailModal({ farm, movement, loading, onClose, onViewAnimals }
     : null;
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="modal-card modal-wide farm-modal-shell movement-detail-modal-shell">
-        <div className="farm-modal-header">
-          <div className="farm-modal-title">
-            <div className="modal-panel-icon">
-              <FileText size={18} />
-            </div>
-            <div>
-              <h2>Detalle de la guía</h2>
-              <p>Información completa del movimiento y animales asociados.</p>
-            </div>
-          </div>
-          <button className="farm-modal-close" type="button" onClick={onClose} aria-label="Cerrar modal">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="farm-modal-body">
+    <ModalDialog size="wide" shellClassName="movement-detail-modal-shell">
+      <ModalHeader
+        icon={<FileText size={18} />}
+        title="Detalle de la guía"
+        subtitle="Información completa del movimiento y animales asociados."
+        onClose={onClose}
+      />
+      <ModalBody>
           {loading ? (
             <div className="empty-state">Cargando detalle del movimiento...</div>
           ) : !movement ? (
@@ -273,13 +270,12 @@ function MovementDetailModal({ farm, movement, loading, onClose, onViewAnimals }
               </section>
             </div>
           )}
-        </div>
+      </ModalBody>
 
-        <div className="farm-modal-footer">
+      <ModalFooter align="end">
           <button className="primary-button" type="button" onClick={onClose}>Cerrar</button>
-        </div>
-      </div>
-    </div>
+      </ModalFooter>
+    </ModalDialog>
   );
 }
 
@@ -352,11 +348,15 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
     config.direction &&
     config.departureDate &&
     config.arrivalDate &&
-    config.codRemo.trim()
+    config.codRemo.trim() &&
+    config.serie.trim() &&
+    config.counterpartyExternalCode.trim() &&
+    config.counterpartyExternalName.trim()
   );
 
   function updateConfig(field, value) {
     setConfig((current) => ({ ...current, [field]: value }));
+    setRequestError('');
   }
 
   function updateSharedField(field, value) {
@@ -406,6 +406,11 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
   }
 
   async function handlePreview() {
+    if (!canContinueStep1) {
+      setRequestError('Completa la serie, el código REGA y el nombre de la explotación antes de continuar.');
+      return;
+    }
+
     setLoadingPreview(true);
     setRequestError('');
 
@@ -480,37 +485,15 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
   }
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="modal-card modal-wide farm-modal-shell movement-modal-shell">
-        <div className="farm-modal-header">
-          <div className="farm-modal-title">
-            <div className="modal-panel-icon">
-              <Upload size={18} />
-            </div>
-            <div>
-              <h2>Nuevo Movimiento</h2>
-              <p>Entrada o salida masiva de animales sobre la explotación seleccionada.</p>
-            </div>
-          </div>
-          <button className="farm-modal-close" type="button" onClick={onClose} aria-label="Cerrar modal">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="movement-stepper">
-          {['Configuración', 'Archivo', 'Validación', 'Confirmación'].map((label, index) => (
-            <div key={label} className="movement-stepper-item">
-              <div className={step >= index + 1 ? 'movement-stepper-badge movement-stepper-badge-active' : 'movement-stepper-badge'}>
-                {step > index + 1 ? <CheckCircle2 size={15} /> : index + 1}
-              </div>
-              <span className={step === index + 1 ? 'movement-stepper-label movement-stepper-label-active' : 'movement-stepper-label'}>
-                {label}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div className="farm-modal-body">
+    <ModalDialog size="wide" shellClassName="movement-modal-shell">
+      <ModalHeader
+        icon={<Upload size={18} />}
+        title="Nuevo Movimiento"
+        subtitle="Entrada o salida masiva de animales sobre la explotación seleccionada."
+        onClose={onClose}
+      />
+      <ModalStepper steps={movementImportSteps} currentStep={Math.min(step, movementImportSteps.length + 1)} className="movement-modal-stepper" />
+      <ModalBody>
           {requestError && <div className="error-banner">{requestError}</div>}
 
           {step === 1 && (
@@ -544,7 +527,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
                   <input type="datetime-local" value={config.arrivalDate} onChange={(event) => updateConfig('arrivalDate', event.target.value)} />
                 </label>
                 <label className="farm-form-field">
-                  <span className="farm-field-label">Serie</span>
+                  <span className="farm-field-label">Serie <span className="farm-field-label-required">*</span></span>
                   <input value={config.serie} onChange={(event) => updateConfig('serie', event.target.value)} />
                 </label>
 
@@ -554,11 +537,17 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
                 </label>
 
                 <label className="farm-form-field">
-                  <span className="farm-field-label">{config.direction === 'Entry' ? 'Nombre de explotación 0rigen' : 'Nombre de explotación destino'}</span>
-                  <input value={config.counterpartyExternalName} onChange={(event) => updateConfig('counterpartyExternalName', event.target.value)} placeholder="Nombre informativo" />
+                  <span className="farm-field-label">
+                    {config.direction === 'Entry' ? 'Nombre de explotación origen' : 'Nombre de explotación destino'}
+                    <span className="farm-field-label-required"> *</span>
+                  </span>
+                  <input value={config.counterpartyExternalName} onChange={(event) => updateConfig('counterpartyExternalName', event.target.value)} />
                 </label>
                 <label className="farm-form-field">
-                  <span className="farm-field-label">Código REGA / destino</span>
+                  <span className="farm-field-label">
+                    {config.direction === 'Entry' ? 'Código REGA de origen' : 'Código REGA de destino'}
+                    <span className="farm-field-label-required"> *</span>
+                  </span>
                   <input
                     value={config.counterpartyExternalCode}
                     onChange={(event) => updateConfig('counterpartyExternalCode', event.target.value)}
@@ -723,13 +712,12 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
                 <p>Guía {result.codRemo} registrada correctamente.</p>
                 <span>{result.processedRows} identificaciones procesadas · {result.rejectedRows} rechazadas</span>
               </div>
-              <button className="primary-button farm-success-button" type="button" onClick={onClose}>Cerrar</button>
             </div>
           )}
-        </div>
+      </ModalBody>
 
         {step < 5 && (
-          <div className="farm-modal-footer">
+          <ModalFooter>
             <button className="secondary-button" type="button" onClick={() => (step === 1 ? onClose() : setStep((current) => current - 1))}>
               {step === 1 ? 'Cancelar' : 'Volver'}
             </button>
@@ -739,10 +727,14 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
               {step === 3 && <button className="primary-button" type="button" onClick={() => setStep(4)}>Continuar</button>}
               {step === 4 && <button className="primary-button" type="button" onClick={handleCommit} disabled={submitting || processableRowsCount === 0 || !isSharedAnimalDataReady}>{submitting ? 'Registrando...' : 'Confirmar importación'}</button>}
             </div>
-          </div>
+          </ModalFooter>
         )}
-      </div>
-    </div>
+        {step === 5 && result && (
+          <ModalFooter align="end">
+            <button className="primary-button farm-success-button" type="button" onClick={onClose}>Cerrar</button>
+          </ModalFooter>
+        )}
+    </ModalDialog>
   );
 }
 

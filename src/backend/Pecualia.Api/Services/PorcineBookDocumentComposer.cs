@@ -192,7 +192,9 @@ internal static class PorcineBookDocumentComposer
                 BookDocumentSupport.MapDischargeCauseCode(animal.DischargeCause),
                 BookDocumentSupport.FormatDate(animal.DischargeDate),
                 BookDocumentSupport.EmptyToNull(animal.DestinationCode),
-                BookDocumentSupport.EmptyToNull(animal.HealthDocumentNumber),
+                aggregate.GuideSeriesByAnimalId.TryGetValue(animal.Id, out var guideSeries)
+                    ? BookDocumentSupport.FormatAnimalGuideSeries(guideSeries.Entry, guideSeries.Exit)
+                    : null,
                 BookDocumentSupport.ResolveOvineIncidentReferencePage(animal, incidentReferences),
                 BookDocumentSupport.ResolveOvineIncidentReferenceOrder(animal, incidentReferences)))
             .ToList();
