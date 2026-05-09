@@ -54,7 +54,7 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         appUser.ToTable("app_user");
         appUser.HasKey(entity => entity.Id);
         appUser.Property(entity => entity.Id).HasColumnName("id").UseIdentityAlwaysColumn();
-        appUser.Property(entity => entity.Email).HasColumnName("email").HasMaxLength(255).IsRequired();
+        appUser.Property(entity => entity.Email).HasColumnName("email").HasMaxLength(255);
         appUser.Property(entity => entity.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
         appUser.Property(entity => entity.Surname).HasColumnName("surname").HasMaxLength(180).IsRequired();
         appUser.Property(entity => entity.Username).HasColumnName("username").HasMaxLength(120);

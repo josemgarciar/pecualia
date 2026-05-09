@@ -53,7 +53,7 @@ public sealed record UpdateUserSettingsRequest(
 
 public sealed record UserProfileResponse(
     long Id,
-    string Email,
+    string? Email,
     string? Username,
     string Name,
     string Surname,

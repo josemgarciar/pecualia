@@ -29,7 +29,9 @@ public sealed class DatabaseBootstrapper(
         var connectionString = PostgresConnectionStringResolver.RequireNormalized(configuration);
 
         var dbDirectory = ResolveDbDirectory(environment.ContentRootPath);
-        var allScripts = BuildAllKnownScripts(dbDirectory);
+        var initScripts = BuildInitScripts(dbDirectory);
+        var migrationScripts = BuildMigrationScripts(dbDirectory);
+        var allScripts = initScripts.Concat(migrationScripts).ToList();
         var executableScripts = BuildExecutableScripts(dbDirectory, options.Value.SeedDemoData);
 
         await using var connection = new NpgsqlConnection(connectionString);
@@ -46,8 +48,8 @@ public sealed class DatabaseBootstrapper(
             if (schemaExists && appliedScripts.Count == 0)
             {
                 logger.LogWarning(
-                    "Detected an existing schema without migration tracking. Recording current SQL scripts as baseline to avoid reapplying them.");
-                await RecordBaselineAsync(connection, allScripts, cancellationToken);
+                    "Detected an existing schema without migration tracking. Recording init scripts as baseline and applying pending migrations.");
+                await RecordBaselineAsync(connection, initScripts, cancellationToken);
                 appliedScripts = await LoadAppliedScriptsAsync(connection, cancellationToken);
             }
 
@@ -77,19 +79,28 @@ public sealed class DatabaseBootstrapper(
         }
     }
 
-    private static IReadOnlyList<SqlScript> BuildAllKnownScripts(string dbDirectory)
+    private static IReadOnlyList<SqlScript> BuildInitScripts(string dbDirectory)
     {
-        var scripts = new List<SqlScript>
+        return new List<SqlScript>
         {
             new("001_schema.sql", Path.Combine(dbDirectory, "init", "001_schema.sql")),
             new("002_seed_demo.sql", Path.Combine(dbDirectory, "init", "002_seed_demo.sql"))
         };
+    }
 
-        scripts.AddRange(Directory.GetFiles(Path.Combine(dbDirectory, "migrations"), "*.sql")
+    private static IReadOnlyList<SqlScript> BuildMigrationScripts(string dbDirectory)
+    {
+        return Directory.GetFiles(Path.Combine(dbDirectory, "migrations"), "*.sql")
             .OrderBy(Path.GetFileName, StringComparer.Ordinal)
-            .Select(path => new SqlScript(Path.GetFileName(path), path)));
+            .Select(path => new SqlScript(Path.GetFileName(path), path))
+            .ToList();
+    }
 
-        return scripts;
+    private static IReadOnlyList<SqlScript> BuildAllKnownScripts(string dbDirectory)
+    {
+        return BuildInitScripts(dbDirectory)
+            .Concat(BuildMigrationScripts(dbDirectory))
+            .ToList();
     }
 
     private static IReadOnlyList<SqlScript> BuildExecutableScripts(string dbDirectory, bool seedDemoData)

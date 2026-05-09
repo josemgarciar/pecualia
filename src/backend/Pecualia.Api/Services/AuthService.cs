@@ -143,7 +143,7 @@ public sealed class AuthService(
             .Include(entity => entity.Farmer)
             .Include(entity => entity.Subscription)
             .SingleOrDefaultAsync(entity =>
-                entity.Email == identifier ||
+                (entity.Email != null && entity.Email == identifier) ||
                 (entity.Username != null && entity.Username.ToLower() == identifier),
                 cancellationToken);
 
@@ -305,6 +305,13 @@ public sealed class AuthService(
 
     public async Task<string> CreateActivationAsync(AppUser user, long? createdByUserId, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            throw new DomainException("No se puede enviar la activación sin un correo electrónico.");
+        }
+
+        var recipientEmail = user.Email;
+
         var (plainToken, tokenHash) = accountActivationService.GenerateTokenPair();
         var token = new AccountActivationToken
         {
@@ -336,7 +343,7 @@ public sealed class AuthService(
 
         await emailSender.SendAsync(
             new EmailMessage(
-                user.Email,
+                recipientEmail,
                 "Activa tu cuenta de Pecualia",
                 htmlBody,
                 plainTextBody),

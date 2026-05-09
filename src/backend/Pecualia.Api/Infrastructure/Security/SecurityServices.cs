@@ -50,9 +50,13 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
         var claims = new List<Claim>
         {
             new(AuthClaimTypes.UserId, user.Id.ToString()),
-            new(AuthClaimTypes.Role, user.Role.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.Email)
+            new(AuthClaimTypes.Role, user.Role.ToString())
         };
+
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
+        }
 
         var credentials = new SigningCredentials(
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SigningKey)),

@@ -4,6 +4,10 @@ import { apiRequest } from '../../shared/api/client';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 
 function formatStatus(status) {
+  if (!status) {
+    return '';
+  }
+
   return status === 'PendingActivation' ? 'Pendiente' : 'Activo';
 }
 
@@ -24,6 +28,7 @@ export function FarmerDetailPage({
   const [farmer, setFarmer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const statusLabel = farmer ? formatStatus(farmer.status) : '';
 
   const loadFarmerDetail = async () => {
     if (!farmerId) {
@@ -117,7 +122,7 @@ export function FarmerDetailPage({
                   <span>{formatPersonType(farmer.personType)}</span>
                   <span>{farmer.nifCif}</span>
                 </div>
-                <span className={`status-chip status-${farmer.status}`}>{formatStatus(farmer.status)}</span>
+                {statusLabel ? <span className={`status-chip status-${farmer.status}`}>{statusLabel}</span> : null}
               </section>
 
               <div className="farmer-detail-summary-grid">
@@ -126,7 +131,7 @@ export function FarmerDetailPage({
                     <p>DATOS PRINCIPALES</p>
                   </div>
                   <div className="farmer-detail-card-body detail-grid">
-                    <div><span>Email</span><strong>{farmer.email}</strong></div>
+                    <div><span>Email</span><strong>{farmer.email || 'No informado'}</strong></div>
                     <div><span>Teléfono</span><strong>{farmer.phoneNumber || 'No informado'}</strong></div>
                     <div><span>Provincia</span><strong>{farmer.province || 'No informada'}</strong></div>
                     <div><span>Localidad</span><strong>{farmer.town || 'No informada'}</strong></div>

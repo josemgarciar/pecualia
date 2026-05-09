@@ -81,6 +81,14 @@ function formatPersonType(personType) {
   return personType === 'Company' ? 'Persona jurídica' : 'Persona física';
 }
 
+function formatStatus(status) {
+  if (!status) {
+    return '';
+  }
+
+  return status === 'PendingActivation' ? 'Pendiente' : 'Activo';
+}
+
 function buildValidationMessage(form, step) {
   if (step === 1) {
     if (form.personType === 'Individual') {
@@ -93,8 +101,8 @@ function buildValidationMessage(form, step) {
   }
 
   if (step === 2) {
-    if (!form.email.trim() || !form.phoneNumber.trim() || !form.town.trim() || !form.province.trim()) {
-      return 'Completa email, teléfono, localidad y provincia.';
+    if (!form.phoneNumber.trim() || !form.town.trim() || !form.province.trim()) {
+      return 'Completa teléfono, localidad y provincia.';
     }
   }
 
@@ -229,7 +237,7 @@ function FarmerWizardModal({
                 <FormField label="Teléfono principal" required>
                   <input className="farm-input" value={form.phoneNumber} onChange={(event) => onChange('phoneNumber', event.target.value)} placeholder="ej: 627 891 234" />
                 </FormField>
-                <FormField label="Email" required>
+                <FormField label="Email">
                   <input className="farm-input" type="email" value={form.email} onChange={(event) => onChange('email', event.target.value)} placeholder="ej: miguel@example.com" />
                 </FormField>
                 <div className="form-full">
@@ -639,7 +647,11 @@ export function FarmersPage() {
                   <span>{farmer.town || 'Sin localidad'}</span>
                   <span>{farmer.province || 'Sin provincia'}</span>
                   <span>{farmer.farmCount}</span>
-                  <span className={`status-chip status-${farmer.status}`}>{farmer.status === 'PendingActivation' ? 'Pendiente' : 'Activo'}</span>
+                  <span>
+                    {formatStatus(farmer.status) ? (
+                      <span className={`status-chip status-${farmer.status}`}>{formatStatus(farmer.status)}</span>
+                    ) : null}
+                  </span>
                 </button>
               ))}
 

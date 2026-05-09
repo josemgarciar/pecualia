@@ -39,7 +39,7 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
         if (!string.IsNullOrWhiteSpace(normalizedSearch))
         {
             query = query.Where(entity =>
-                entity.User.Email.ToLower().Contains(normalizedSearch) ||
+                (entity.User.Email != null && entity.User.Email.ToLower().Contains(normalizedSearch)) ||
                 entity.NifCif.ToLower().Contains(normalizedSearch) ||
                 (entity.Town != null && entity.Town.ToLower().Contains(normalizedSearch)) ||
                 (entity.CompanyName != null && entity.CompanyName.ToLower().Contains(normalizedSearch)) ||
@@ -84,11 +84,11 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
 
     public async Task<FarmerListItemResponse> CreateManagedFarmerAsync(long managerUserId, CreateFarmerRequest request, CancellationToken cancellationToken)
     {
-        ValidateFarmerRequest(request.PersonType, request.Name, request.FirstSurname, request.CompanyName, request.LegalRepresentative, request.Email, request.NifCif, request.PhoneNumber, request.Town, request.Province);
+        ValidateFarmerRequest(request.PersonType, request.Name, request.FirstSurname, request.CompanyName, request.LegalRepresentative, request.NifCif, request.PhoneNumber, request.Town, request.Province);
         await EnsureManagedFarmerPlanCapacityAsync(managerUserId, cancellationToken);
 
-        var email = request.Email.Trim().ToLowerInvariant();
-        if (await dbContext.Users.AnyAsync(entity => entity.Email == email, cancellationToken))
+        var email = NormalizeOptionalEmail(request.Email);
+        if (email is not null && await dbContext.Users.AnyAsync(entity => entity.Email == email, cancellationToken))
         {
             throw new DomainException("Ya existe una cuenta con ese correo electrónico.");
         }
@@ -113,6 +113,10 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             UpdatedAt = clock.UtcNow
         };
 
+        var initialStatus = email is null
+            ? FarmerStatus.Inactive
+            : FarmerStatus.PendingActivation;
+
         var farmer = new Farmer
         {
             User = user,
@@ -128,26 +132,32 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             ZipCode = Normalize(request.ZipCode),
             PersonType = request.PersonType,
             BirthDate = request.BirthDate,
-            Status = FarmerStatus.PendingActivation
+            Status = initialStatus
         };
 
         dbContext.Users.Add(user);
         dbContext.Farmers.Add(farmer);
         await dbContext.SaveChangesAsync(cancellationToken);
-        await ((AuthService)authService).CreateActivationAsync(user, managerUserId, cancellationToken);
+
+        if (email is not null)
+        {
+            await ((AuthService)authService).CreateActivationAsync(user, managerUserId, cancellationToken);
+        }
 
         return Map(farmer);
     }
 
     public async Task<FarmerListItemResponse> UpdateManagedFarmerAsync(long managerUserId, long farmerUserId, UpdateFarmerRequest request, CancellationToken cancellationToken)
     {
-        ValidateFarmerRequest(request.PersonType, request.Name, request.FirstSurname, request.CompanyName, request.LegalRepresentative, request.Email, request.NifCif, request.PhoneNumber, request.Town, request.Province);
+        ValidateFarmerRequest(request.PersonType, request.Name, request.FirstSurname, request.CompanyName, request.LegalRepresentative, request.NifCif, request.PhoneNumber, request.Town, request.Province);
 
         var farmer = await LoadManagedFarmerAsync(managerUserId, farmerUserId, cancellationToken);
-        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var previousEmail = NormalizeOptionalEmail(farmer.User.Email);
+        var normalizedEmail = NormalizeOptionalEmail(request.Email);
         var normalizedNif = request.NifCif.Trim().ToUpperInvariant();
 
-        if (await dbContext.Users.AnyAsync(entity => entity.Email == normalizedEmail && entity.Id != farmerUserId, cancellationToken))
+        if (normalizedEmail is not null &&
+            await dbContext.Users.AnyAsync(entity => entity.Email == normalizedEmail && entity.Id != farmerUserId, cancellationToken))
         {
             throw new DomainException("Ya existe una cuenta con ese correo electrónico.");
         }
@@ -176,15 +186,24 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
         farmer.ZipCode = Normalize(request.ZipCode);
         farmer.PersonType = request.PersonType;
         farmer.BirthDate = request.BirthDate;
+        farmer.Status = ResolveStoredFarmerStatus(farmer.User.IsActive, normalizedEmail);
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (!farmer.User.IsActive &&
+            normalizedEmail is not null &&
+            !string.Equals(previousEmail, normalizedEmail, StringComparison.Ordinal))
+        {
+            await ((AuthService)authService).CreateActivationAsync(farmer.User, managerUserId, cancellationToken);
+        }
+
         return Map(farmer);
     }
 
     public async Task<bool> ResendActivationAsync(long managerUserId, long farmerUserId, CancellationToken cancellationToken)
     {
         var farmer = await LoadManagedFarmerAsync(managerUserId, farmerUserId, cancellationToken);
-        if (farmer.User.IsActive)
+        if (farmer.User.IsActive || string.IsNullOrWhiteSpace(farmer.User.Email))
         {
             return false;
         }
@@ -244,14 +263,14 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             farmer.UserId,
             displayName,
             fullName,
-            farmer.User.Email,
+            EmptyToNull(farmer.User.Email),
             farmer.NifCif,
             EmptyToNull(farmer.PhoneNumber),
             EmptyToNull(farmer.Town),
             EmptyToNull(farmer.Province),
             farmer.PersonType.ToString(),
-            farmer.Status.ToString(),
-            !farmer.User.IsActive,
+            MapStatusForResponse(farmer),
+            !farmer.User.IsActive && !string.IsNullOrWhiteSpace(farmer.User.Email),
             farmer.Farms.Count);
     }
 
@@ -267,15 +286,15 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             farmer.PersonType == PersonType.Individual ? farmer.BirthDate : null,
             farmer.PersonType == PersonType.Company ? EmptyToNull(farmer.CompanyName) : null,
             farmer.PersonType == PersonType.Company ? EmptyToNull(farmer.LegalRepresentative) : null,
-            farmer.User.Email,
+            EmptyToNull(farmer.User.Email),
             farmer.NifCif,
             farmer.PhoneNumber ?? string.Empty,
             EmptyToNull(farmer.Residence),
             farmer.Town ?? string.Empty,
             farmer.Province ?? string.Empty,
             EmptyToNull(farmer.ZipCode),
-            farmer.Status.ToString(),
-            !farmer.User.IsActive,
+            MapStatusForResponse(farmer),
+            !farmer.User.IsActive && !string.IsNullOrWhiteSpace(farmer.User.Email),
             farmer.Farms
                 .OrderBy(entity => entity.Name)
                 .Select(entity => new FarmerFarmItemResponse(
@@ -294,7 +313,6 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
         string? firstSurname,
         string? companyName,
         string? legalRepresentative,
-        string email,
         string nifCif,
         string phoneNumber,
         string town,
@@ -312,14 +330,39 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             throw new DomainException("Razón social y representante legal son obligatorios para persona jurídica.");
         }
 
-        if (string.IsNullOrWhiteSpace(email) ||
-            string.IsNullOrWhiteSpace(nifCif) ||
+        if (string.IsNullOrWhiteSpace(nifCif) ||
             string.IsNullOrWhiteSpace(phoneNumber) ||
             string.IsNullOrWhiteSpace(town) ||
             string.IsNullOrWhiteSpace(province))
         {
-            throw new DomainException("Email, NIF/CIF, teléfono, localidad y provincia son obligatorios.");
+            throw new DomainException("NIF/CIF, teléfono, localidad y provincia son obligatorios.");
         }
+    }
+
+    private static string? NormalizeOptionalEmail(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim().ToLowerInvariant();
+    }
+
+    private static FarmerStatus ResolveStoredFarmerStatus(bool isActive, string? email)
+    {
+        if (isActive)
+        {
+            return FarmerStatus.Active;
+        }
+
+        return email is null
+            ? FarmerStatus.Inactive
+            : FarmerStatus.PendingActivation;
+    }
+
+    private static string MapStatusForResponse(Farmer farmer)
+    {
+        return string.IsNullOrWhiteSpace(farmer.User.Email)
+            ? string.Empty
+            : farmer.Status.ToString();
     }
 
     private static string BuildDisplayName(Farmer farmer)
