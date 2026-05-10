@@ -354,7 +354,6 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
     config.direction &&
     config.departureDate &&
     config.arrivalDate &&
-    config.codRemo.trim() &&
     config.serie.trim() &&
     config.counterpartyExternalCode.trim() &&
     config.counterpartyExternalName.trim()
@@ -362,7 +361,13 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
 
   function validateStep1() {
     if (!canContinueStep1) {
-      return 'Completa la serie, el código REGA y el nombre de la explotación antes de continuar.';
+      const missing = [];
+      if (!config.serie.trim()) missing.push('la serie');
+      if (!config.counterpartyExternalCode.trim()) missing.push('el código REGA de la contraparte');
+      if (!config.counterpartyExternalName.trim()) missing.push('el nombre de la explotación');
+      return missing.length > 0
+        ? `Completa ${missing.join(', ')} antes de continuar.`
+        : 'Completa todos los campos obligatorios antes de continuar.';
     }
 
     if (!isValidRegaCode(config.counterpartyExternalCode)) {

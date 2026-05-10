@@ -10,7 +10,12 @@ const DNI_LETTERS = 'TRWAGMYFPDXBNJZSQVHLCKE';
 const CIF_CONTROL_LETTERS = 'JABCDEFGHI';
 
 export function normalizeRegaCode(value) {
-  return value.trim().toUpperCase();
+  const trimmed = value.trim().toUpperCase();
+  const match = trimmed.match(/^(ES)[\s._-]*((?:\d[\s._-]*){12})$/);
+  if (match) {
+    return `ES${match[2].replace(/\D/g, '')}`;
+  }
+  return trimmed.replace(/[\s._-]/g, '');
 }
 
 export function isValidRegaCode(value) {
