@@ -22,6 +22,15 @@ public sealed class ActivationOptions
     public int TokenHours { get; init; } = 72;
 }
 
+public sealed class PasswordResetOptions
+{
+    public const string SectionName = "PasswordReset";
+
+    public string BaseUrl { get; init; } = string.Empty;
+
+    public int TokenMinutes { get; init; } = 30;
+}
+
 public sealed class EmailOptions
 {
     public const string SectionName = "Email";

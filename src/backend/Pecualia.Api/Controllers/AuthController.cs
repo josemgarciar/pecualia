@@ -25,6 +25,12 @@ public static class AuthController
         group.MapPost("/resend-activation", async (ResendActivationRequest request, IAuthService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.ResendActivationAsync(request, cancellationToken)));
 
+        group.MapPost("/forgot-password", async (ForgotPasswordRequest request, IAuthService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.ForgotPasswordAsync(request, cancellationToken)));
+
+        group.MapPost("/reset-password", async (ResetPasswordRequest request, IAuthService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.ResetPasswordAsync(request, cancellationToken)));
+
         group.MapGet("/me", async (ClaimsPrincipal user, IAuthService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(async () =>
             {

@@ -85,7 +85,7 @@ export function LoginPage() {
             />
             <span>Recordar sesión</span>
           </label>
-          <span className="auth-inline-link">¿Olvidaste tu contraseña?</span>
+          <Link className="auth-inline-link" to="/forgot-password">¿Olvidaste tu contraseña?</Link>
         </div>
 
         {error && <div className="error-banner">{error}</div>}

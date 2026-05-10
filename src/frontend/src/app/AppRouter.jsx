@@ -14,6 +14,8 @@ import {
 import { LoginPage } from '../features/auth/LoginPage';
 import { RegisterManagerPage } from '../features/auth/RegisterManagerPage';
 import { RegisterFarmerPage } from '../features/auth/RegisterFarmerPage';
+import { ForgotPasswordPage } from '../features/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from '../features/auth/ResetPasswordPage';
 import { ActivateAccountPage } from '../features/auth/ActivateAccountPage';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { FarmersPage } from '../features/farmers/FarmersPage';
@@ -185,6 +187,8 @@ export function AppRouter() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register/manager" element={<RegisterManagerPage />} />
       <Route path="/register/farmer" element={<RegisterFarmerPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/activate-account" element={<ActivateAccountPage />} />
 
       <Route element={<RequireAuth />}>

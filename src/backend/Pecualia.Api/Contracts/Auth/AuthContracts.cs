@@ -38,6 +38,14 @@ public sealed record ActivateAccountRequest(string Token, string Username, strin
 
 public sealed record ResendActivationRequest(string Email);
 
+public sealed record ForgotPasswordRequest(string Email);
+
+public sealed record ResetPasswordRequest(string Token, string NewPassword);
+
+public sealed record ForgotPasswordResponse(string Message);
+
+public sealed record ResetPasswordResponse(string Message);
+
 public sealed record AuthResponse(string Token, UserProfileResponse User);
 
 public sealed record ActivationResponse(string Message, string? ActivationUrl);

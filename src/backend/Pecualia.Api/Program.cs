@@ -23,6 +23,7 @@ QuestPDF.Settings.EnableDebugging = builder.Environment.IsDevelopment();
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<ActivationOptions>(builder.Configuration.GetSection(ActivationOptions.SectionName));
+builder.Services.Configure<PasswordResetOptions>(builder.Configuration.GetSection(PasswordResetOptions.SectionName));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
 builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection(StripeOptions.SectionName));
@@ -228,6 +229,11 @@ static void ApplyRenderDerivedConfiguration(IConfiguration configuration)
     if (string.IsNullOrWhiteSpace(configuration["Activation:BaseUrl"]))
     {
         configuration["Activation:BaseUrl"] = $"{publicBaseUrl}/activate-account";
+    }
+
+    if (string.IsNullOrWhiteSpace(configuration["PasswordReset:BaseUrl"]))
+    {
+        configuration["PasswordReset:BaseUrl"] = $"{publicBaseUrl}/reset-password";
     }
 }
 

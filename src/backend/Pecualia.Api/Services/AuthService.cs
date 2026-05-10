@@ -23,6 +23,10 @@ public interface IAuthService
 
     Task<ActivationResponse> ResendActivationAsync(ResendActivationRequest request, CancellationToken cancellationToken);
 
+    Task<ForgotPasswordResponse> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken);
+
+    Task<ResetPasswordResponse> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken);
+
     Task<UserProfileResponse?> GetCurrentUserAsync(long userId, CancellationToken cancellationToken);
 
     Task<UserProfileResponse> UpdateCurrentUserSettingsAsync(long userId, UpdateUserSettingsRequest request, CancellationToken cancellationToken);
@@ -35,10 +39,12 @@ public sealed class AuthService(
     IAccountActivationService accountActivationService,
     IEmailSender emailSender,
     IClock clock,
-    IOptions<ActivationOptions> activationOptions)
+    IOptions<ActivationOptions> activationOptions,
+    IOptions<PasswordResetOptions> passwordResetOptions)
     : IAuthService
 {
     private readonly ActivationOptions _activationOptions = activationOptions.Value;
+    private readonly PasswordResetOptions _passwordResetOptions = passwordResetOptions.Value;
 
     public async Task<AuthResponse> RegisterManagerAsync(RegisterManagerRequest request, CancellationToken cancellationToken)
     {
@@ -427,6 +433,172 @@ public sealed class AuthService(
                               </div>
                               <p style="margin:24px 0 0;font-size:13px;line-height:1.7;color:#7a877f;">
                                 Si no esperabas este correo, puedes ignorarlo sin hacer ninguna acción.
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </body>
+            </html>
+            """;
+    }
+
+    public async Task<ForgotPasswordResponse> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken)
+    {
+        const string genericMessage = "Si existe una cuenta con ese correo, recibirás un enlace para restablecer tu contraseña.";
+
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await dbContext.Users
+            .SingleOrDefaultAsync(entity => entity.Email == email, cancellationToken);
+
+        if (user is null || !user.IsActive)
+        {
+            return new ForgotPasswordResponse(genericMessage);
+        }
+
+        var (plainToken, tokenHash) = accountActivationService.GenerateTokenPair();
+        var resetToken = new PasswordResetToken
+        {
+            UserId = user.Id,
+            TokenHash = tokenHash,
+            CreatedAt = clock.UtcNow,
+            ExpiresAt = clock.UtcNow.AddMinutes(_passwordResetOptions.TokenMinutes)
+        };
+
+        dbContext.PasswordResetTokens.Add(resetToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var resetUrl = $"{_passwordResetOptions.BaseUrl}?token={Uri.EscapeDataString(plainToken)}";
+        var htmlBody = BuildPasswordResetEmailHtml(user.Name, resetUrl);
+        var plainTextBody =
+            $"""
+            Hola {user.Name},
+
+            Has solicitado restablecer tu contraseña de Pecualia.
+
+            Accede a este enlace para crear una nueva contraseña:
+            {resetUrl}
+
+            Este enlace caduca en {_passwordResetOptions.TokenMinutes} minutos.
+
+            Si no solicitaste este cambio, ignora este correo. Tu contraseña no se modificará.
+            """;
+
+        try
+        {
+            await emailSender.SendAsync(
+                new EmailMessage(
+                    email,
+                    "Restablece tu contraseña de Pecualia",
+                    htmlBody,
+                    plainTextBody),
+                cancellationToken);
+        }
+        catch (Exception)
+        {
+            throw new DomainException("No se pudo enviar el correo de recuperación. Inténtalo de nuevo más tarde.");
+        }
+
+        return new ForgotPasswordResponse(genericMessage);
+    }
+
+    public async Task<ResetPasswordResponse> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var tokenHash = ComputeTokenHash(request.Token);
+        var token = await dbContext.PasswordResetTokens
+            .Include(entity => entity.User)
+            .SingleOrDefaultAsync(entity => entity.TokenHash == tokenHash, cancellationToken);
+
+        if (token is null || token.UsedAt.HasValue || token.ExpiresAt < clock.UtcNow)
+        {
+            throw new DomainException("El enlace de recuperación no es válido o ha caducado.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+        {
+            throw new DomainException("La nueva contraseña debe tener al menos 8 caracteres.");
+        }
+
+        token.User.PasswordHash = passwordHasher.Hash(request.NewPassword);
+        token.User.UpdatedAt = clock.UtcNow;
+        token.UsedAt = clock.UtcNow;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new ResetPasswordResponse("Tu contraseña se ha restablecido correctamente. Ya puedes iniciar sesión.");
+    }
+
+    private string BuildPasswordResetEmailHtml(string userName, string resetUrl)
+    {
+        var safeName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(userName) ? "usuario" : userName.Trim());
+        var safeUrl = WebUtility.HtmlEncode(resetUrl);
+
+        return
+            $$"""
+            <!DOCTYPE html>
+            <html lang="es">
+              <body style="margin:0;padding:0;background-color:#f6f8f5;font-family:Inter,Segoe UI,Arial,sans-serif;color:#1e2a24;">
+                <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+                  Restablece tu contraseña de Pecualia.
+                </div>
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f6f8f5;padding:32px 16px;">
+                  <tr>
+                    <td align="center">
+                      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:640px;">
+                        <tr>
+                          <td style="padding-bottom:18px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td style="width:40px;height:40px;border-radius:12px;background-color:#e7b84c;color:#214d39;font-size:22px;font-weight:800;text-align:center;">
+                                  P
+                                </td>
+                                <td style="padding-left:12px;">
+                                  <div style="font-size:22px;line-height:1.1;font-weight:800;color:#214d39;">Pecualia</div>
+                                  <div style="font-size:13px;line-height:1.5;color:#637168;">Gestión ganadera digital, clara y siempre al día.</div>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="border-radius:24px;overflow:hidden;background-color:#ffffff;border:1px solid #d7ded8;box-shadow:0 18px 48px rgba(33,77,57,0.08);">
+                            <div style="padding:40px;background:linear-gradient(180deg,#214d39 0%,#2f6b4f 100%);">
+                              <div style="display:inline-block;padding:7px 12px;border-radius:999px;background-color:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.18);font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#ddebdf;">
+                                Recuperar contraseña
+                              </div>
+                              <h1 style="margin:20px 0 12px;font-size:32px;line-height:1.15;color:#ffffff;">Restablece tu acceso</h1>
+                              <p style="margin:0;font-size:16px;line-height:1.7;color:#ddebdf;">
+                                Has solicitado restablecer la contraseña de tu cuenta en Pecualia.
+                              </p>
+                            </div>
+                            <div style="padding:36px 40px 40px;">
+                              <p style="margin:0 0 14px;font-size:16px;line-height:1.7;color:#1e2a24;">Hola {{safeName}},</p>
+                              <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#405048;">
+                                Hemos recibido una solicitud para restablecer la contraseña de tu cuenta en <strong style="color:#214d39;">Pecualia</strong>. Haz clic en el botón inferior para crear una nueva contraseña.
+                              </p>
+                              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 24px;">
+                                <tr>
+                                  <td align="center" style="border-radius:12px;background-color:#2f6b4f;">
+                                    <a href="{{safeUrl}}" style="display:inline-block;padding:14px 24px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">
+                                      Restablecer contraseña
+                                    </a>
+                                  </td>
+                                </tr>
+                              </table>
+                              <div style="padding:16px 18px;border-radius:16px;background-color:#f6f8f5;border:1px solid #e3e9e4;">
+                                <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#214d39;">Detalles importantes</p>
+                                <p style="margin:0;font-size:14px;line-height:1.7;color:#637168;">
+                                  Este enlace caduca en <strong>{{_passwordResetOptions.TokenMinutes}} minutos</strong>. Si el botón no funciona, copia y pega esta URL en tu navegador:
+                                </p>
+                                <p style="margin:12px 0 0;font-size:13px;line-height:1.7;word-break:break-all;color:#2f6b4f;">
+                                  <a href="{{safeUrl}}" style="color:#2f6b4f;text-decoration:underline;">{{safeUrl}}</a>
+                                </p>
+                              </div>
+                              <p style="margin:24px 0 0;font-size:13px;line-height:1.7;color:#7a877f;">
+                                Si no solicitaste este cambio, puedes ignorar este correo. Tu contraseña no se modificará.
                               </p>
                             </div>
                           </td>

@@ -48,6 +48,8 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
 
     public DbSet<AccountActivationToken> AccountActivationTokens => Set<AccountActivationToken>();
 
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var appUser = modelBuilder.Entity<AppUser>();
@@ -466,6 +468,21 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
             .WithMany()
             .HasForeignKey(entity => entity.CreatedByUserId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        var passwordResetToken = modelBuilder.Entity<PasswordResetToken>();
+        passwordResetToken.ToTable("password_reset_token");
+        passwordResetToken.HasKey(entity => entity.Id);
+        passwordResetToken.Property(entity => entity.Id).HasColumnName("id").UseIdentityAlwaysColumn();
+        passwordResetToken.Property(entity => entity.UserId).HasColumnName("user_id");
+        passwordResetToken.Property(entity => entity.TokenHash).HasColumnName("token_hash").HasMaxLength(128).IsRequired();
+        passwordResetToken.Property(entity => entity.ExpiresAt).HasColumnName("expires_at");
+        passwordResetToken.Property(entity => entity.UsedAt).HasColumnName("used_at");
+        passwordResetToken.Property(entity => entity.CreatedAt).HasColumnName("created_at");
+        passwordResetToken.HasIndex(entity => entity.TokenHash).IsUnique();
+        passwordResetToken.HasOne(entity => entity.User)
+            .WithMany()
+            .HasForeignKey(entity => entity.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 
     private static AnimalRegistrationCause? ParseAnimalRegistrationCause(string? value)
