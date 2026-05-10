@@ -15,7 +15,7 @@ public interface IDashboardService
 public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) : IDashboardService
 {
     private const int ChartMonthCount = 7;
-    private const int MovementConfirmationGraceDays = 10;
+    internal const int MovementConfirmationGraceDays = 10;
     private static readonly CultureInfo SpanishCulture = CultureInfo.GetCultureInfo("es-ES");
 
     public async Task<DashboardSummaryResponse> GetSummaryAsync(long userId, UserRole role, CancellationToken cancellationToken)
@@ -191,7 +191,21 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
                 "info",
                 entity.InspectionDate)));
 
-        tasks.AddRange(pendingMovementConfirmations
+        tasks.AddRange(BuildPendingMovementConfirmationTasks(pendingMovementConfirmations, farmNamesById, today));
+
+        return tasks
+            .OrderBy(entity => entity.DueDate)
+            .ThenBy(entity => entity.Title)
+            .Take(5)
+            .ToList();
+    }
+
+    internal static IReadOnlyList<DashboardTaskResponse> BuildPendingMovementConfirmationTasks(
+        IReadOnlyCollection<MovementCertificate> pendingMovementConfirmations,
+        IReadOnlyDictionary<long, string> farmNamesById,
+        DateOnly today)
+    {
+        return pendingMovementConfirmations
             .OrderBy(entity => entity.ArrivalDate)
             .Take(5)
             .Select(entity =>
@@ -208,13 +222,16 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
                     $"{farmName} · {movementCode} · {FormatDueText(confirmationDeadline, today)}",
                     confirmationDeadline <= today ? "danger" : "warning",
                     confirmationDeadline);
-            }));
-
-        return tasks
-            .OrderBy(entity => entity.DueDate)
-            .ThenBy(entity => entity.Title)
-            .Take(5)
+            })
             .ToList();
+    }
+
+    internal static bool IsPendingMovementConfirmationVisible(MovementCertificate movement, DateTime now)
+    {
+        return movement.Status == MovementStatus.Pending &&
+            movement.ArrivalDate is not null &&
+            movement.ArrivalDate.Value <= now &&
+            movement.ArrivalDate.Value.AddDays(MovementConfirmationGraceDays) >= now;
     }
 
     private static decimal? CalculateTrend(IReadOnlyCollection<MonthlyChartPoint> points, DateOnly currentMonthStart, DateOnly previousMonthStart)

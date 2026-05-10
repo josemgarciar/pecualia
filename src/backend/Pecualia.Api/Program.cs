@@ -230,3 +230,7 @@ static void ApplyRenderDerivedConfiguration(IConfiguration configuration)
         configuration["Activation:BaseUrl"] = $"{publicBaseUrl}/activate-account";
     }
 }
+
+public partial class Program
+{
+}
