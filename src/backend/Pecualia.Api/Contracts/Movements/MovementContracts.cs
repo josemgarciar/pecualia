@@ -148,3 +148,7 @@ public sealed record SharedAnimalDataRequest(
     AnimalRegistrationCause? RegistrationCause,
     OvinoCaprinoAnimalRequest? OvinoCaprino,
     PorcinoAnimalRequest? Porcino);
+
+public sealed record ConfirmMovementResponse(
+    long MovementId,
+    string Status);

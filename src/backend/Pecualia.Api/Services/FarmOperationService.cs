@@ -106,13 +106,7 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
     public async Task<FarmDeathResponse> CreateDeathAsync(long userId, UserRole role, long farmId, CreateFarmDeathRequest request, CancellationToken cancellationToken)
     {
         var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
-
-        if (string.IsNullOrWhiteSpace(request.Identification))
-        {
-            throw new DomainException("El crotal es obligatorio.");
-        }
-
-        var identification = request.Identification.Trim().ToUpperInvariant();
+        var identification = NormalizeIdentifier(farm.LivestockSpecies, request.Identification, "El crotal o lote no es válido.");
         var animal = await dbContext.Animals
             .SingleOrDefaultAsync(entity => entity.LivestockFarmId == farm.Id && entity.Identification == identification, cancellationToken);
 
@@ -347,9 +341,9 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
     public async Task<FarmIncidentResponse> CreateIncidentAsync(long userId, UserRole role, long farmId, CreateFarmIncidentRequest request, CancellationToken cancellationToken)
     {
         var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
-        var animalIdentification = NormalizeIdentifier(request.AnimalIdentification);
-        var lastIdentification = NormalizeIdentifier(request.LastIdentification);
-        var newIdentification = NormalizeIdentifier(request.NewIdentification);
+        var animalIdentification = NormalizeIdentifierOrNull(farm.LivestockSpecies, request.AnimalIdentification, "La identificación del animal relacionada con la incidencia no es válida.");
+        var lastIdentification = NormalizeIdentifierOrNull(farm.LivestockSpecies, request.LastIdentification, "La identificación anterior no es válida.");
+        var newIdentification = NormalizeIdentifierOrNull(farm.LivestockSpecies, request.NewIdentification, "La nueva identificación no es válida.");
         var changeReason = NormalizeNullable(request.ChangeReason);
         var description = NormalizeNullable(request.Description);
 
@@ -458,11 +452,10 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
 
     private async Task<Animal> LoadFarmAnimalAsync(long farmId, string identification, CancellationToken cancellationToken)
     {
-        var normalizedIdentification = NormalizeIdentifier(identification);
-        if (normalizedIdentification is null)
-        {
-            throw new DomainException("Debes indicar el crotal o lote del animal.");
-        }
+        var farm = await dbContext.Farms
+            .AsNoTracking()
+            .SingleAsync(entity => entity.Id == farmId, cancellationToken);
+        var normalizedIdentification = NormalizeIdentifier(farm.LivestockSpecies, identification, "Debes indicar un crotal o lote válido.");
 
         var animal = await dbContext.Animals
             .SingleOrDefaultAsync(entity => entity.LivestockFarmId == farmId && entity.Identification == normalizedIdentification, cancellationToken);
@@ -765,10 +758,38 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         return normalizedDestinationCode;
     }
 
-    private static string? NormalizeIdentifier(string? value)
+    private static string NormalizeIdentifier(LivestockSpecies species, string? value, string invalidMessage)
     {
-        var normalized = NormalizeNullable(value);
-        return normalized?.ToUpperInvariant();
+        var normalizedValue = NormalizeNullable(value);
+        if (normalizedValue is null)
+        {
+            throw new DomainException("Debes indicar el crotal o lote del animal.");
+        }
+
+        var normalizedIdentification = DomainValidators.NormalizeAnimalIdentification(normalizedValue);
+        if (!DomainValidators.IsValidAnimalIdentification(species, normalizedIdentification))
+        {
+            throw new DomainException(invalidMessage);
+        }
+
+        return normalizedIdentification;
+    }
+
+    private static string? NormalizeIdentifierOrNull(LivestockSpecies species, string? value, string invalidMessage)
+    {
+        var normalizedValue = NormalizeNullable(value);
+        if (normalizedValue is null)
+        {
+            return null;
+        }
+
+        var normalizedIdentification = DomainValidators.NormalizeAnimalIdentification(normalizedValue);
+        if (!DomainValidators.IsValidAnimalIdentification(species, normalizedIdentification))
+        {
+            throw new DomainException(invalidMessage);
+        }
+
+        return normalizedIdentification;
     }
 
     private static string? EmptyToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;

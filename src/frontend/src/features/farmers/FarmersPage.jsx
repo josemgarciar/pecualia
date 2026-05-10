@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, CheckCircle2, ChevronRight, Mail, MapPin, Phone, Plus, User } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronRight, Mail, MapPin, Phone, Plus, Search, User } from 'lucide-react';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { apiRequest } from '../../shared/api/client';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader, ModalStepper } from '../../shared/components/modal/Modal';
+import { isValidTaxIdentifier, normalizeTaxIdentifier } from '../../shared/validation/identifiers';
 import { FarmerDetailPage } from './FarmerDetailPage';
 
 const initialForm = {
@@ -49,7 +50,7 @@ function toPayload(form) {
     companyName: form.personType === 'Company' ? form.companyName.trim() : null,
     legalRepresentative: form.personType === 'Company' ? form.legalRepresentative.trim() : null,
     email: form.email.trim(),
-    nifCif: form.nifCif.trim(),
+    nifCif: normalizeTaxIdentifier(form.nifCif),
     phoneNumber: form.phoneNumber.trim(),
     residence: emptyToNull(form.residence),
     town: form.town.trim(),
@@ -95,8 +96,13 @@ function buildValidationMessage(form, step) {
       if (!form.name.trim() || !form.firstSurname.trim() || !form.nifCif.trim()) {
         return 'Completa nombre, primer apellido y NIF.';
       }
+      if (!isValidTaxIdentifier('Individual', form.nifCif)) {
+        return 'El DNI/NIF indicado no es válido.';
+      }
     } else if (!form.companyName.trim() || !form.legalRepresentative.trim() || !form.nifCif.trim()) {
       return 'Completa razón social, representante legal y CIF.';
+    } else if (!isValidTaxIdentifier('Company', form.nifCif)) {
+      return 'El NIF indicado no es válido.';
     }
   }
 
@@ -132,7 +138,6 @@ function FarmerWizardModal({
   onStepChange,
   onSubmit
 }) {
-  const validationMessage = buildValidationMessage(form, step);
   const isCreate = mode === 'create';
   const displayName = form.personType === 'Company'
     ? form.companyName || 'Ganader@ sin nombre'
@@ -353,19 +358,8 @@ function FarmerWizardModal({
           )}
       </ModalBody>
 
-      <ModalFooter>
-          <div className="validation-hint">
-            {validationMessage ? (
-              <span>
-                <AlertCircle size={15} />
-                {validationMessage}
-              </span>
-            ) : (
-              <span className="farmer-wizard-progress-copy">
-                Paso {step} de {wizardSteps.length}
-              </span>
-            )}
-          </div>
+      <ModalFooter className="farmer-wizard-footer">
+          <div className="farmer-wizard-footer-spacer" aria-hidden="true" />
           <div className="farm-step-dots" aria-hidden="true">
             {wizardSteps.map((item, index) => {
               const currentStep = index + 1;
@@ -383,7 +377,7 @@ function FarmerWizardModal({
               {step > 1 ? 'Atrás' : 'Cancelar'}
             </button>
             {step < 3 ? (
-              <button className="primary-button" type="button" onClick={() => onStepChange(step + 1)} disabled={Boolean(validationMessage)}>
+              <button className="primary-button" type="button" onClick={() => onStepChange(step + 1)}>
                 Siguiente
                 <ChevronRight size={15} />
               </button>
@@ -571,7 +565,7 @@ export function FarmersPage() {
       {error && <div className="error-banner">{error}</div>}
       {success && <div className="success-banner">{success}</div>}
 
-      <section className="panel-card stack">
+      <section className="panel-card stack listing-panel">
         <div className="panel-header-inline">
           <div>
             <h2>Listado</h2>
@@ -579,27 +573,40 @@ export function FarmersPage() {
           </div>
         </div>
 
-        <div className="toolbar-row">
-          <label className="toolbar-field toolbar-search">
-            <span>Buscar</span>
-            <input placeholder="Nombre, NIF/CIF o localidad" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <div className="toolbar-row toolbar-row-farms farm-toolbar-row">
+          <label className="toolbar-search farm-toolbar-search">
+            Buscar
+            <div className="search-input-wrapper">
+              <Search size={16} />
+              <input
+                placeholder="Nombre, NIF/CIF o localidad"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
           </label>
           <label className="toolbar-field">
-            <span>Provincia</span>
-            <select value={province} onChange={(event) => setProvince(event.target.value)}>
-              <option value="">Todas las provincias</option>
-              {provinceOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
+            Provincia
+            <div className="select-wrapper">
+              <select value={province} onChange={(event) => setProvince(event.target.value)}>
+                <option value="">Todas las provincias</option>
+                {provinceOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+              <ChevronDown size={16} />
+            </div>
           </label>
           <label className="toolbar-field">
-            <span>Estado</span>
-            <select value={status} onChange={(event) => setStatus(event.target.value)}>
-              {statusOptions.map((option) => (
-                <option key={option.value || 'all'} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            Estado
+            <div className="select-wrapper">
+              <select value={status} onChange={(event) => setStatus(event.target.value)}>
+                {statusOptions.map((option) => (
+                  <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <ChevronDown size={16} />
+            </div>
           </label>
           <button
             className="secondary-button"

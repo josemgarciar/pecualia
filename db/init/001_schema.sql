@@ -166,10 +166,12 @@ CREATE TABLE movement_certificate (
     serie VARCHAR(80),
     solicitation_date TIMESTAMPTZ,
     specie VARCHAR(40) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'Pending',
     transport_name VARCHAR(180),
     vehicle_registration_number VARCHAR(40),
     CONSTRAINT movement_number_of_animals_positive_chk CHECK (number_of_animals > 0),
-    CONSTRAINT movement_dates_chk CHECK (arrival_date IS NULL OR arrival_date >= departure_date)
+    CONSTRAINT movement_dates_chk CHECK (arrival_date IS NULL OR arrival_date >= departure_date),
+    CONSTRAINT movement_status_chk CHECK (status IN ('Pending', 'Confirmed'))
 );
 
 CREATE TABLE movement_certificate_animals (

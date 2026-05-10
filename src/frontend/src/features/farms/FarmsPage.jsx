@@ -14,6 +14,7 @@ import {
 import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader, ModalStepper } from '../../shared/components/modal/Modal';
+import { isValidRegaCode, normalizeRegaCode } from '../../shared/validation/identifiers';
 
 const initialForm = {
   farmerId: '',
@@ -99,7 +100,7 @@ function buildFarmErrors(form, step, isManager) {
     }
     if (!form.regaCode.trim()) {
       errors.regaCode = 'Campo obligatorio';
-    } else if (!/^ES\d{12}$/i.test(form.regaCode.trim())) {
+    } else if (!isValidRegaCode(form.regaCode)) {
       errors.regaCode = 'Formato REGA inválido (ej: ES061230000145)';
     }
     if (!form.livestockSpecies) {
@@ -583,7 +584,7 @@ export function FarmsPage() {
         body: {
           farmerId: Number(modalForm.farmerId || user.id),
           name: modalForm.name.trim(),
-          regaCode: modalForm.regaCode.trim(),
+          regaCode: normalizeRegaCode(modalForm.regaCode),
           livestockSpecies: modalForm.livestockSpecies,
           regime: modalForm.regime,
           town: emptyToNull(modalForm.town),
@@ -658,7 +659,14 @@ export function FarmsPage() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <section className="panel-card stack farm-panel-card">
+      <section className="panel-card stack listing-panel">
+        <div className="panel-header-inline">
+          <div>
+            <h2>Listado</h2>
+            <p>{`${filteredFarms.length} explotaciones visibles`}</p>
+          </div>
+        </div>
+
         <div className="toolbar-row toolbar-row-farms farm-toolbar-row">
           <label className="toolbar-search farm-toolbar-search">
             Buscar
@@ -710,92 +718,91 @@ export function FarmsPage() {
           </button>
         </div>
 
-        <div className="farm-list-meta">
-          <span>{filteredFarms.length} de {farms.length} explotaciones</span>
-        </div>
+        <div className="table-card farm-list-shell">
 
-        <div className="farm-card-list">
-          {filteredFarms.map((farm) => {
-            const speciesTone = speciesToneMap[farm.livestockSpecies] ?? { bg: '#F3F4F6', color: '#6B7280', label: farm.livestockSpecies };
-            const statusTone = statusToneMap[farm.status] ?? statusToneMap.Inactive;
-            const isPorcine = farm.livestockSpecies === 'Porcine';
-            const occupancy = isPorcine && farm.authorisedCapacity ? Math.round((farm.animalCount / farm.authorisedCapacity) * 100) : null;
-            const occupancyTone = occupancy !== null && occupancy > 90 ? '#DC2626' : '#2F6B4F';
+          <div className="farm-card-list">
+            {filteredFarms.map((farm) => {
+              const speciesTone = speciesToneMap[farm.livestockSpecies] ?? { bg: '#F3F4F6', color: '#6B7280', label: farm.livestockSpecies };
+              const statusTone = statusToneMap[farm.status] ?? statusToneMap.Inactive;
+              const isPorcine = farm.livestockSpecies === 'Porcine';
+              const occupancy = isPorcine && farm.authorisedCapacity ? Math.round((farm.animalCount / farm.authorisedCapacity) * 100) : null;
+              const occupancyTone = occupancy !== null && occupancy > 90 ? '#DC2626' : '#2F6B4F';
 
-            return (
-              <article
-                className="farm-card farm-card-static farm-card-interactive"
-                key={farm.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => navigate(`/app/farms/${farm.id}`)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    navigate(`/app/farms/${farm.id}`);
-                  }
-                }}
-              >
-                <div className="farm-card-icon">
-                  <Building2 size={20} />
-                </div>
-                <div className="farm-card-copy">
-                  <div className="farm-card-header">
-                    <div>
-                      <h3>{farm.name}</h3>
-                      <p>REGA: {farm.regaCode}</p>
-                    </div>
-                    <div className="farm-card-badges">
-                      <span className="farm-badge" style={{ background: speciesTone.bg, color: speciesTone.color }}>
-                        {speciesTone.label}
-                      </span>
-                      <span className="farm-badge" style={{ background: statusTone.bg, color: statusTone.color }}>
-                        {statusTone.label}
-                      </span>
-                    </div>
+              return (
+                <article
+                  className="farm-card farm-card-static farm-card-interactive"
+                  key={farm.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(`/app/farms/${farm.id}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      navigate(`/app/farms/${farm.id}`);
+                    }
+                  }}
+                >
+                  <div className="farm-card-icon">
+                    <Building2 size={20} />
                   </div>
-
-                  <div className="farm-card-meta">
-                    <span>
-                      <MapPin size={12} />
-                      {farm.town || 'Sin localidad'}, {farm.province || 'Sin provincia'}
-                    </span>
-                    <span>Régimen: {formatRegime(farm.regime) || 'No indicado'}</span>
-                    {isPorcine && farm.authorisedCapacity && <span>Cap.: {farm.authorisedCapacity}</span>}
-                    <span className="farm-card-highlight">{farm.animalCount} animales</span>
-                    <span>{farm.farmerName}</span>
-                  </div>
-
-                  {occupancy !== null && (
-                    <div className="occupancy-block">
-                      <div className="occupancy-copy">
-                        <span>Ocupación</span>
-                        <strong style={{ color: occupancyTone }}>{occupancy}%</strong>
+                  <div className="farm-card-copy">
+                    <div className="farm-card-header">
+                      <div>
+                        <h3>{farm.name}</h3>
+                        <p>REGA: {farm.regaCode}</p>
                       </div>
-                      <div className="occupancy-bar">
-                        <div
-                          className="occupancy-bar-fill"
-                          style={{ width: `${Math.min(occupancy, 100)}%`, background: occupancyTone }}
-                        />
+                      <div className="farm-card-badges">
+                        <span className="farm-badge" style={{ background: speciesTone.bg, color: speciesTone.color }}>
+                          {speciesTone.label}
+                        </span>
+                        <span className="farm-badge" style={{ background: statusTone.bg, color: statusTone.color }}>
+                          {statusTone.label}
+                        </span>
                       </div>
                     </div>
-                  )}
 
-                  <div className="farm-card-link">
-                    <span>Ver detalle</span>
-                    <ChevronRight size={14} />
+                    <div className="farm-card-meta">
+                      <span>
+                        <MapPin size={12} />
+                        {farm.town || 'Sin localidad'}, {farm.province || 'Sin provincia'}
+                      </span>
+                      <span>Régimen: {formatRegime(farm.regime) || 'No indicado'}</span>
+                      {isPorcine && farm.authorisedCapacity && <span>Cap.: {farm.authorisedCapacity}</span>}
+                      <span className="farm-card-highlight">{farm.animalCount} animales</span>
+                      <span>{farm.farmerName}</span>
+                    </div>
+
+                    {occupancy !== null && (
+                      <div className="occupancy-block">
+                        <div className="occupancy-copy">
+                          <span>Ocupación</span>
+                          <strong style={{ color: occupancyTone }}>{occupancy}%</strong>
+                        </div>
+                        <div className="occupancy-bar">
+                          <div
+                            className="occupancy-bar-fill"
+                            style={{ width: `${Math.min(occupancy, 100)}%`, background: occupancyTone }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="farm-card-link">
+                      <span>Ver detalle</span>
+                      <ChevronRight size={14} />
+                    </div>
                   </div>
-                </div>
-              </article>
-            );
-          })}
+                </article>
+              );
+            })}
 
-          {filteredFarms.length === 0 && (
-            <div className="empty-state farm-empty-state">
-              <Building2 size={36} />
-              <div>No se encontraron explotaciones con los filtros aplicados.</div>
-            </div>
-          )}
+            {filteredFarms.length === 0 && (
+              <div className="empty-state farm-empty-state">
+                <Building2 size={36} />
+                <div>No se encontraron explotaciones con los filtros aplicados.</div>
+              </div>
+            )}
+          </div>
         </div>
       </section>
     </div>

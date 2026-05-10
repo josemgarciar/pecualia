@@ -19,6 +19,8 @@ public interface IMovementService
 
     Task<MovementDetailResponse> GetMovementAsync(long userId, UserRole role, long movementId, CancellationToken cancellationToken);
 
+    Task<ConfirmMovementResponse> ConfirmMovementAsync(long userId, UserRole role, long movementId, CancellationToken cancellationToken);
+
     Task<MovementDetailResponse> CreateManualMovementAsync(
         long userId,
         UserRole role,
@@ -91,6 +93,29 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         }
 
         return MapMovementDetail(movement);
+    }
+
+    public async Task<ConfirmMovementResponse> ConfirmMovementAsync(long userId, UserRole role, long movementId, CancellationToken cancellationToken)
+    {
+        var movement = await BuildAccessibleMovementQuery(userId, role)
+            .SingleOrDefaultAsync(entity => entity.Id == movementId, cancellationToken);
+
+        if (movement is null)
+        {
+            throw new DomainException("Movimiento no encontrado.");
+        }
+
+        if (movement.Status == MovementStatus.Confirmed)
+        {
+            throw new DomainException("La guía ya está confirmada.");
+        }
+
+        movement.Status = MovementStatus.Confirmed;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new ConfirmMovementResponse(
+            movement.Id,
+            BuildMovementStatus(movement));
     }
 
     public async Task<MovementDetailResponse> CreateManualMovementAsync(
@@ -864,7 +889,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         var rawCounterpartyCode = NormalizeNullable(counterpartyExternalCode) ?? counterpartyName;
         var counterpartyCode = direction == MovementDirection.Exit && cause == MovementImportCause.Muerte
             ? NormalizeDeathDestinationCode(currentFarm.LivestockSpecies, rawCounterpartyCode)
-            : rawCounterpartyCode;
+            : NormalizeExternalCounterpartyRegaCode(rawCounterpartyCode);
 
         return new MovementContext(
             currentFarm,
@@ -953,7 +978,9 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             counterpartyType == MovementCounterpartyType.External &&
             ParseDischargeCause(cause) == AnimalDischargeCause.Muerte
                 ? NormalizeDeathDestinationCode(currentFarm.LivestockSpecies, rawCounterpartyCode)
-                : rawCounterpartyCode;
+                : counterpartyType == MovementCounterpartyType.Internal
+                    ? rawCounterpartyCode
+                    : NormalizeExternalCounterpartyRegaCode(rawCounterpartyCode);
 
         return new MovementContext(
             currentFarm,
@@ -1346,6 +1373,22 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         return normalizedDestinationCode;
     }
 
+    private static string NormalizeExternalCounterpartyRegaCode(string? counterpartyExternalCode)
+    {
+        var normalizedCounterpartyCode = NormalizeNullable(counterpartyExternalCode)?.ToUpperInvariant();
+        if (normalizedCounterpartyCode is null)
+        {
+            throw new DomainException("El código REGA de la contraparte externa es obligatorio.");
+        }
+
+        if (!DomainValidators.IsValidRegaCode(normalizedCounterpartyCode))
+        {
+            throw new DomainException("El código REGA de la contraparte externa no es válido. Debe seguir el formato ES seguido de 12 dígitos.");
+        }
+
+        return normalizedCounterpartyCode;
+    }
+
     private async Task<MovementDetailResponse> GetMovementAsyncForCommittedTransaction(long movementId, CancellationToken cancellationToken)
     {
         var movement = await dbContext.MovementCertificates
@@ -1384,6 +1427,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             MeansOfTransport = NormalizeNullable(meansOfTransport),
             NumberOfAnimals = numberOfAnimals,
             Specie = context.Species.ToString(),
+            Status = MovementStatus.Pending,
             CodRemo = context.CodRemo,
             Serie = NormalizeNullable(serie),
             SolicitationDate = solicitationDate,
@@ -1457,7 +1501,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
 
     private static string BuildMovementStatus(MovementCertificate movement)
     {
-        return movement.ArrivalDate is null ? "Pending" : "Confirmed";
+        return movement.Status.ToString();
     }
 
     private static void ValidateMovementTimeline(
@@ -1510,18 +1554,14 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
 
     private static bool IsIdentificationValid(LivestockSpecies species, string identification)
     {
-        return species == LivestockSpecies.Porcine
-            ? SpanishOfficialIdentificationRegex.IsMatch(identification) ||
-              PorcineAlternativeIdentificationRegex.IsMatch(identification)
-            : SpanishOfficialIdentificationRegex.IsMatch(identification) ||
-              OvineOrCaprineLegacyIdentificationRegex.IsMatch(identification);
+        return DomainValidators.IsValidAnimalIdentification(species, identification);
     }
 
     private static string BuildIdentificationFormatMessage(LivestockSpecies species)
     {
         return species == LivestockSpecies.Porcine
             ? "Formato inválido. Para porcino se espera ES seguido de 12 dígitos o GT seguido de números."
-            : "Formato inválido. Para ovino/caprino se espera ES seguido de 12 dígitos.";
+            : "Formato inválido. Para ovino/caprino se espera ES seguido de 12 dígitos o ES seguido de 12 dígitos con sufijo.";
     }
 
     private static string NormalizeIdentifierToken(string value)

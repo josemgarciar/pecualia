@@ -18,6 +18,9 @@ public static class MovementController
         movementGroup.MapGet("/{movementId:long}", async (ClaimsPrincipal user, long movementId, IMovementService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetMovementAsync(user.GetUserId(), user.GetRole(), movementId, cancellationToken)));
 
+        movementGroup.MapPost("/{movementId:long}/confirm", async (ClaimsPrincipal user, long movementId, IMovementService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.ConfirmMovementAsync(user.GetUserId(), user.GetRole(), movementId, cancellationToken)));
+
         movementGroup.MapPost("/manual", async (ClaimsPrincipal user, CreateManualMovementRequest request, IMovementService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.CreateManualMovementAsync(user.GetUserId(), user.GetRole(), request, cancellationToken)));
 

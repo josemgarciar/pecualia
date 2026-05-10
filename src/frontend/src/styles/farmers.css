@@ -28,13 +28,6 @@
   background: #f6f8f5;
 }
 
-.table-card {
-  background: #ffffff;
-  border: 1px solid #d7ded8;
-  border-radius: 14px;
-  overflow: hidden;
-}
-
 .farmer-table {
   display: grid;
 }
@@ -143,11 +136,11 @@
 }
 
 .farmer-detail-modal {
-  max-width: 960px;
+  width: min(980px, 100%);
 }
 
 .farmer-detail-body {
-  padding-top: 24px;
+  padding-top: 20px;
 }
 
 .farmer-detail-layout {

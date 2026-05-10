@@ -79,6 +79,32 @@
 }
 
 @media (max-width: 860px) {
+  .modal-backdrop {
+    padding: 12px;
+    place-items: end center;
+  }
+
+  .modal-card,
+  .modal-wide,
+  .farm-success-shell,
+  .farmer-wizard-shell,
+  .farmer-detail-modal,
+  .movement-detail-modal-shell,
+  .movement-modal-shell,
+  .animal-modal {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+    border-radius: 20px;
+  }
+
+  .farm-modal-header,
+  .farm-stepper,
+  .farm-modal-body,
+  .farm-modal-footer {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
   .auth-panel,
   .auth-hero,
   .page-content {
@@ -132,7 +158,8 @@
   }
 
   .farm-stepper {
-    flex-direction: column;
+    width: 100%;
+    grid-template-columns: 1fr !important;
     gap: 14px;
   }
 
@@ -141,9 +168,7 @@
   }
 
   .farm-stepper-item {
-    flex: none;
     width: 100%;
-    max-width: none;
   }
 
   .farm-stepper-connector {
@@ -160,6 +185,36 @@
 
   .movement-stepper {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .farm-modal-footer > * {
+    width: 100%;
+  }
+
+  .farmer-wizard-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .farmer-wizard-footer-spacer {
+    display: none;
+  }
+
+  .farmer-wizard-footer .farm-step-dots {
+    justify-content: center;
+  }
+
+  .farmer-wizard-footer .wizard-actions {
+    justify-self: stretch;
+  }
+
+  .animal-modal-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .animal-modal-actions .secondary-button,
+  .animal-modal-actions .primary-button {
+    flex: 1 1 0;
   }
 
   .profile-hero-copy h2 {

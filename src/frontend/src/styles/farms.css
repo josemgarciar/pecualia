@@ -7,11 +7,23 @@
   gap: 14px;
 }
 
+.farm-list-shell {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbf8 100%);
+}
+
 .farm-list-meta {
   display: flex;
   justify-content: flex-end;
+  padding: 18px 22px 0;
   color: #637168;
   font-size: 0.82rem;
+}
+
+.farm-list-shell .farm-card-list {
+  padding: 18px;
 }
 
 .farm-card {
@@ -253,7 +265,7 @@
 }
 
 .farm-settings-body.farm-modal-body {
-  padding-top: 24px;
+  padding-top: 20px;
 }
 
 .farm-settings-grid {
@@ -778,11 +790,11 @@
 }
 
 .operation-modal-body {
-  padding-top: 36px;
+  padding-top: 20px;
 }
 
 .operation-modal-body > :first-child {
-  margin-top: 12px;
+  margin-top: 0;
 }
 
 .subtab-row {

@@ -337,6 +337,13 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
         {
             throw new DomainException("NIF/CIF, teléfono, localidad y provincia son obligatorios.");
         }
+
+        if (!DomainValidators.IsValidTaxIdentifier(personType, nifCif))
+        {
+            throw new DomainException(personType == PersonType.Company
+                ? "El NIF de la persona jurídica no es válido."
+                : "El DNI/NIF de la persona física no es válido.");
+        }
     }
 
     private static string? NormalizeOptionalEmail(string? value)

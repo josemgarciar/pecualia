@@ -283,6 +283,7 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         movementCertificate.Property(entity => entity.OriginLivestockId).HasColumnName("origin_livestock_id");
         movementCertificate.Property(entity => entity.DestinationLivestockId).HasColumnName("destination_livestock_id");
         movementCertificate.Property(entity => entity.ArrivalDate).HasColumnName("arrival_date");
+        movementCertificate.Property(entity => entity.Status).HasColumnName("status").HasMaxLength(32).HasConversion<string>();
         movementCertificate.Property(entity => entity.OriginExternalCode).HasColumnName("origin_external_code").HasMaxLength(32);
         movementCertificate.Property(entity => entity.OriginExternalName).HasColumnName("origin_external_name").HasMaxLength(180);
         movementCertificate.Property(entity => entity.DestinationExternalCode).HasColumnName("destination_external_code").HasMaxLength(32);

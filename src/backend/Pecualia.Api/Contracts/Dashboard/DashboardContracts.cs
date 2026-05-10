@@ -21,6 +21,7 @@ public sealed record MonthlyActivityPointResponse(
     int Movements);
 
 public sealed record DashboardTaskResponse(
+    string Kind,
     string Title,
     string Detail,
     string Tone,

@@ -93,6 +93,13 @@ public sealed class AuthService(
     {
         await EnsureUniqueIdentityAsync(request.Email, request.Username, cancellationToken);
 
+        if (!DomainValidators.IsValidTaxIdentifier(request.PersonType, request.NifCif))
+        {
+            throw new DomainException(request.PersonType == PersonType.Company
+                ? "El NIF de la persona jurídica no es válido."
+                : "El DNI/NIF de la persona física no es válido.");
+        }
+
         var manager = await ResolveManagerAsync(request.ManagerInvitationCode, request.ManagerEmail, cancellationToken);
         if (manager is not null)
         {
@@ -117,7 +124,7 @@ public sealed class AuthService(
         {
             User = user,
             ManagerId = manager?.UserId,
-            NifCif = request.NifCif.Trim().ToUpperInvariant(),
+            NifCif = DomainValidators.NormalizeTaxIdentifier(request.NifCif),
             PhoneNumber = CleanOptional(request.PhoneNumber),
             Residence = CleanOptional(request.Residence),
             Town = CleanOptional(request.Town),

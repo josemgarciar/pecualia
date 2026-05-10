@@ -14,6 +14,7 @@ import {
   Building2,
   ChevronRight,
   ClipboardCheck,
+  FileCheck2,
   Syringe,
   TrendingUp,
   Users
@@ -221,13 +222,17 @@ export function DashboardPage() {
               </div>
               <div className="pending-item-copy">
                 <strong>Sin actuaciones pendientes</strong>
-                <span>No hay vacunas o inspecciones próximas en la base de datos.</span>
+                <span>No hay vacunas, inspecciones o guías pendientes dentro del margen operativo.</span>
               </div>
             </div>
           )}
 
           {pendingTasks.map((task) => {
-            const Icon = task.tone === 'info' ? ClipboardCheck : Syringe;
+            const Icon = task.kind === 'MovementConfirmation'
+              ? FileCheck2
+              : task.kind === 'Inspection'
+                ? ClipboardCheck
+                : Syringe;
             const tone = toneMap[task.tone];
 
             return (

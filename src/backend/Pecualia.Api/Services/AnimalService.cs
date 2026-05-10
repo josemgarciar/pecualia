@@ -142,10 +142,15 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
             throw new DomainException("Explotación no encontrada.");
         }
 
-        var identification = request.Identification.Trim().ToUpperInvariant();
+        var identification = DomainValidators.NormalizeAnimalIdentification(request.Identification);
         if (string.IsNullOrWhiteSpace(identification))
         {
             throw new DomainException("La identificación del animal es obligatoria.");
+        }
+
+        if (!DomainValidators.IsValidAnimalIdentification(farm.LivestockSpecies, identification))
+        {
+            throw new DomainException(BuildAnimalIdentificationFormatMessage(farm.LivestockSpecies));
         }
 
         if (await dbContext.Animals.AnyAsync(entity => entity.Identification == identification, cancellationToken))
@@ -222,7 +227,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
             throw new DomainException("La fecha de alta es obligatoria.");
         }
 
-        var identifications = BuildConsecutiveIdentifications(request.StartIdentification, request.NumberOfAnimals);
+        var identifications = BuildConsecutiveIdentifications(farm.LivestockSpecies, request.StartIdentification, request.NumberOfAnimals);
         var existingIdentifications = await dbContext.Animals
             .Where(entity => identifications.Contains(entity.Identification))
             .Select(entity => entity.Identification)
@@ -293,10 +298,15 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
             throw new DomainException("Animal no encontrado.");
         }
 
-        var identification = request.Identification.Trim().ToUpperInvariant();
+        var identification = DomainValidators.NormalizeAnimalIdentification(request.Identification);
         if (string.IsNullOrWhiteSpace(identification))
         {
             throw new DomainException("La identificación del animal es obligatoria.");
+        }
+
+        if (!DomainValidators.IsValidAnimalIdentification(animal.LivestockFarm.LivestockSpecies, identification))
+        {
+            throw new DomainException(BuildAnimalIdentificationFormatMessage(animal.LivestockFarm.LivestockSpecies));
         }
 
         if (await dbContext.Animals.AnyAsync(entity => entity.Id != animalId && entity.Identification == identification, cancellationToken))
@@ -387,7 +397,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         animal.DischargeCause = request.DischargeCause;
         animal.DestinationCode = request.DischargeCause == AnimalDischargeCause.Muerte
             ? NormalizeDeathDestinationCode(animal.LivestockFarm.LivestockSpecies, request.DestinationCode)
-            : Normalize(request.DestinationCode);
+            : NormalizeRegaDestinationCode(request.DestinationCode);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -630,12 +640,17 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         return ApplyCommonFields(new Animal(), farm, identification, request);
     }
 
-    private static List<string> BuildConsecutiveIdentifications(string startIdentification, int numberOfAnimals)
+    private static List<string> BuildConsecutiveIdentifications(LivestockSpecies species, string startIdentification, int numberOfAnimals)
     {
-        var normalizedIdentification = startIdentification.Trim().ToUpperInvariant();
+        var normalizedIdentification = DomainValidators.NormalizeAnimalIdentification(startIdentification);
         if (string.IsNullOrWhiteSpace(normalizedIdentification))
         {
             throw new DomainException("La identificación inicial es obligatoria.");
+        }
+
+        if (!DomainValidators.IsValidAnimalIdentification(species, normalizedIdentification))
+        {
+            throw new DomainException(BuildAnimalIdentificationFormatMessage(species));
         }
 
         var numericStartIndex = normalizedIdentification.Length;
@@ -668,7 +683,13 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
                 throw new DomainException("El rango solicitado desborda la longitud numérica de la identificación inicial.");
             }
 
-            identifications.Add($"{prefix}{paddedNumber}");
+            var generatedIdentification = $"{prefix}{paddedNumber}";
+            if (!DomainValidators.IsValidAnimalIdentification(species, generatedIdentification))
+            {
+                throw new DomainException(BuildAnimalIdentificationFormatMessage(species));
+            }
+
+            identifications.Add(generatedIdentification);
         }
 
         return identifications;
@@ -736,7 +757,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         animal.Sex = Normalize(request.Sex);
         animal.RegistrationDate = request.RegistrationDate;
         animal.RegistrationCause = request.RegistrationCause;
-        animal.OriginCode = Normalize(request.OriginCode);
+        animal.OriginCode = NormalizeRegaOriginCode(request.OriginCode);
         animal.HealthDocumentNumber = Normalize(request.HealthDocumentNumber);
         return animal;
     }
@@ -751,7 +772,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         animal.Sex = Normalize(request.Sex);
         animal.RegistrationDate = request.RegistrationDate;
         animal.RegistrationCause = request.RegistrationCause;
-        animal.OriginCode = Normalize(request.OriginCode);
+        animal.OriginCode = NormalizeRegaOriginCode(request.OriginCode);
         animal.HealthDocumentNumber = Normalize(request.HealthDocumentNumber);
         return animal;
     }
@@ -785,6 +806,45 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         }
 
         return normalizedDestinationCode;
+    }
+
+    private static string? NormalizeRegaOriginCode(string? originCode)
+    {
+        var normalizedOriginCode = Normalize(originCode)?.ToUpperInvariant();
+        if (normalizedOriginCode is null)
+        {
+            return null;
+        }
+
+        if (!DomainValidators.IsValidRegaCode(normalizedOriginCode))
+        {
+            throw new DomainException("El código REGA de origen no es válido. Debe seguir el formato ES seguido de 12 dígitos.");
+        }
+
+        return normalizedOriginCode;
+    }
+
+    private static string? NormalizeRegaDestinationCode(string? destinationCode)
+    {
+        var normalizedDestinationCode = Normalize(destinationCode)?.ToUpperInvariant();
+        if (normalizedDestinationCode is null)
+        {
+            return null;
+        }
+
+        if (!DomainValidators.IsValidRegaCode(normalizedDestinationCode))
+        {
+            throw new DomainException("El código REGA de destino no es válido. Debe seguir el formato ES seguido de 12 dígitos.");
+        }
+
+        return normalizedDestinationCode;
+    }
+
+    private static string BuildAnimalIdentificationFormatMessage(LivestockSpecies species)
+    {
+        return species == LivestockSpecies.Porcine
+            ? "La identificación del animal no es válida. Para porcino se admite ES seguido de 12 dígitos o GT seguido de números."
+            : "La identificación del animal no es válida. Para ovino/caprino se admite ES seguido de 12 dígitos o ES seguido de 12 dígitos y un sufijo.";
     }
 
     private static string? EmptyToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;

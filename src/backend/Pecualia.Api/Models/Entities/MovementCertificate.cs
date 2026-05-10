@@ -12,6 +12,8 @@ public sealed class MovementCertificate
 
     public DateTime DepartureDate { get; set; }
 
+    public Models.Enums.MovementStatus Status { get; set; }
+
     public string? MeansOfTransport { get; set; }
 
     public int NumberOfAnimals { get; set; }

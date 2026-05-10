@@ -3,6 +3,13 @@ import { AlertCircle, ChevronDown, Plus, Search, Tag, Upload } from 'lucide-reac
 import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
+import {
+  getAnimalIdentificationFormatMessage,
+  isValidAnimalIdentification,
+  isValidRegaCode,
+  normalizeAnimalIdentification,
+  normalizeRegaCode
+} from '../../shared/validation/identifiers';
 
 const speciesToneMap = {
   Ovine: { bg: '#DDEBDF', color: '#2F6B4F', label: 'Ovino' },
@@ -92,6 +99,16 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
       return;
     }
 
+    if (!selectedFarm || !isValidAnimalIdentification(selectedFarm.livestockSpecies, form.identification)) {
+      setFormError(selectedFarm ? getAnimalIdentificationFormatMessage(selectedFarm.livestockSpecies) : 'Selecciona una explotación válida.');
+      return;
+    }
+
+    if (form.originCode.trim() && !isValidRegaCode(form.originCode)) {
+      setFormError('El código REGA de origen no es válido.');
+      return;
+    }
+
     if (isPorcine && !form.animalType.trim()) {
       setFormError('El tipo de animal porcino es obligatorio.');
       return;
@@ -99,13 +116,13 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
 
     const payload = {
       farmId: Number(form.farmId),
-      identification: form.identification,
+      identification: normalizeAnimalIdentification(form.identification),
       birthYear: form.birthYear ? Number(form.birthYear) : null,
       breed: emptyToNull(form.breed),
       sex: emptyToNull(form.sex),
       registrationDate: form.registrationDate || null,
       registrationCause: form.registrationCause || null,
-      originCode: emptyToNull(form.originCode),
+      originCode: form.originCode.trim() ? normalizeRegaCode(form.originCode) : null,
       healthDocumentNumber: emptyToNull(form.healthDocumentNumber),
       ovinoCaprino: isOvineCaprine
         ? {
@@ -161,7 +178,12 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
             </label>
             <label>
               Identificación / crotal
-              <input value={form.identification} onChange={(event) => updateField('identification', event.target.value)} placeholder="ES0600005831" required />
+              <input
+                value={form.identification}
+                onChange={(event) => updateField('identification', event.target.value)}
+                placeholder={selectedFarm?.livestockSpecies === 'Porcine' ? 'GT1800001004' : 'ES0600005831'}
+                required
+              />
             </label>
             <label>
               Raza

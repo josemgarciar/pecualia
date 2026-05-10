@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AuthLayout } from './AuthLayout';
 import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
+import { isValidTaxIdentifier, normalizeTaxIdentifier } from '../../shared/validation/identifiers';
 
 const initialForm = {
   name: '',
@@ -29,14 +30,21 @@ export function RegisterFarmerPage() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setSubmitting(true);
     setError('');
+
+    if (!isValidTaxIdentifier(form.personType, form.nifCif)) {
+      setError(form.personType === 'Company' ? 'El NIF indicado no es válido.' : 'El DNI/NIF indicado no es válido.');
+      return;
+    }
+
+    setSubmitting(true);
 
     try {
       const response = await apiRequest('/api/auth/register/farmer', {
         method: 'POST',
         body: {
           ...form,
+          nifCif: normalizeTaxIdentifier(form.nifCif),
           birthDate: form.birthDate || null,
           managerInvitationCode: form.managerInvitationCode || null,
           managerEmail: form.managerEmail || null

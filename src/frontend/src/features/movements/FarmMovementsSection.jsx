@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader, ModalStepper } from '../../shared/components/modal/Modal';
+import { isValidRegaCode, normalizeRegaCode } from '../../shared/validation/identifiers';
 
 const movementImportSteps = [
   { label: 'Configuración' },
@@ -168,7 +169,7 @@ function SharedAnimalDataFields({ species, form, onChange, breedOptions, loading
   );
 }
 
-function MovementDetailModal({ farm, movement, loading, onClose, onViewAnimals }) {
+function MovementDetailModal({ farm, movement, loading, confirming, onClose, onViewAnimals, onConfirm }) {
   const tone = movement ? (movementStatusToneMap[movement.status] ?? movementStatusToneMap.Pending) : movementStatusToneMap.Pending;
   const direction = movement
     ? (movement.originFarmId === farm.id ? 'Salida' : 'Entrada')
@@ -273,6 +274,11 @@ function MovementDetailModal({ farm, movement, loading, onClose, onViewAnimals }
       </ModalBody>
 
       <ModalFooter align="end">
+          {movement?.status === 'Pending' && (
+            <button className="secondary-button" type="button" onClick={onConfirm} disabled={loading || confirming}>
+              {confirming ? 'Confirmando...' : 'Confirmar guía'}
+            </button>
+          )}
           <button className="primary-button" type="button" onClick={onClose}>Cerrar</button>
       </ModalFooter>
     </ModalDialog>
@@ -354,6 +360,18 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
     config.counterpartyExternalName.trim()
   );
 
+  function validateStep1() {
+    if (!canContinueStep1) {
+      return 'Completa la serie, el código REGA y el nombre de la explotación antes de continuar.';
+    }
+
+    if (!isValidRegaCode(config.counterpartyExternalCode)) {
+      return 'El código REGA de la contraparte externa no es válido.';
+    }
+
+    return '';
+  }
+
   function updateConfig(field, value) {
     setConfig((current) => ({ ...current, [field]: value }));
     setRequestError('');
@@ -361,6 +379,16 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
 
   function updateSharedField(field, value) {
     setSharedAnimalData((current) => ({ ...current, [field]: value }));
+  }
+
+  function handleContinueFromStep1() {
+    const validationMessage = validateStep1();
+    if (validationMessage) {
+      setRequestError(validationMessage);
+      return;
+    }
+
+    setStep(2);
   }
 
   useEffect(() => {
@@ -406,8 +434,9 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
   }
 
   async function handlePreview() {
-    if (!canContinueStep1) {
-      setRequestError('Completa la serie, el código REGA y el nombre de la explotación antes de continuar.');
+    const validationMessage = validateStep1();
+    if (validationMessage) {
+      setRequestError(validationMessage);
       return;
     }
 
@@ -421,7 +450,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
         body: {
           farmId: farm.id,
           operation: derivedOperation,
-          counterpartyExternalCode: emptyToNull(config.counterpartyExternalCode),
+          counterpartyExternalCode: emptyToNull(normalizeRegaCode(config.counterpartyExternalCode)),
           counterpartyExternalName: emptyToNull(config.counterpartyExternalName),
           codRemo: emptyToNull(config.codRemo),
           serie: emptyToNull(config.serie),
@@ -448,6 +477,12 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
   }
 
   async function handleCommit() {
+    const validationMessage = validateStep1();
+    if (validationMessage) {
+      setRequestError(validationMessage);
+      return;
+    }
+
     setSubmitting(true);
     setRequestError('');
 
@@ -458,7 +493,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
         body: {
           farmId: farm.id,
           operation: derivedOperation,
-          counterpartyExternalCode: emptyToNull(config.counterpartyExternalCode),
+          counterpartyExternalCode: emptyToNull(normalizeRegaCode(config.counterpartyExternalCode)),
           counterpartyExternalName: emptyToNull(config.counterpartyExternalName),
           codRemo: emptyToNull(config.codRemo),
           serie: emptyToNull(config.serie),
@@ -722,7 +757,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
               {step === 1 ? 'Cancelar' : 'Volver'}
             </button>
             <div className="movement-footer-actions">
-              {step === 1 && <button className="primary-button" type="button" onClick={() => setStep(2)} disabled={!canContinueStep1}>Continuar</button>}
+              {step === 1 && <button className="primary-button" type="button" onClick={handleContinueFromStep1}>Continuar</button>}
               {step === 2 && <button className="primary-button" type="button" onClick={handlePreview} disabled={loadingPreview}>{loadingPreview ? 'Validando...' : 'Validar archivo'}</button>}
               {step === 3 && <button className="primary-button" type="button" onClick={() => setStep(4)}>Continuar</button>}
               {step === 4 && <button className="primary-button" type="button" onClick={handleCommit} disabled={submitting || processableRowsCount === 0 || !isSharedAnimalDataReady}>{submitting ? 'Registrando...' : 'Confirmar importación'}</button>}
@@ -745,6 +780,7 @@ export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) 
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [confirmingMovement, setConfirmingMovement] = useState(false);
   const [error, setError] = useState('');
   const [importOpen, setImportOpen] = useState(false);
 
@@ -771,6 +807,29 @@ export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) 
       setError(requestError.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function confirmSelectedMovement() {
+    if (!selectedMovementId) {
+      return;
+    }
+
+    setConfirmingMovement(true);
+    setError('');
+    try {
+      await apiRequest(`/api/movements/${selectedMovementId}/confirm`, {
+        method: 'POST',
+        token
+      });
+
+      await loadMovements(true);
+      const response = await apiRequest(`/api/movements/${selectedMovementId}`, { token });
+      setSelectedMovement(response);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setConfirmingMovement(false);
     }
   }
 
@@ -918,10 +977,12 @@ export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) 
           farm={farm}
           movement={selectedMovement}
           loading={detailLoading}
+          confirming={confirmingMovement}
           onViewAnimals={(movement) => {
             closeDetailModal();
             onViewAnimalsForMovement(movement);
           }}
+          onConfirm={confirmSelectedMovement}
           onClose={closeDetailModal}
         />
       )}

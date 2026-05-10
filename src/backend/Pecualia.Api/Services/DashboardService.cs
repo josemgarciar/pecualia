@@ -15,10 +15,12 @@ public interface IDashboardService
 public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) : IDashboardService
 {
     private const int ChartMonthCount = 7;
+    private const int MovementConfirmationGraceDays = 10;
     private static readonly CultureInfo SpanishCulture = CultureInfo.GetCultureInfo("es-ES");
 
     public async Task<DashboardSummaryResponse> GetSummaryAsync(long userId, UserRole role, CancellationToken cancellationToken)
     {
+        var now = clock.UtcNow.UtcDateTime;
         var today = DateOnly.FromDateTime(clock.UtcNow.UtcDateTime);
         var monthStart = new DateOnly(today.Year, today.Month, 1);
         var chartStartMonth = monthStart.AddMonths(-(ChartMonthCount - 1));
@@ -60,6 +62,17 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
             .Where(entity => accessibleFarmIds.Contains(entity.LivestockFarmId))
             .ToListAsync(cancellationToken);
 
+        var pendingMovementConfirmations = await dbContext.MovementCertificates
+            .AsNoTracking()
+            .Where(entity =>
+                entity.DestinationLivestockId != null &&
+                accessibleFarmIds.Contains(entity.DestinationLivestockId.Value) &&
+                entity.Status == MovementStatus.Pending &&
+                entity.ArrivalDate != null &&
+                entity.ArrivalDate.Value <= now &&
+                entity.ArrivalDate.Value.AddDays(MovementConfirmationGraceDays) >= now)
+            .ToListAsync(cancellationToken);
+
         foreach (var animal in animals.Where(entity => entity.RegistrationDate >= chartStartMonth && entity.RegistrationDate <= today))
         {
             Increment(chartPoints, animal.RegistrationDate!.Value, point => point.Registrations++);
@@ -85,7 +98,13 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
             entity => entity.Id,
             entity => farmNamesById.GetValueOrDefault(entity.LivestockFarmId, "Explotación"));
 
-        var pendingTasks = BuildPendingTasks(vaccinations, inspections, animalFarmNames, today);
+        var pendingTasks = BuildPendingTasks(
+            vaccinations,
+            inspections,
+            pendingMovementConfirmations,
+            animalFarmNames,
+            farmNamesById,
+            today);
         var previousMonth = monthStart.AddMonths(-1);
 
         return new DashboardSummaryResponse(
@@ -142,7 +161,9 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
     private static List<DashboardTaskResponse> BuildPendingTasks(
         IReadOnlyCollection<Vaccination> vaccinations,
         IReadOnlyCollection<Inspection> inspections,
+        IReadOnlyCollection<MovementCertificate> pendingMovementConfirmations,
         IReadOnlyDictionary<long, string> animalFarmNames,
+        IReadOnlyDictionary<long, string> farmNamesById,
         DateOnly today)
     {
         var tasks = new List<DashboardTaskResponse>();
@@ -153,6 +174,7 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
             .OrderBy(entity => entity.NextDose)
             .Take(3)
             .Select(entity => new DashboardTaskResponse(
+                "Vaccination",
                 $"Vacunación {entity.VaccinationType.ToLowerInvariant()} pendiente",
                 $"{animalFarmNames.GetValueOrDefault(entity.AnimalId, "Explotación")} · {FormatDueText(entity.NextDose!.Value, today)}",
                 entity.NextDose <= today ? "danger" : "warning",
@@ -163,10 +185,30 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
             .OrderBy(entity => entity.InspectionDate)
             .Take(3)
             .Select(entity => new DashboardTaskResponse(
+                "Inspection",
                 string.IsNullOrWhiteSpace(entity.Reason) ? "Inspección programada" : entity.Reason!,
                 $"{entity.LivestockFarm.Name} · {FormatDueText(entity.InspectionDate, today)}",
                 "info",
                 entity.InspectionDate)));
+
+        tasks.AddRange(pendingMovementConfirmations
+            .OrderBy(entity => entity.ArrivalDate)
+            .Take(5)
+            .Select(entity =>
+            {
+                var confirmationDeadline = DateOnly.FromDateTime(entity.ArrivalDate!.Value.AddDays(MovementConfirmationGraceDays));
+                var farmName = farmNamesById.GetValueOrDefault(entity.DestinationLivestockId!.Value, "Explotación");
+                var movementCode = string.IsNullOrWhiteSpace(entity.CodRemo)
+                    ? (string.IsNullOrWhiteSpace(entity.Serie) ? $"Guía #{entity.Id}" : $"Serie {entity.Serie}")
+                    : $"Guía {entity.CodRemo}";
+
+                return new DashboardTaskResponse(
+                    "MovementConfirmation",
+                    "Confirmar guía pendiente",
+                    $"{farmName} · {movementCode} · {FormatDueText(confirmationDeadline, today)}",
+                    confirmationDeadline <= today ? "danger" : "warning",
+                    confirmationDeadline);
+            }));
 
         return tasks
             .OrderBy(entity => entity.DueDate)

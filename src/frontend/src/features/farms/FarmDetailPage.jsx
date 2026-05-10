@@ -34,6 +34,13 @@ import {
 import { apiBlobRequest, apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
+import {
+  getAnimalIdentificationFormatMessage,
+  isValidAnimalIdentification,
+  isValidRegaCode,
+  normalizeAnimalIdentification,
+  normalizeRegaCode
+} from '../../shared/validation/identifiers';
 import { FarmMovementsSection } from '../movements/FarmMovementsSection';
 
 const speciesToneMap = {
@@ -222,6 +229,8 @@ function validateAutorrepositionForm(form, species) {
 
   if (!form.startIdentification.trim()) {
     errors.startIdentification = 'Campo obligatorio';
+  } else if (!isValidAnimalIdentification(species, form.startIdentification)) {
+    errors.startIdentification = getAnimalIdentificationFormatMessage(species);
   }
 
   if (!Number.isInteger(count) || count <= 0) {
@@ -307,6 +316,12 @@ function validateAnimalDetailForm(form, species) {
 
   if (!form.identification.trim()) {
     errors.identification = 'Campo obligatorio';
+  } else if (!isValidAnimalIdentification(species, form.identification)) {
+    errors.identification = getAnimalIdentificationFormatMessage(species);
+  }
+
+  if (form.originCode.trim() && !isValidRegaCode(form.originCode)) {
+    errors.originCode = 'Código REGA inválido';
   }
 
   if (species === 'Porcine' && !form.animalType.trim()) {
@@ -349,7 +364,7 @@ function validateFarmSettingsForm(form, species) {
   }
   if (!form.regaCode.trim()) {
     errors.regaCode = 'Campo obligatorio';
-  } else if (!/^ES\d{12}$/i.test(form.regaCode.trim())) {
+  } else if (!isValidRegaCode(form.regaCode)) {
     errors.regaCode = 'Formato REGA inválido (ej: ES061230000145)';
   }
   if (!form.regime) {
@@ -618,6 +633,7 @@ function AnimalDetailModal({
                 <label>
                   Procedencia
                   <input value={form.originCode} onChange={(event) => onChange('originCode', event.target.value)} />
+                  {errors.originCode && <span className="farm-inline-error">{errors.originCode}</span>}
                 </label>
                 <label className="form-full">
                   Documento sanitario / guía
@@ -1085,13 +1101,13 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
         method: 'PUT',
         token,
         body: {
-          identification: animalForm.identification.trim(),
+          identification: normalizeAnimalIdentification(animalForm.identification),
           birthYear: animalForm.birthYear === '' ? null : Number(animalForm.birthYear),
           breed: emptyToNull(animalForm.breed),
           sex: emptyToNull(animalForm.sex),
           registrationDate: animalForm.registrationDate || null,
           registrationCause: animalForm.registrationCause || null,
-          originCode: emptyToNull(animalForm.originCode),
+          originCode: animalForm.originCode.trim() ? normalizeRegaCode(animalForm.originCode) : null,
           healthDocumentNumber: normalizedHealthDocumentNumber,
           ovinoCaprino: selectedAnimal.ovinoCaprino
             ? {
@@ -1164,7 +1180,7 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
         method: 'POST',
         token,
         body: {
-          startIdentification: autorrepositionForm.startIdentification.trim(),
+          startIdentification: normalizeAnimalIdentification(autorrepositionForm.startIdentification),
           numberOfAnimals: Number(autorrepositionForm.numberOfAnimals),
           birthYear: autorrepositionForm.birthYear === '' ? null : Number(autorrepositionForm.birthYear),
           breed: emptyToNull(autorrepositionForm.breed),
@@ -1547,13 +1563,18 @@ function FarmDeathsSection({ farm, token }) {
       return;
     }
 
+    if (!isValidAnimalIdentification(farm.livestockSpecies, form.identification)) {
+      setError(getAnimalIdentificationFormatMessage(farm.livestockSpecies));
+      return;
+    }
+
     setSubmitting(true);
     try {
       await apiRequest(`/api/farms/${farm.id}/deaths`, {
         method: 'POST',
         token,
         body: {
-          identification: form.identification.trim(),
+          identification: normalizeAnimalIdentification(form.identification),
           dischargeDate: form.dischargeDate,
           destinationCode: form.destinationCode
         }
@@ -1649,7 +1670,7 @@ function FarmDeathsSection({ farm, token }) {
           <ModalBody className="operation-modal-body">
               <label>
                 <span>Crotal / identificación *</span>
-                <input value={form.identification} onChange={(event) => setForm({ ...form, identification: event.target.value })} placeholder="Ej: ES0600005831" />
+                <input value={form.identification} onChange={(event) => setForm({ ...form, identification: event.target.value })} placeholder={farm.livestockSpecies === 'Porcine' ? 'Ej: GT1800001004' : 'Ej: ES0600005831'} />
               </label>
               <label>
                 <span>Fecha de baja *</span>
@@ -1749,6 +1770,11 @@ function FarmVaccinationsSection({ farm, token }) {
       return;
     }
 
+    if (!isValidAnimalIdentification(farm.livestockSpecies, form.animalIdentification)) {
+      setError(getAnimalIdentificationFormatMessage(farm.livestockSpecies));
+      return;
+    }
+
     if (form.nextDose && form.nextDose < form.vaccinationDate) {
       setError('La próxima dosis no puede ser anterior a la fecha de vacunación.');
       return;
@@ -1757,7 +1783,7 @@ function FarmVaccinationsSection({ farm, token }) {
     setSubmitting(true);
     try {
       const body = {
-        animalIdentification: form.animalIdentification.trim(),
+        animalIdentification: normalizeAnimalIdentification(form.animalIdentification),
         vaccinationDate: form.vaccinationDate,
         nextDose: emptyToNull(form.nextDose),
         vaccinationType: form.vaccinationType.trim(),
@@ -1921,7 +1947,7 @@ function FarmVaccinationsSection({ farm, token }) {
                 <input
                   value={form.animalIdentification}
                   onChange={(event) => setForm({ ...form, animalIdentification: event.target.value })}
-                  placeholder={farm.livestockSpecies === 'Porcine' ? 'Ej: LOTE-2026-01' : 'Ej: ES0600005831'}
+                  placeholder={farm.livestockSpecies === 'Porcine' ? 'Ej: GT1800001004' : 'Ej: ES0600005831'}
                 />
               </label>
               <label>
@@ -2694,18 +2720,33 @@ function FarmIncidentsSection({ farm, token }) {
       return;
     }
 
+    if (form.animalIdentification.trim() && !isValidAnimalIdentification(farm.livestockSpecies, form.animalIdentification)) {
+      setError('La identificación del animal relacionada con la incidencia no es válida.');
+      return;
+    }
+
+    if (form.lastIdentification.trim() && !isValidAnimalIdentification(farm.livestockSpecies, form.lastIdentification)) {
+      setError('La identificación anterior no es válida.');
+      return;
+    }
+
+    if (form.newIdentification.trim() && !isValidAnimalIdentification(farm.livestockSpecies, form.newIdentification)) {
+      setError('La nueva identificación no es válida.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       await apiRequest(`/api/farms/${farm.id}/incidents`, {
         method: 'POST',
         token,
         body: {
-          animalIdentification: emptyToNull(form.animalIdentification),
+          animalIdentification: form.animalIdentification.trim() ? normalizeAnimalIdentification(form.animalIdentification) : null,
           incidentDate: form.incidentDate,
           changeReason: emptyToNull(form.changeReason),
           description: emptyToNull(form.description),
-          lastIdentification: emptyToNull(form.lastIdentification),
-          newIdentification: emptyToNull(form.newIdentification)
+          lastIdentification: form.lastIdentification.trim() ? normalizeAnimalIdentification(form.lastIdentification) : null,
+          newIdentification: form.newIdentification.trim() ? normalizeAnimalIdentification(form.newIdentification) : null
         }
       });
       setSuccess('Incidencia registrada correctamente.');
@@ -3096,7 +3137,7 @@ export function FarmDetailPage() {
         token,
         body: {
           name: settingsForm.name.trim(),
-          regaCode: settingsForm.regaCode.trim().toUpperCase(),
+          regaCode: normalizeRegaCode(settingsForm.regaCode),
           regime: settingsForm.regime,
           town: emptyToNull(settingsForm.town),
           province: emptyToNull(settingsForm.province),

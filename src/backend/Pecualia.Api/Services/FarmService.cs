@@ -38,7 +38,18 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
 
     public async Task<FarmListItemResponse> CreateFarmAsync(long userId, UserRole role, CreateFarmRequest request, CancellationToken cancellationToken)
     {
-        if (await dbContext.Farms.AnyAsync(entity => entity.RegaCode == request.RegaCode.Trim().ToUpperInvariant(), cancellationToken))
+        var normalizedRegaCode = DomainValidators.NormalizeRegaCode(request.RegaCode);
+        if (string.IsNullOrWhiteSpace(normalizedRegaCode))
+        {
+            throw new DomainException("El código REGA es obligatorio.");
+        }
+
+        if (!DomainValidators.IsValidRegaCode(normalizedRegaCode))
+        {
+            throw new DomainException("El código REGA no es válido. Debe seguir el formato ES seguido de 12 dígitos.");
+        }
+
+        if (await dbContext.Farms.AnyAsync(entity => entity.RegaCode == normalizedRegaCode, cancellationToken))
         {
             throw new DomainException("Ya existe una explotación con ese código REGA.");
         }
@@ -72,7 +83,7 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
         {
             FarmerId = request.FarmerId,
             Name = request.Name.Trim(),
-            RegaCode = request.RegaCode.Trim().ToUpperInvariant(),
+            RegaCode = normalizedRegaCode,
             LivestockSpecies = request.LivestockSpecies,
             Regime = request.Regime,
             Town = Normalize(request.Town),
@@ -115,10 +126,15 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             throw new DomainException("El nombre de la explotación es obligatorio.");
         }
 
-        var normalizedRegaCode = request.RegaCode.Trim().ToUpperInvariant();
+        var normalizedRegaCode = DomainValidators.NormalizeRegaCode(request.RegaCode);
         if (string.IsNullOrWhiteSpace(normalizedRegaCode))
         {
             throw new DomainException("El código REGA es obligatorio.");
+        }
+
+        if (!DomainValidators.IsValidRegaCode(normalizedRegaCode))
+        {
+            throw new DomainException("El código REGA no es válido. Debe seguir el formato ES seguido de 12 dígitos.");
         }
 
         if (await dbContext.Farms.AnyAsync(entity => entity.Id != farmId && entity.RegaCode == normalizedRegaCode, cancellationToken))

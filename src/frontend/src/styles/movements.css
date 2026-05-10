@@ -521,8 +521,7 @@
 }
 
 .animal-modal {
-  max-height: min(860px, 92vh);
-  overflow: auto;
+  width: min(920px, 100%);
 }
 
 .animal-specific-block {

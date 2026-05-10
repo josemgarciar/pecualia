@@ -41,7 +41,7 @@ export function ModalHeader({
     <div className="farm-modal-header">
       <div className="farm-modal-title">
         {icon && <div className="modal-panel-icon">{icon}</div>}
-        <div>
+        <div className="farm-modal-title-copy">
           <h2>{title}</h2>
           {subtitle && <p>{subtitle}</p>}
         </div>
