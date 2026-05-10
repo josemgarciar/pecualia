@@ -324,6 +324,10 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
   const [breedOptions, setBreedOptions] = useState([]);
+  const [unidentifiedAnimals, setUnidentifiedAnimals] = useState(false);
+  const [unidentifiedAnimalCount, setUnidentifiedAnimalCount] = useState('');
+
+  const isOvineOrCaprine = farm.livestockSpecies === 'Ovine' || farm.livestockSpecies === 'Caprine';
 
   const filteredPreviewRows = useMemo(() => {
     const rows = preview?.rows ?? [];
@@ -390,6 +394,16 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
     const validationMessage = validateStep1();
     if (validationMessage) {
       setRequestError(validationMessage);
+      return;
+    }
+
+    if (unidentifiedAnimals) {
+      const count = Number(unidentifiedAnimalCount);
+      if (!count || count < 1 || count > 10000) {
+        setRequestError('Indica un número de animales entre 1 y 10.000.');
+        return;
+      }
+      setStep(4);
       return;
     }
 
@@ -492,27 +506,30 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
     setRequestError('');
 
     try {
+      const body = {
+        farmId: farm.id,
+        operation: derivedOperation,
+        counterpartyExternalCode: emptyToNull(normalizeRegaCode(config.counterpartyExternalCode)),
+        counterpartyExternalName: emptyToNull(config.counterpartyExternalName),
+        codRemo: emptyToNull(config.codRemo),
+        serie: emptyToNull(config.serie),
+        departureDate: localDateTimeToIso(config.departureDate),
+        arrivalDate: localDateTimeToIso(config.arrivalDate),
+        solicitationDate: localDateTimeToIso(config.solicitationDate),
+        meansOfTransport: emptyToNull(config.meansOfTransport),
+        transportName: emptyToNull(config.transportName),
+        vehicleRegistrationNumber: emptyToNull(config.vehicleRegistrationNumber),
+        healthDocumentNumber: emptyToNull(config.healthDocumentNumber),
+        cause: derivedCause,
+        rawText: unidentifiedAnimals ? null : rawText,
+        sharedAnimalData: preview?.requiresSharedAnimalData ? buildSharedAnimalDataPayload(sharedAnimalData, farm.livestockSpecies) : null,
+        unidentifiedAnimalCount: unidentifiedAnimals ? Number(unidentifiedAnimalCount) : null
+      };
+
       const response = await apiRequest('/api/movements/imports/commit', {
         method: 'POST',
         token,
-        body: {
-          farmId: farm.id,
-          operation: derivedOperation,
-          counterpartyExternalCode: emptyToNull(normalizeRegaCode(config.counterpartyExternalCode)),
-          counterpartyExternalName: emptyToNull(config.counterpartyExternalName),
-          codRemo: emptyToNull(config.codRemo),
-          serie: emptyToNull(config.serie),
-          departureDate: localDateTimeToIso(config.departureDate),
-          arrivalDate: localDateTimeToIso(config.arrivalDate),
-          solicitationDate: localDateTimeToIso(config.solicitationDate),
-          meansOfTransport: emptyToNull(config.meansOfTransport),
-          transportName: emptyToNull(config.transportName),
-          vehicleRegistrationNumber: emptyToNull(config.vehicleRegistrationNumber),
-          healthDocumentNumber: emptyToNull(config.healthDocumentNumber),
-          cause: derivedCause,
-          rawText,
-          sharedAnimalData: preview?.requiresSharedAnimalData ? buildSharedAnimalDataPayload(sharedAnimalData, farm.livestockSpecies) : null
-        }
+        body
       });
 
       onCommitted(response);
@@ -545,6 +562,40 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
                     <strong>{farm.name}</strong>
                     <span>REGA {farm.regaCode} · {farm.livestockSpecies}</span>
                   </div>
+                                {isOvineOrCaprine && (
+                <div className="movement-unidentified-section">
+                  <label className="movement-unidentified-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={unidentifiedAnimals}
+                      onChange={(event) => {
+                        setUnidentifiedAnimals(event.target.checked);
+                        setRequestError('');
+                      }}
+                    />
+                    <div>
+                      <strong>Animales menores de 4 meses sin identificar</strong>
+                      <span>Los animales menores de cuatro meses no están obligados a estar identificados individualmente. Activa esta opción para registrar el movimiento solo con el número de cabezas.</span>
+                    </div>
+                  </label>
+                  {unidentifiedAnimals && (
+                    <label className="farm-form-field movement-unidentified-count">
+                      <span className="farm-field-label">Número de animales <span className="farm-field-label-required">*</span></span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10000"
+                        value={unidentifiedAnimalCount}
+                        onChange={(event) => {
+                          setUnidentifiedAnimalCount(event.target.value);
+                          setRequestError('');
+                        }}
+                        placeholder="Ej. 25"
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
                 </div>
 
                 <label className="farm-form-field movement-direction-field">
@@ -698,21 +749,27 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
             </div>
           )}
 
-          {step === 4 && preview && (
+          {step === 4 && (
             <div className="stack">
               <section className="movement-confirmation-card">
                 <div className="movement-section-copy">
                   <h3>Resumen de importación</h3>
-                  <p>
-                    Se procesarán {processableRowsCount} identificaciones como {directionLabel} masiva.
-                    {rejectedRowsCount > 0 && (
-                      <> {rejectedRowsCount} quedarán excluidas.</>
-                    )}
-                  </p>
+                  {unidentifiedAnimals ? (
+                    <p>
+                      Se registrará un movimiento de <strong>{unidentifiedAnimalCount}</strong> animales sin identificar como {directionLabel}.
+                    </p>
+                  ) : (
+                    <p>
+                      Se procesarán {processableRowsCount} identificaciones como {directionLabel} masiva.
+                      {rejectedRowsCount > 0 && (
+                        <> {rejectedRowsCount} quedarán excluidas.</>
+                      )}
+                    </p>
+                  )}
                 </div>
               </section>
 
-              {requiresSharedAnimalData && (
+              {!unidentifiedAnimals && requiresSharedAnimalData && (
                 <>
                   <section className="movement-confirmation-card">
                     <div className="movement-section-copy">
@@ -758,14 +815,31 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
 
         {step < 5 && (
           <ModalFooter>
-            <button className="secondary-button" type="button" onClick={() => (step === 1 ? onClose() : setStep((current) => current - 1))}>
+            <button className="secondary-button" type="button" onClick={() => {
+              if (step === 1) {
+                onClose();
+              } else if (step === 4 && unidentifiedAnimals) {
+                setStep(1);
+              } else {
+                setStep((current) => current - 1);
+              }
+            }}>
               {step === 1 ? 'Cancelar' : 'Volver'}
             </button>
             <div className="movement-footer-actions">
               {step === 1 && <button className="primary-button" type="button" onClick={handleContinueFromStep1}>Continuar</button>}
               {step === 2 && <button className="primary-button" type="button" onClick={handlePreview} disabled={loadingPreview}>{loadingPreview ? 'Validando...' : 'Validar archivo'}</button>}
               {step === 3 && <button className="primary-button" type="button" onClick={() => setStep(4)}>Continuar</button>}
-              {step === 4 && <button className="primary-button" type="button" onClick={handleCommit} disabled={submitting || processableRowsCount === 0 || !isSharedAnimalDataReady}>{submitting ? 'Registrando...' : 'Confirmar importación'}</button>}
+              {step === 4 && (
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={handleCommit}
+                  disabled={submitting || (!unidentifiedAnimals && (processableRowsCount === 0 || !isSharedAnimalDataReady))}
+                >
+                  {submitting ? 'Registrando...' : 'Confirmar importación'}
+                </button>
+              )}
             </div>
           </ModalFooter>
         )}
@@ -943,7 +1017,7 @@ export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) 
                         onClick={() => setSelectedMovementId(movement.id)}
                         className={selectedMovementId === movement.id ? 'animal-row-selected' : undefined}
                       >
-                        <td><strong>{movement.codRemo}</strong></td>
+                        <td><strong>{movement.serie}</strong></td>
                         <td>{directionLabelMap[movement.direction] ?? movement.direction}</td>
                         <td>{movement.counterpartyName}</td>
                         <td>

@@ -533,3 +533,49 @@
   border-radius: 14px;
   background: #f6f8f5;
 }
+
+.movement-unidentified-section {
+  margin-top: 8px;
+  padding: 18px;
+  border: 1px solid #d7ded8;
+  border-radius: 16px;
+  background: #f6f8f5;
+  display: grid;
+  gap: 16px;
+}
+
+.movement-unidentified-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.movement-unidentified-checkbox input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: #2f6b4f;
+  cursor: pointer;
+}
+
+.movement-unidentified-checkbox div {
+  display: grid;
+  gap: 4px;
+}
+
+.movement-unidentified-checkbox strong {
+  color: #1e2a24;
+  font-size: 0.88rem;
+}
+
+.movement-unidentified-checkbox span {
+  color: #637168;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.movement-unidentified-count {
+  max-width: 260px;
+}

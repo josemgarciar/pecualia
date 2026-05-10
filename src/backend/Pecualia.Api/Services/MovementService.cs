@@ -205,6 +205,18 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             request.Cause,
             cancellationToken);
 
+        if (request.UnidentifiedAnimalCount is > 0)
+        {
+            ValidateUnidentifiedAnimalRequest(context, request.UnidentifiedAnimalCount.Value);
+            var summary = new MovementImportPreviewSummaryResponse(0, 0, 0, 0, 0, 0, 0, 0);
+            return new MovementImportPreviewResponse(context.Species.ToString(), false, [], summary);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.RawText))
+        {
+            throw new DomainException("Debes subir o pegar un TXT con al menos una identificación.");
+        }
+
         return await BuildPreviewAsync(context, request.RawText, cancellationToken);
     }
 
@@ -226,6 +238,28 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             request.CodRemo,
             request.Cause,
             cancellationToken);
+
+        if (request.UnidentifiedAnimalCount is > 0)
+        {
+            ValidateUnidentifiedAnimalRequest(context, request.UnidentifiedAnimalCount.Value);
+            return await CommitUnidentifiedAnimalMovementAsync(
+                context,
+                request.Serie,
+                request.DepartureDate,
+                request.ArrivalDate,
+                request.SolicitationDate,
+                request.MeansOfTransport,
+                request.TransportName,
+                request.VehicleRegistrationNumber,
+                request.HealthDocumentNumber,
+                request.UnidentifiedAnimalCount.Value,
+                cancellationToken);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.RawText))
+        {
+            throw new DomainException("Debes subir o pegar un TXT con al menos una identificación.");
+        }
 
         var preview = await BuildPreviewAsync(context, request.RawText, cancellationToken);
         var processableRows = preview.Rows
@@ -292,6 +326,57 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             rejectedRows,
             preview.RequiresSharedAnimalData && preview.Rows.Any(entity => entity.Status == "not_found"),
             preview.Summary);
+    }
+
+    private async Task<MovementImportCommitResponse> CommitUnidentifiedAnimalMovementAsync(
+        MovementContext context,
+        string? serie,
+        DateTime departureDate,
+        DateTime? arrivalDate,
+        DateTime? solicitationDate,
+        string? meansOfTransport,
+        string? transportName,
+        string? vehicleRegistrationNumber,
+        string? healthDocumentNumber,
+        int unidentifiedAnimalCount,
+        CancellationToken cancellationToken)
+    {
+        var movement = BuildMovementCertificate(
+            context,
+            serie,
+            departureDate,
+            arrivalDate,
+            solicitationDate,
+            meansOfTransport,
+            transportName,
+            vehicleRegistrationNumber,
+            unidentifiedAnimalCount);
+
+        dbContext.MovementCertificates.Add(movement);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var summary = new MovementImportPreviewSummaryResponse(0, 0, 0, 0, 0, 0, 0, 0);
+
+        return new MovementImportCommitResponse(
+            movement.Id,
+            movement.CodRemo,
+            unidentifiedAnimalCount,
+            0,
+            false,
+            summary);
+    }
+
+    private static void ValidateUnidentifiedAnimalRequest(MovementContext context, int count)
+    {
+        if (context.Species is not (LivestockSpecies.Ovine or LivestockSpecies.Caprine))
+        {
+            throw new DomainException("Solo se pueden registrar movimientos sin identificación para ganado ovino o caprino.");
+        }
+
+        if (count <= 0 || count > 10000)
+        {
+            throw new DomainException("El número de animales sin identificar debe estar entre 1 y 10.000.");
+        }
     }
 
     private async Task<MovementImportPreviewResponse> BuildPreviewAsync(

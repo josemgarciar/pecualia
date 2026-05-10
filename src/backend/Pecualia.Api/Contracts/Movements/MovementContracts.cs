@@ -87,8 +87,9 @@ public sealed record PreviewMovementImportRequest(
     string? VehicleRegistrationNumber,
     string? HealthDocumentNumber,
     MovementImportCause Cause,
-    string RawText,
-    SharedAnimalDataRequest? SharedAnimalData);
+    string? RawText,
+    SharedAnimalDataRequest? SharedAnimalData,
+    int? UnidentifiedAnimalCount);
 
 public sealed record MovementImportPreviewResponse(
     string LivestockSpecies,
@@ -111,8 +112,9 @@ public sealed record CommitMovementImportRequest(
     string? VehicleRegistrationNumber,
     string? HealthDocumentNumber,
     MovementImportCause Cause,
-    string RawText,
-    SharedAnimalDataRequest? SharedAnimalData);
+    string? RawText,
+    SharedAnimalDataRequest? SharedAnimalData,
+    int? UnidentifiedAnimalCount);
 
 public sealed record MovementImportCommitResponse(
     long MovementId,
