@@ -13,6 +13,16 @@
     grid-template-columns: 1fr;
   }
 
+  .auth-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .auth-hero {
+    height: auto;
+    min-height: 280px;
+  }
+
   .animal-layout {
     flex-direction: column;
   }
@@ -125,6 +135,23 @@
   .farm-settings-grid,
   .quick-actions-grid {
     grid-template-columns: 1fr;
+  }
+
+  .reg-stepper {
+    gap: 6px;
+  }
+
+  .reg-stepper-label {
+    font-size: 0.74rem;
+  }
+
+  .reg-nav {
+    flex-direction: column;
+  }
+
+  .reg-nav .primary-button,
+  .reg-nav .secondary-button {
+    width: 100%;
   }
 
   .page-header-actions,
