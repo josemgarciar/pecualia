@@ -21,7 +21,7 @@ public interface IBookService
 
 public sealed record FarmBookPdfFile(string FileName, byte[] Content, string ContentType);
 
-public sealed class BookService(PecualiaDbContext dbContext) : IBookService
+public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjectionService censusProjectionService) : IBookService
 {
     public async Task<FarmBookPreviewResponse> GetPreviewAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken)
     {
@@ -91,14 +91,7 @@ public sealed class BookService(PecualiaDbContext dbContext) : IBookService
             .ThenBy(entity => entity.Id)
             .ToListAsync(cancellationToken);
 
-        var censuses = await dbContext.Census
-            .AsNoTracking()
-            .Include(entity => entity.OvinoCaprino)
-            .Include(entity => entity.Porcino)
-            .Where(entity => entity.LivestockFarmId == farm.Id)
-            .OrderBy(entity => entity.CensusDate)
-            .ThenBy(entity => entity.Id)
-            .ToListAsync(cancellationToken);
+        var censuses = await censusProjectionService.BuildBookCensusesAsync(farm, cancellationToken);
 
         var incidents = await dbContext.Incidents
             .AsNoTracking()

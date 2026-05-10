@@ -49,12 +49,6 @@ const speciesToneMap = {
   Porcine: { bg: '#FCE7F3', color: '#9D174D', label: 'Porcino' }
 };
 
-const statusToneMap = {
-  Active: { bg: '#DDEBDF', color: '#2F6B4F', label: 'Activa' },
-  Pending: { bg: '#FEF3C7', color: '#D97706', label: 'Pendiente' },
-  Inactive: { bg: '#F3F4F6', color: '#6B7280', label: 'Inactiva' }
-};
-
 const regimeLabelMap = {
   Extensive: 'Extensivo',
   SemiExtensive: 'Semiextensivo',
@@ -173,10 +167,9 @@ function createAutorrepositionForm(farm) {
 
   return {
     startIdentification: '',
-    numberOfAnimals: '1',
+    quantity: '1',
     breed: '',
     sex: '',
-    birthYear: '',
     registrationDate: today,
     genotyping: '',
     dominantAllele: '',
@@ -223,9 +216,11 @@ function buildConsecutiveIdentificationPreview(startIdentification, numberOfAnim
   };
 }
 
-function validateAutorrepositionForm(form, species) {
+function validateAutorrepositionForm(form, species, availability) {
   const errors = {};
-  const count = Number(form.numberOfAnimals);
+  const count = Number(form.quantity);
+  const totalAvailable = availability?.availableAnimals ?? 0;
+  const totalEligible = availability?.eligibleAnimals ?? 0;
 
   if (!form.startIdentification.trim()) {
     errors.startIdentification = 'Campo obligatorio';
@@ -234,7 +229,15 @@ function validateAutorrepositionForm(form, species) {
   }
 
   if (!Number.isInteger(count) || count <= 0) {
-    errors.numberOfAnimals = 'Debe ser un número entero mayor que cero';
+    errors.quantity = 'Debe ser un número entero mayor que cero';
+  }
+
+  if (count > totalAvailable) {
+    errors.quantity = 'No puedes autoreponer más animales que los no identificados disponibles en el censo';
+  }
+
+  if (count > totalEligible) {
+    errors.quantity = 'Solo puedes autoreponer animales con más de 4 meses cumplidos';
   }
 
   if (!form.breed.trim()) {
@@ -243,17 +246,6 @@ function validateAutorrepositionForm(form, species) {
 
   if (!form.sex.trim()) {
     errors.sex = 'Campo obligatorio';
-  }
-
-  if (form.birthYear === '') {
-    errors.birthYear = 'Campo obligatorio';
-  }
-
-  if (form.birthYear !== '') {
-    const birthYear = Number(form.birthYear);
-    if (!Number.isInteger(birthYear) || birthYear < 1900 || birthYear > 2100) {
-      errors.birthYear = 'Debe ser un año válido';
-    }
   }
 
   if (!form.registrationDate) {
@@ -269,7 +261,7 @@ function validateAutorrepositionForm(form, species) {
   }
 
   try {
-    buildConsecutiveIdentificationPreview(form.startIdentification, form.numberOfAnimals);
+    buildConsecutiveIdentificationPreview(form.startIdentification, form.quantity);
   } catch (error) {
     errors.startIdentification = error.message;
   }
@@ -349,8 +341,11 @@ function createFarmSettingsForm(farm) {
     zipCode: farm?.zipCode ?? '',
     authorisedCapacity: farm?.authorisedCapacity != null ? String(farm.authorisedCapacity) : '',
     porcineRegistryNumber: farm?.porcineRegistryNumber ?? '',
+    livestockType: farm?.livestockType ?? '',
+    productionCapacity: farm?.productionCapacity != null ? String(farm.productionCapacity) : '',
     responsible: farm?.responsible ?? '',
     zootechnicClassification: farm?.zootechnicClassification ?? '',
+    spindle: farm?.spindle != null ? String(farm.spindle) : '',
     xCoordinate: farm?.xCoordinate != null ? String(farm.xCoordinate) : '',
     yCoordinate: farm?.yCoordinate != null ? String(farm.yCoordinate) : ''
   };
@@ -381,6 +376,18 @@ function validateFarmSettingsForm(form, species) {
   }
   if (form.authorisedCapacity !== '' && Number(form.authorisedCapacity) < 0) {
     errors.authorisedCapacity = 'Debe ser igual o mayor que cero';
+  }
+  if (form.productionCapacity !== '') {
+    const productionCapacity = Number(form.productionCapacity);
+    if (!Number.isInteger(productionCapacity) || productionCapacity < 0) {
+      errors.productionCapacity = 'Debe ser un número entero válido';
+    }
+  }
+  if (form.spindle !== '') {
+    const spindle = Number(form.spindle);
+    if (!Number.isInteger(spindle) || spindle < 1) {
+      errors.spindle = 'Debe ser un número entero válido';
+    }
   }
   if (form.xCoordinate !== '' && Number.isNaN(Number(form.xCoordinate))) {
     errors.xCoordinate = 'Debe ser un número válido';
@@ -424,6 +431,44 @@ function SummaryMetric({ label, value, tone = 'default' }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </article>
+  );
+}
+
+function BirthDetailModal({ birth, farmName, onClose, onEdit, onDelete }) {
+  if (!birth) {
+    return null;
+  }
+
+  return (
+    <ModalDialog size="wide">
+      <ModalHeader
+        icon={<Sprout size={18} />}
+        title="Detalle del nacimiento"
+        subtitle={farmName}
+        onClose={onClose}
+      />
+      <ModalBody>
+        <div className="profile-grid">
+          <DetailField label="Fecha de parto" value={formatDate(birth.birthDate)} />
+          <DetailField label="Crías declaradas" value={String(birth.offspringNumber)} />
+          <DetailField label="Peso medio" value={birth.birthWeight == null ? 'No informado' : `${birth.birthWeight} kg`} />
+          <DetailField label="Observaciones" value={birth.observations ?? 'No informadas'} fullWidth />
+        </div>
+      </ModalBody>
+      <ModalFooter>
+        <button className="danger-button" type="button" onClick={() => onDelete(birth)}>
+          <Trash2 size={15} />
+          Eliminar
+        </button>
+        <div className="animal-modal-actions">
+          <button className="secondary-button" type="button" onClick={onClose}>Cerrar</button>
+          <button className="primary-button" type="button" onClick={() => onEdit(birth)}>
+            <Edit3 size={15} />
+            Editar
+          </button>
+        </div>
+      </ModalFooter>
+    </ModalDialog>
   );
 }
 
@@ -492,6 +537,17 @@ function FarmSettingsModal({ farm, form, errors, requestError, submitting, onCha
             </div>
 
             <div className="farm-form-field">
+              <span className="farm-field-label">TIPO DE EXPLOTACIÓN</span>
+              <input className="farm-input" value={form.livestockType} onChange={(event) => onChange('livestockType', event.target.value)} />
+            </div>
+
+            <div className="farm-form-field">
+              <span className="farm-field-label">CAPACIDAD PRODUCTIVA</span>
+              <input type="number" min="0" className={errors.productionCapacity ? 'farm-input farm-input-error' : 'farm-input'} value={form.productionCapacity} onChange={(event) => onChange('productionCapacity', event.target.value)} />
+              {errors.productionCapacity && <p className="farm-field-error">{errors.productionCapacity}</p>}
+            </div>
+
+            <div className="farm-form-field">
               <span className="farm-field-label">CLASIFICACIÓN ZOOTÉCNICA</span>
               <input className="farm-input" value={form.zootechnicClassification} onChange={(event) => onChange('zootechnicClassification', event.target.value)} />
             </div>
@@ -523,6 +579,12 @@ function FarmSettingsModal({ farm, form, errors, requestError, submitting, onCha
             <div className="farm-form-field">
               <span className="farm-field-label">CÓDIGO POSTAL</span>
               <input className="farm-input" value={form.zipCode} onChange={(event) => onChange('zipCode', event.target.value)} />
+            </div>
+
+            <div className="farm-form-field">
+              <span className="farm-field-label">HUSO</span>
+              <input type="number" min="1" className={errors.spindle ? 'farm-input farm-input-error' : 'farm-input'} value={form.spindle} onChange={(event) => onChange('spindle', event.target.value)} />
+              {errors.spindle && <p className="farm-field-error">{errors.spindle}</p>}
             </div>
 
             <div className="farm-form-field">
@@ -734,17 +796,21 @@ function AnimalAutorrepositionModal({
   errors,
   requestError,
   submitting,
+  availability,
+  loadingBirths,
   breedOptions,
   loadingBreedOptions,
   onChange,
   onClose,
   onSubmit
 }) {
+  const totalAvailable = availability?.availableAnimals ?? 0;
+  const totalEligible = availability?.eligibleAnimals ?? 0;
   let rangePreview = null;
   let rangePreviewError = '';
 
   try {
-    rangePreview = buildConsecutiveIdentificationPreview(form.startIdentification, form.numberOfAnimals);
+    rangePreview = buildConsecutiveIdentificationPreview(form.startIdentification, form.quantity);
   } catch (error) {
     rangePreviewError = error.message;
   }
@@ -754,7 +820,7 @@ function AnimalAutorrepositionModal({
       <ModalHeader
         icon={<Tag size={18} />}
         title="Autorreposición"
-        subtitle={`Alta múltiple con causa Autorreposición en ${farm.name}.`}
+        subtitle={`Convierte animales no reproductores sin identificar en reproductores identificados dentro de ${farm.name}.`}
         onClose={onClose}
       />
       <ModalBody className="operation-modal-body">
@@ -762,7 +828,7 @@ function AnimalAutorrepositionModal({
 
           <div className="info-callout">
             <Tag size={16} />
-            <p>Todos los animales se registrarán con la causa de alta <strong>Autorreposición</strong> y compartirán las mismas características.</p>
+            <p>La autoreposición toma el stock agregado del censo. Solo puede convertir animales no reproductores sin identificar con más de 4 meses.</p>
           </div>
 
           <div className="grid-form">
@@ -773,8 +839,8 @@ function AnimalAutorrepositionModal({
             </label>
             <label className="farm-form-field">
               <span className="farm-field-label">Número de animales <span className="farm-field-label-required">*</span></span>
-              <input type="number" min="1" step="1" value={form.numberOfAnimals} onChange={(event) => onChange('numberOfAnimals', event.target.value)} required />
-              {errors.numberOfAnimals && <span className="farm-inline-error">{errors.numberOfAnimals}</span>}
+              <input type="number" min="1" step="1" value={form.quantity} onChange={(event) => onChange('quantity', event.target.value)} required />
+              {errors.quantity && <span className="farm-inline-error">{errors.quantity}</span>}
             </label>
             <label className="farm-form-field">
               <span className="farm-field-label">Raza <span className="farm-field-label-required">*</span></span>
@@ -804,15 +870,25 @@ function AnimalAutorrepositionModal({
               {errors.sex && <span className="farm-inline-error">{errors.sex}</span>}
             </label>
             <label className="farm-form-field">
-              <span className="farm-field-label">Año nacimiento <span className="farm-field-label-required">*</span></span>
-              <input type="number" min="1900" max="2100" value={form.birthYear} onChange={(event) => onChange('birthYear', event.target.value)} required />
-              {errors.birthYear && <span className="farm-inline-error">{errors.birthYear}</span>}
-            </label>
-            <label className="farm-form-field">
               <span className="farm-field-label">Fecha alta <span className="farm-field-label-required">*</span></span>
               <input type="date" value={form.registrationDate} onChange={(event) => onChange('registrationDate', event.target.value)} required />
               {errors.registrationDate && <span className="farm-inline-error">{errors.registrationDate}</span>}
             </label>
+          </div>
+
+          <div className={totalAvailable > 0 ? 'farm-settings-note' : 'info-callout info-callout-danger'}>
+            {loadingBirths ? (
+              <p>Cargando disponibilidad para autoreposición...</p>
+            ) : totalAvailable > 0 ? (
+              <>
+                <strong>Disponibilidad agregada del censo</strong>
+                <p>
+                  {totalAvailable} animales no identificados disponibles · {totalEligible} con más de 4 meses y aptos para autoreposición
+                </p>
+              </>
+            ) : (
+              <p>No hay animales no identificados disponibles para autoreposición.</p>
+            )}
           </div>
 
           <div className={rangePreview ? 'farm-settings-note' : 'info-callout info-callout-danger'}>
@@ -905,6 +981,8 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
   const [autorrepositionError, setAutorrepositionError] = useState('');
   const [autorrepositionFormErrors, setAutorrepositionFormErrors] = useState({});
   const [autorrepositionForm, setAutorrepositionForm] = useState(() => createAutorrepositionForm(farm));
+  const [autorrepositionAvailability, setAutorrepositionAvailability] = useState({ availableAnimals: 0, eligibleAnimals: 0 });
+  const [loadingAutorrepositionBirths, setLoadingAutorrepositionBirths] = useState(false);
   const [breedOptions, setBreedOptions] = useState([]);
   const [loadingBreedOptions, setLoadingBreedOptions] = useState(false);
   const identificationLabel = farm.livestockSpecies === 'Porcine' ? 'Lote' : 'Crotal';
@@ -945,6 +1023,26 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
 
     let cancelled = false;
 
+    async function loadAutorrepositionAvailability() {
+      setLoadingAutorrepositionBirths(true);
+
+      try {
+        const response = await apiRequest(`/api/farms/${farm.id}/births/autorreposition-availability`, { token });
+        if (!cancelled) {
+          setAutorrepositionAvailability(response);
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setAutorrepositionError(requestError.message);
+          setAutorrepositionAvailability({ availableAnimals: 0, eligibleAnimals: 0 });
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingAutorrepositionBirths(false);
+        }
+      }
+    }
+
     async function loadBreedOptions() {
       setLoadingBreedOptions(true);
 
@@ -965,11 +1063,12 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
       }
     }
 
+    loadAutorrepositionAvailability();
     loadBreedOptions();
     return () => {
       cancelled = true;
     };
-  }, [autorrepositionOpen, farm.livestockSpecies, token]);
+  }, [autorrepositionOpen, farm.id, farm.livestockSpecies, token]);
 
   async function loadAnimals() {
     setLoading(true);
@@ -1022,6 +1121,7 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
     setAutorrepositionForm(createAutorrepositionForm(farm));
     setAutorrepositionFormErrors({});
     setAutorrepositionError('');
+    setAutorrepositionAvailability({ availableAnimals: 0, eligibleAnimals: 0 });
     setAutorrepositionOpen(true);
   }
 
@@ -1030,6 +1130,7 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
     setAutorrepositionSubmitting(false);
     setAutorrepositionFormErrors({});
     setAutorrepositionError('');
+    setAutorrepositionAvailability({ availableAnimals: 0, eligibleAnimals: 0 });
   }
 
   function updateAutorrepositionField(field, value) {
@@ -1165,7 +1266,7 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
   async function submitAutorreposition(event) {
     event.preventDefault();
 
-    const validationErrors = validateAutorrepositionForm(autorrepositionForm, farm.livestockSpecies);
+    const validationErrors = validateAutorrepositionForm(autorrepositionForm, farm.livestockSpecies, autorrepositionAvailability);
     if (Object.keys(validationErrors).length > 0) {
       setAutorrepositionFormErrors(validationErrors);
       return;
@@ -1181,8 +1282,7 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
         token,
         body: {
           startIdentification: normalizeAnimalIdentification(autorrepositionForm.startIdentification),
-          numberOfAnimals: Number(autorrepositionForm.numberOfAnimals),
-          birthYear: autorrepositionForm.birthYear === '' ? null : Number(autorrepositionForm.birthYear),
+          quantity: Number(autorrepositionForm.quantity),
           breed: emptyToNull(autorrepositionForm.breed),
           sex: emptyToNull(autorrepositionForm.sex),
           registrationDate: autorrepositionForm.registrationDate || null,
@@ -1359,6 +1459,8 @@ function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter
           errors={autorrepositionFormErrors}
           requestError={autorrepositionError}
           submitting={autorrepositionSubmitting}
+          availability={autorrepositionAvailability}
+          loadingBirths={loadingAutorrepositionBirths}
           breedOptions={breedOptions}
           loadingBreedOptions={loadingBreedOptions}
           onChange={updateAutorrepositionField}
@@ -1377,6 +1479,8 @@ function FarmBirthsSection({ farm, token }) {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingBirth, setEditingBirth] = useState(null);
+  const [detailBirth, setDetailBirth] = useState(null);
   const [form, setForm] = useState({
     birthDate: new Date().toISOString().slice(0, 10),
     offspringNumber: '1',
@@ -1417,8 +1521,8 @@ function FarmBirthsSection({ farm, token }) {
 
     setSubmitting(true);
     try {
-      await apiRequest(`/api/farms/${farm.id}/births`, {
-        method: 'POST',
+      await apiRequest(`/api/farms/${farm.id}/births${editingBirth ? `/${editingBirth.id}` : ''}`, {
+        method: editingBirth ? 'PUT' : 'POST',
         token,
         body: {
           birthDate: form.birthDate,
@@ -1427,14 +1531,61 @@ function FarmBirthsSection({ farm, token }) {
           observations: form.observations.trim() || null
         }
       });
-      setSuccess('Nacimiento registrado correctamente.');
+      setSuccess(editingBirth ? 'Nacimiento actualizado correctamente.' : 'Nacimiento registrado correctamente.');
       setModalOpen(false);
+      setEditingBirth(null);
       setForm({ birthDate: new Date().toISOString().slice(0, 10), offspringNumber: '1', birthWeight: '', observations: '' });
       await loadBirths();
     } catch (requestError) {
       setError(requestError.message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function openCreateModal() {
+    setEditingBirth(null);
+    setDetailBirth(null);
+    setForm({
+      birthDate: new Date().toISOString().slice(0, 10),
+      offspringNumber: '1',
+      birthWeight: '',
+      observations: ''
+    });
+    setModalOpen(true);
+  }
+
+  function openEditModal(birth) {
+    setDetailBirth(null);
+    setEditingBirth(birth);
+    setForm({
+      birthDate: birth.birthDate,
+      offspringNumber: String(birth.offspringNumber),
+      birthWeight: birth.birthWeight == null ? '' : String(birth.birthWeight),
+      observations: birth.observations ?? ''
+    });
+    setModalOpen(true);
+  }
+
+  async function deleteBirth(birth) {
+    const confirmed = window.confirm(`Se eliminará el nacimiento del ${formatDate(birth.birthDate)} con ${birth.offspringNumber} crías declaradas.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+
+    try {
+      await apiRequest(`/api/farms/${farm.id}/births/${birth.id}`, {
+        method: 'DELETE',
+        token
+      });
+      setDetailBirth(null);
+      setSuccess('Nacimiento eliminado correctamente.');
+      await loadBirths();
+    } catch (requestError) {
+      setError(requestError.message);
     }
   }
 
@@ -1452,7 +1603,7 @@ function FarmBirthsSection({ farm, token }) {
           <h2>Nacimientos</h2>
           <p>{births.length} partos registrados · {totalOffspring} crías declaradas</p>
         </div>
-        <button className="primary-button" type="button" onClick={() => setModalOpen(true)}>
+        <button className="primary-button" type="button" onClick={openCreateModal}>
           <Plus size={16} />
           Registrar nacimiento
         </button>
@@ -1467,17 +1618,34 @@ function FarmBirthsSection({ farm, token }) {
             <div>No hay nacimientos registrados para esta explotación.</div>
           </div>
         ) : (
-          <div className="birth-card-list">
-            {births.map((birth) => (
-              <article key={birth.id} className="operation-record-card">
-                <div>
-                  <strong>Parto registrado · {formatDate(birth.birthDate)}</strong>
-                  <span>{birth.offspringNumber} cría{birth.offspringNumber === 1 ? '' : 's'}</span>
-                </div>
-                <p>Peso medio: {birth.birthWeight == null ? 'No informado' : `${birth.birthWeight} kg`}</p>
-                {birth.observations && <p>{birth.observations}</p>}
-              </article>
-            ))}
+          <div className="animal-table-card">
+            <div className="table-scroll">
+              <table className="animal-table">
+                <thead>
+                  <tr>
+                    {['Fecha parto', 'Crías', 'Peso medio', 'Observaciones'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {births.map((birth) => (
+                    <tr key={birth.id} onClick={() => setDetailBirth(birth)}>
+                      <td>
+                        <div className="animal-identification-cell">
+                          <Sprout size={13} />
+                          <strong>{formatDate(birth.birthDate)}</strong>
+                        </div>
+                      </td>
+                      <td>{birth.offspringNumber}</td>
+                      <td>{birth.birthWeight == null ? '—' : `${birth.birthWeight} kg`}</td>
+                      <td>{birth.observations ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="animal-table-footer">{births.length} nacimientos registrados</div>
           </div>
         )}
 
@@ -1485,9 +1653,12 @@ function FarmBirthsSection({ farm, token }) {
           <ModalDialog cardAs="form" size="wide" onSubmit={handleSubmit}>
             <ModalHeader
               icon={<Sprout size={18} />}
-              title="Nuevo nacimiento"
+              title={editingBirth ? 'Editar nacimiento' : 'Nuevo nacimiento'}
               subtitle={farm.name}
-              onClose={() => setModalOpen(false)}
+              onClose={() => {
+                setModalOpen(false);
+                setEditingBirth(null);
+              }}
             />
             <ModalBody className="operation-modal-body">
                 <label>
@@ -1508,10 +1679,23 @@ function FarmBirthsSection({ farm, token }) {
                 </label>
             </ModalBody>
             <ModalFooter align="end">
-                <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
-                <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar nacimiento'}</button>
+                <button className="secondary-button" type="button" onClick={() => {
+                  setModalOpen(false);
+                  setEditingBirth(null);
+                }}>Cancelar</button>
+                <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : editingBirth ? 'Guardar cambios' : 'Guardar nacimiento'}</button>
             </ModalFooter>
           </ModalDialog>
+        )}
+
+        {detailBirth && (
+          <BirthDetailModal
+            birth={detailBirth}
+            farmName={farm.name}
+            onClose={() => setDetailBirth(null)}
+            onEdit={openEditModal}
+            onDelete={deleteBirth}
+          />
         )}
       </article>
     </section>
@@ -2162,7 +2346,7 @@ function FarmCensusBalancesSection({ farm, token }) {
       <div className="section-heading-row">
         <div>
           <h2>Censos y balances</h2>
-          <p>Censo anual con histórico por año y balance derivado de eventos.</p>
+          <p>Censo calculado automáticamente a partir de nacimientos, autoreposiciones, guías y muertes.</p>
         </div>
         <select value={year} onChange={(event) => setYear(Number(event.target.value))}>
           {Array.from(new Set([currentYear, currentYear - 1, currentYear - 2, ...(census?.availableYears ?? [])])).sort((a, b) => b - a).map((availableYear) => (
@@ -2179,7 +2363,7 @@ function FarmCensusBalancesSection({ farm, token }) {
         <button type="button" className={activeSubTab === 'balances' ? 'census-subtab-active' : ''} onClick={() => setActiveSubTab('balances')}>Balances</button>
       </div>
 
-      {activeSubTab === 'census' && !editing && (
+      {activeSubTab === 'census' && (
         <div className="census-visual-card">
           <div className="census-visual-header">
             <div>
@@ -2226,36 +2410,7 @@ function FarmCensusBalancesSection({ farm, token }) {
               ))}
             </div>
           </div>
-
-          <div className="census-edit-row">
-            <button className="secondary-button" type="button" onClick={() => setEditing(true)}>
-              <Edit3 size={14} />
-              Editar censo
-            </button>
-          </div>
         </div>
-      )}
-
-      {activeSubTab === 'census' && editing && (
-        <form className="census-grid" onSubmit={handleSave}>
-          <article className="census-total-card">
-            <span>Censo anual {year}</span>
-            <strong>{total}</strong>
-            <p>animales declarados</p>
-          </article>
-          {censusFields.map(([field, label]) => (
-            <label key={field} className="census-input-card">
-              <span>{label}</span>
-              <input type="number" min="0" value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })} />
-            </label>
-          ))}
-          <div className="operation-form-actions census-actions">
-            <button className="secondary-button" type="button" onClick={() => setEditing(false)}>Cancelar</button>
-            <button className="primary-button" type="submit" disabled={submitting}>
-              {submitting ? 'Guardando...' : 'Guardar censo anual'}
-            </button>
-          </div>
-        </form>
       )}
 
       {activeSubTab === 'balances' && balance && (
@@ -3145,8 +3300,11 @@ export function FarmDetailPage() {
           zipCode: emptyToNull(settingsForm.zipCode),
           authorisedCapacity: settingsForm.authorisedCapacity === '' ? null : Number(settingsForm.authorisedCapacity),
           porcineRegistryNumber: emptyToNull(settingsForm.porcineRegistryNumber),
+          livestockType: emptyToNull(settingsForm.livestockType),
+          productionCapacity: settingsForm.productionCapacity === '' ? null : Number(settingsForm.productionCapacity),
           responsible: emptyToNull(settingsForm.responsible),
           zootechnicClassification: emptyToNull(settingsForm.zootechnicClassification),
+          spindle: settingsForm.spindle === '' ? null : Number(settingsForm.spindle),
           xCoordinate: settingsForm.xCoordinate === '' ? null : Number(settingsForm.xCoordinate),
           yCoordinate: settingsForm.yCoordinate === '' ? null : Number(settingsForm.yCoordinate)
         }
@@ -3189,7 +3347,6 @@ export function FarmDetailPage() {
   }
 
   const speciesTone = speciesToneMap[farm.livestockSpecies] ?? { bg: '#F3F4F6', color: '#6B7280', label: farm.livestockSpecies };
-  const statusTone = statusToneMap[farm.status] ?? statusToneMap.Inactive;
   const activeTabConfig = detailTabs.find((tab) => tab.key === activeTab) ?? detailTabs[0];
 
   return (
@@ -3211,9 +3368,6 @@ export function FarmDetailPage() {
               <div className="farm-detail-hero-badges">
                 <span className="farm-badge" style={{ background: speciesTone.bg, color: speciesTone.color }}>
                   {speciesTone.label}
-                </span>
-                <span className="farm-badge" style={{ background: statusTone.bg, color: statusTone.color }}>
-                  {statusTone.label}
                 </span>
               </div>
               <h1>{farm.name}</h1>
@@ -3309,8 +3463,7 @@ export function FarmDetailPage() {
               <DetailField label="Titular" value={farm.farmerName} />
               <DetailField label="Especie" value={speciesTone.label} />
               <DetailField label="Régimen" value={formatRegime(farm.regime)} />
-              <DetailField label="Estado" value={statusTone.label} />
-              <DetailField label="Tipo de Ganader@" value={formatText(farm.livestockType)} />
+              <DetailField label="Tipo de explotación" value={formatText(farm.livestockType)} />
               <DetailField label="Capacidad productiva" value={formatText(farm.productionCapacity)} />
               {farm.livestockSpecies === 'Porcine' && (
                 <DetailField label="Registro porcino" value={formatText(farm.porcineRegistryNumber)} />

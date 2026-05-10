@@ -714,11 +714,11 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
 
             if (snapshot.Species == LivestockSpecies.Porcine)
             {
-                dbContext.BalancePorcino.Add(BuildPorcineBalance(balance.Id, movedAnimals));
+                dbContext.BalancePorcino.Add(BuildPorcineBalance(balance.Id, movedAnimals, snapshot.Date));
             }
             else
             {
-                dbContext.BalanceOvinoCaprino.Add(BuildOvineOrCaprineBalance(balance.Id, movedAnimals));
+                dbContext.BalanceOvinoCaprino.Add(BuildOvineOrCaprineBalance(balance.Id, movedAnimals, snapshot.Date));
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -741,11 +741,11 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
 
             if (snapshot.Species == LivestockSpecies.Porcine)
             {
-                dbContext.CensusPorcino.Add(BuildPorcineCensus(census.Id, activeAnimals));
+                dbContext.CensusPorcino.Add(BuildPorcineCensus(census.Id, activeAnimals, snapshot.Date));
             }
             else
             {
-                dbContext.CensusOvinoCaprino.Add(BuildOvineOrCaprineCensus(census.Id, activeAnimals));
+                dbContext.CensusOvinoCaprino.Add(BuildOvineOrCaprineCensus(census.Id, activeAnimals, snapshot.Date));
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -925,6 +925,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         {
             LivestockFarmId = context.CurrentFarm.Id,
             Identification = identification,
+            BirthDate = sharedAnimalData.BirthDate ?? (sharedAnimalData.BirthYear is null ? null : new DateOnly(sharedAnimalData.BirthYear.Value, 1, 1)),
             BirthYear = sharedAnimalData.BirthYear,
             Breed = NormalizeOfficialBreed(context.Species, sharedAnimalData.Breed),
             Sex = NormalizeNullable(sharedAnimalData.Sex),
@@ -1579,7 +1580,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
                     entity.Animal.Identification,
                     NormalizeNullable(entity.Animal.Breed),
                     NormalizeNullable(entity.Animal.Sex),
-                    entity.Animal.BirthYear,
+                    FarmCensusProjectionSupport.ResolveBirthYear(entity.Animal),
                     entity.Animal.DischargeDate is null ? "Active" : "Discharged"))
                 .ToList());
     }
@@ -1719,17 +1720,18 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             tokens.Add(animal.Sex.Trim());
         }
 
-        if (animal.BirthYear is not null)
+        var birthYear = FarmCensusProjectionSupport.ResolveBirthYear(animal);
+        if (birthYear is not null)
         {
-            tokens.Add(animal.BirthYear.Value.ToString());
+            tokens.Add(birthYear.Value.ToString());
         }
 
         return tokens.Count == 0 ? null : string.Join(" · ", tokens);
     }
 
-    private static BalanceOvinoCaprino BuildOvineOrCaprineBalance(long balanceId, IReadOnlyCollection<Animal> animals)
+    private static BalanceOvinoCaprino BuildOvineOrCaprineBalance(long balanceId, IReadOnlyCollection<Animal> animals, DateOnly asOfDate)
     {
-        var classification = ClassifyOvineOrCaprineAnimals(animals);
+        var classification = ClassifyOvineOrCaprineAnimals(animals, asOfDate);
         return new BalanceOvinoCaprino
         {
             BalanceId = balanceId,
@@ -1742,9 +1744,9 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         };
     }
 
-    private static CensusOvinoCaprino BuildOvineOrCaprineCensus(long censusId, IReadOnlyCollection<Animal> animals)
+    private static CensusOvinoCaprino BuildOvineOrCaprineCensus(long censusId, IReadOnlyCollection<Animal> animals, DateOnly asOfDate)
     {
-        var classification = ClassifyOvineOrCaprineAnimals(animals);
+        var classification = ClassifyOvineOrCaprineAnimals(animals, asOfDate);
         return new CensusOvinoCaprino
         {
             CensusId = censusId,
@@ -1755,9 +1757,8 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         };
     }
 
-    private static OvineOrCaprineBreakdown ClassifyOvineOrCaprineAnimals(IReadOnlyCollection<Animal> animals)
+    private static OvineOrCaprineBreakdown ClassifyOvineOrCaprineAnimals(IReadOnlyCollection<Animal> animals, DateOnly asOfDate)
     {
-        var currentYear = DateTime.UtcNow.Year;
         var underFourMonths = 0;
         var betweenFourAndTwelveMonths = 0;
         var reproductiveFemales = 0;
@@ -1765,18 +1766,37 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
 
         foreach (var animal in animals)
         {
-            var ageYears = animal.BirthYear is null ? (int?)null : currentYear - animal.BirthYear.Value;
-            var normalizedSex = NormalizeNullable(animal.Sex)?.ToLowerInvariant();
-
-            if (ageYears is 0)
+            if (animal.RegistrationCause == AnimalRegistrationCause.Autorreposicion)
             {
-                betweenFourAndTwelveMonths++;
+                var autorepositionSex = FarmCensusProjectionSupport.NormalizeSex(animal.Sex);
+                if (autorepositionSex == "female")
+                {
+                    reproductiveFemales++;
+                }
+                else if (autorepositionSex == "male")
+                {
+                    reproductiveMales++;
+                }
+                else
+                {
+                    betweenFourAndTwelveMonths++;
+                }
+
                 continue;
             }
 
-            if (ageYears is < 0)
+            var birthDate = FarmCensusProjectionSupport.ResolveBirthDate(animal);
+            var normalizedSex = FarmCensusProjectionSupport.NormalizeSex(animal.Sex);
+
+            if (birthDate is not null && FarmCensusProjectionSupport.IsYoungerThanMonths(birthDate.Value, asOfDate, 4))
             {
                 underFourMonths++;
+                continue;
+            }
+
+            if (birthDate is not null && FarmCensusProjectionSupport.IsYoungerThanMonths(birthDate.Value, asOfDate, 12))
+            {
+                betweenFourAndTwelveMonths++;
                 continue;
             }
 
@@ -1801,9 +1821,9 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             reproductiveMales);
     }
 
-    private static BalancePorcino BuildPorcineBalance(long balanceId, IReadOnlyCollection<Animal> animals)
+    private static BalancePorcino BuildPorcineBalance(long balanceId, IReadOnlyCollection<Animal> animals, DateOnly asOfDate)
     {
-        var classification = ClassifyPorcineAnimals(animals);
+        var classification = ClassifyPorcineAnimals(animals, asOfDate);
         var firstPorcine = animals.Select(entity => entity.Porcino).FirstOrDefault(entity => entity is not null);
 
         return new BalancePorcino
@@ -1822,9 +1842,9 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         };
     }
 
-    private static CensusPorcino BuildPorcineCensus(long censusId, IReadOnlyCollection<Animal> animals)
+    private static CensusPorcino BuildPorcineCensus(long censusId, IReadOnlyCollection<Animal> animals, DateOnly asOfDate)
     {
-        var classification = ClassifyPorcineAnimals(animals);
+        var classification = ClassifyPorcineAnimals(animals, asOfDate);
         return new CensusPorcino
         {
             CensusId = censusId,
@@ -1838,16 +1858,24 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         };
     }
 
-    private static PorcineBreakdown ClassifyPorcineAnimals(IReadOnlyCollection<Animal> animals)
+    private static PorcineBreakdown ClassifyPorcineAnimals(IReadOnlyCollection<Animal> animals, DateOnly asOfDate)
     {
         var breakdown = new PorcineBreakdown();
 
         foreach (var animal in animals)
         {
-            var type = NormalizeNullable(animal.Porcino?.AnimalType)?.ToLowerInvariant();
+            var type = FarmCensusProjectionSupport.NormalizeType(animal.Porcino?.AnimalType);
             if (string.IsNullOrWhiteSpace(type))
             {
-                breakdown.Rears++;
+                var birthDate = FarmCensusProjectionSupport.ResolveBirthDate(animal);
+                if (birthDate is not null && FarmCensusProjectionSupport.IsYoungerThanMonths(birthDate.Value, asOfDate, 4))
+                {
+                    breakdown.Piglets++;
+                }
+                else
+                {
+                    breakdown.Rears++;
+                }
                 continue;
             }
 

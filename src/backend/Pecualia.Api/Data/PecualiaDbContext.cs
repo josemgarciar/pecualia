@@ -137,13 +137,6 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         farm.Property(entity => entity.FarmerId).HasColumnName("farmer_id");
         farm.Property(entity => entity.AuthorisedCapacity).HasColumnName("authorised_capacity");
         farm.Property(entity => entity.Address).HasColumnName("address").HasMaxLength(255);
-        farm.Property(entity => entity.Status)
-            .HasColumnName("status")
-            .HasConversion(
-                entity => entity.ToString().ToLowerInvariant(),
-                value => Enum.Parse<FarmStatus>(value, true))
-            .HasMaxLength(40)
-            .IsRequired();
         farm.Property(entity => entity.LivestockSpecies)
             .HasColumnName("livestock_species")
             .HasConversion(
@@ -154,7 +147,7 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         farm.Property(entity => entity.LivestockType).HasColumnName("livestock_type").HasMaxLength(80);
         farm.Property(entity => entity.Name).HasColumnName("name").HasMaxLength(160).IsRequired();
         farm.Property(entity => entity.PorcineRegistryNumber).HasColumnName("porcine_registry_number").HasMaxLength(32);
-        farm.Property(entity => entity.ProductionCapacity).HasColumnName("production_capacity").HasMaxLength(120);
+        farm.Property(entity => entity.ProductionCapacity).HasColumnName("production_capacity");
         farm.Property(entity => entity.Province).HasColumnName("province").HasMaxLength(120);
         farm.Property(entity => entity.RegaCode).HasColumnName("rega_code").HasMaxLength(32).IsRequired();
         farm.Property(entity => entity.Regime)
@@ -181,6 +174,7 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         animal.HasKey(entity => entity.Id);
         animal.Property(entity => entity.Id).HasColumnName("id").UseIdentityAlwaysColumn();
         animal.Property(entity => entity.LivestockFarmId).HasColumnName("livestock_farm_id");
+        animal.Property(entity => entity.BirthDate).HasColumnName("birth_date");
         animal.Property(entity => entity.BirthYear).HasColumnName("birth_year");
         animal.Property(entity => entity.Breed).HasColumnName("breed").HasMaxLength(80);
         animal.Property(entity => entity.DestinationCode).HasColumnName("destination_code").HasMaxLength(32);
@@ -202,11 +196,16 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         animal.Property(entity => entity.RegistrationDate).HasColumnName("registration_date");
         animal.Property(entity => entity.DischargeDate).HasColumnName("discharge_date");
         animal.Property(entity => entity.Sex).HasColumnName("sex").HasMaxLength(20);
+        animal.Property(entity => entity.SourceBirthId).HasColumnName("source_birth_id");
         animal.HasIndex(entity => entity.Identification).IsUnique();
         animal.HasOne(entity => entity.LivestockFarm)
             .WithMany(entity => entity.Animals)
             .HasForeignKey(entity => entity.LivestockFarmId)
             .OnDelete(DeleteBehavior.Cascade);
+        animal.HasOne(entity => entity.SourceBirth)
+            .WithMany()
+            .HasForeignKey(entity => entity.SourceBirthId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         var ovinoCaprino = modelBuilder.Entity<OvinoCaprinoAnimal>();
         ovinoCaprino.ToTable("ovino_caprino");
@@ -251,10 +250,15 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         animalBirth.Property(entity => entity.BirthWeight).HasColumnName("birth_weight");
         animalBirth.Property(entity => entity.Observations).HasColumnName("observations");
         animalBirth.Property(entity => entity.OffspringNumber).HasColumnName("offspring_number");
+        animalBirth.Property(entity => entity.BalanceId).HasColumnName("balance_id");
         animalBirth.HasOne(entity => entity.LivestockFarm)
             .WithMany()
             .HasForeignKey(entity => entity.LivestockFarmId)
             .OnDelete(DeleteBehavior.Cascade);
+        animalBirth.HasOne(entity => entity.Balance)
+            .WithMany()
+            .HasForeignKey(entity => entity.BalanceId)
+            .OnDelete(DeleteBehavior.SetNull);
         animalBirth.HasOne(entity => entity.MotherAnimal)
             .WithMany()
             .HasForeignKey(entity => entity.MotherAnimalId)

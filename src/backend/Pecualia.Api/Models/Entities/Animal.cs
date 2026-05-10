@@ -8,6 +8,8 @@ public class Animal
 
     public long LivestockFarmId { get; set; }
 
+    public DateOnly? BirthDate { get; set; }
+
     public int? BirthYear { get; set; }
 
     public string? Breed { get; set; }
@@ -30,7 +32,11 @@ public class Animal
 
     public string? Sex { get; set; }
 
+    public long? SourceBirthId { get; set; }
+
     public LivestockFarm LivestockFarm { get; set; } = null!;
+
+    public AnimalBirth? SourceBirth { get; set; }
 
     public OvinoCaprinoAnimal? OvinoCaprino { get; set; }
 

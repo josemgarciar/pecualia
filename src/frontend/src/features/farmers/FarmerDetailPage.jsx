@@ -202,7 +202,6 @@ export function FarmerDetailPage({
                             <div className="muted-text">{farm.regaCode} · {farm.livestockSpecies}</div>
                           </div>
                           <div className="row-actions">
-                            <span className={`status-chip status-${farm.status}`}>{farm.status}</span>
                             <span className="muted-text">{farm.animalCount} animales</span>
                           </div>
                         </article>

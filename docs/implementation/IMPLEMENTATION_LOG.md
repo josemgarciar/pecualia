@@ -193,7 +193,6 @@
   - `Active`
 - No se persisten en esta iteracion:
   - telefono alternativo
-  - notas internas
 - El filtro cruzado desde ganaderos a explotaciones se resuelve por `farmerId`, no por nombre visible.
 - El frontend ahora mezcla logica real de negocio con paridad visual tomada del export de Figma; si se continua con nuevas pantallas, conviene mantener este criterio:
   - preservar el dominio y endpoints reales ya implementados

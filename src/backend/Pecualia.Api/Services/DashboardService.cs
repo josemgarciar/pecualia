@@ -110,7 +110,7 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
         return new DashboardSummaryResponse(
             role.ToString(),
             Farms: farms.Count,
-            ActiveFarms: farms.Count(entity => entity.Status == FarmStatus.Active),
+            ActiveFarms: farms.Count,
             TotalAnimals: animals.Count,
             ManagedFarmers: role == UserRole.Manager
                 ? await dbContext.Farmers.CountAsync(entity => entity.ManagerId == userId, cancellationToken)

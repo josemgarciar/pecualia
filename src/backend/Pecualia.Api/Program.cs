@@ -123,6 +123,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IFarmerService, FarmerService>();
 builder.Services.AddScoped<IFarmService, FarmService>();
 builder.Services.AddScoped<IFarmOperationService, FarmOperationService>();
+builder.Services.AddScoped<IFarmCensusProjectionService, FarmCensusProjectionService>();
 builder.Services.AddScoped<IAnimalService, AnimalService>();
 builder.Services.AddScoped<IMovementService, MovementService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();

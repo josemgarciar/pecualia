@@ -17,8 +17,7 @@ public sealed record CreateAnimalRequest(
 
 public sealed record CreateAnimalsAutorrepositionRequest(
     string StartIdentification,
-    int NumberOfAnimals,
-    int? BirthYear,
+    int Quantity,
     string? Breed,
     string? Sex,
     DateOnly? RegistrationDate,

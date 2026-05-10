@@ -144,6 +144,7 @@ public sealed record MovementImportPreviewRowResponse(
     long? AnimalId);
 
 public sealed record SharedAnimalDataRequest(
+    DateOnly? BirthDate,
     int? BirthYear,
     string? Breed,
     string? Sex,

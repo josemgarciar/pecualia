@@ -28,9 +28,13 @@ const initialForm = {
   zipCode: '',
   authorisedCapacity: '',
   porcineRegistryNumber: '',
+  livestockType: '',
+  productionCapacity: '',
   responsible: '',
   zootechnicClassification: '',
-  notes: ''
+  spindle: '',
+  xCoordinate: '',
+  yCoordinate: ''
 };
 
 const speciesOptions = [
@@ -43,13 +47,6 @@ const regimeOptions = [
   { value: 'Extensive', label: 'Extensivo' },
   { value: 'SemiExtensive', label: 'Semiextensivo' },
   { value: 'Intensive', label: 'Intensivo' }
-];
-
-const statusOptions = [
-  { value: '', label: 'Todos los estados' },
-  { value: 'Active', label: 'Activa' },
-  { value: 'Pending', label: 'Pendiente' },
-  { value: 'Inactive', label: 'Inactiva' }
 ];
 
 const provinceOptions = [
@@ -71,12 +68,6 @@ const speciesToneMap = {
   Ovine: { bg: '#DDEBDF', color: '#2F6B4F', label: 'Ovino' },
   Caprine: { bg: '#DBEAFE', color: '#2563EB', label: 'Caprino' },
   Porcine: { bg: '#FCE7F3', color: '#9D174D', label: 'Porcino' }
-};
-
-const statusToneMap = {
-  Active: { bg: '#DDEBDF', color: '#2F6B4F', label: 'Activa' },
-  Pending: { bg: '#FEF3C7', color: '#D97706', label: 'Pendiente' },
-  Inactive: { bg: '#F3F4F6', color: '#6B7280', label: 'Inactiva' }
 };
 
 function formatSpecies(value) {
@@ -123,6 +114,24 @@ function buildFarmErrors(form, step, isManager) {
     }
     if (!form.province) {
       errors.province = 'Selecciona una provincia';
+    }
+    if (form.productionCapacity !== '') {
+      const productionCapacity = Number(form.productionCapacity);
+      if (!Number.isInteger(productionCapacity) || productionCapacity < 0) {
+        errors.productionCapacity = 'Debe ser un número entero válido';
+      }
+    }
+    if (form.spindle !== '') {
+      const spindle = Number(form.spindle);
+      if (!Number.isInteger(spindle) || spindle < 1) {
+        errors.spindle = 'Debe ser un número entero válido';
+      }
+    }
+    if (form.xCoordinate !== '' && Number.isNaN(Number(form.xCoordinate))) {
+      errors.xCoordinate = 'Debe ser un número válido';
+    }
+    if (form.yCoordinate !== '' && Number.isNaN(Number(form.yCoordinate))) {
+      errors.yCoordinate = 'Debe ser un número válido';
     }
   }
 
@@ -292,6 +301,29 @@ function FarmModal({
                   error={currentStepErrors.regime}
                 />
               </div>
+              <div className="grid-form">
+                <InputField
+                  label="Tipo de explotación"
+                  value={form.livestockType}
+                  onChange={(value) => onChange('livestockType', value)}
+                  placeholder="ej: Reproductora"
+                />
+                <InputField
+                  label="Capacidad productiva"
+                  value={form.productionCapacity}
+                  onChange={(value) => onChange('productionCapacity', value)}
+                  placeholder="ej: 250"
+                  type="number"
+                  min="0"
+                  error={currentStepErrors.productionCapacity}
+                />
+              </div>
+              <InputField
+                label="Responsable"
+                value={form.responsible}
+                onChange={(value) => onChange('responsible', value)}
+                placeholder="ej: María Pérez"
+              />
               {user?.role === 'Manager' && (
                 <SelectField
                   label="Ganader@ titular"
@@ -359,16 +391,37 @@ function FarmModal({
                 required
                 error={currentStepErrors.province}
               />
-              <div className="farm-form-divider" />
-              <FormField label="Notas internas">
-                <textarea
-                  rows="3"
-                  value={form.notes}
-                  onChange={(event) => onChange('notes', event.target.value)}
-                  placeholder="Observaciones sobre la explotación..."
-                  className="farm-input"
+              <InputField
+                label="Clasificación zootécnica"
+                value={form.zootechnicClassification}
+                onChange={(value) => onChange('zootechnicClassification', value)}
+                placeholder="ej: Cebo"
+              />
+              <div className="grid-form">
+                <InputField
+                  label="Huso"
+                  value={form.spindle}
+                  onChange={(value) => onChange('spindle', value)}
+                  placeholder="ej: 30"
+                  type="number"
+                  min="1"
+                  error={currentStepErrors.spindle}
                 />
-              </FormField>
+                <InputField
+                  label="Coordenada X"
+                  value={form.xCoordinate}
+                  onChange={(value) => onChange('xCoordinate', value)}
+                  placeholder="ej: 726541.32"
+                  error={currentStepErrors.xCoordinate}
+                />
+              </div>
+              <InputField
+                label="Coordenada Y"
+                value={form.yCoordinate}
+                onChange={(value) => onChange('yCoordinate', value)}
+                placeholder="ej: 4378123.11"
+                error={currentStepErrors.yCoordinate}
+              />
             </div>
           )}
 
@@ -392,6 +445,9 @@ function FarmModal({
                   <SummaryRow label="Especie" value={formatSpecies(form.livestockSpecies) || '—'} />
                   <SummaryRow label="Régimen" value={formatRegime(form.regime) || '—'} />
                   <SummaryRow label="Ganader@ titular" value={ownerName} />
+                  {form.livestockType && <SummaryRow label="Tipo de explotación" value={form.livestockType} />}
+                  {form.productionCapacity && <SummaryRow label="Capacidad productiva" value={form.productionCapacity} />}
+                  {form.responsible && <SummaryRow label="Responsable" value={form.responsible} />}
                   {form.livestockSpecies === 'Porcine' && form.porcineRegistryNumber && (
                     <SummaryRow label="Registro porcino" value={form.porcineRegistryNumber} />
                   )}
@@ -409,7 +465,10 @@ function FarmModal({
                   {form.address && <SummaryRow label="Dirección" value={form.address} />}
                   <SummaryRow label="Localidad" value={[form.town, form.zipCode].filter(Boolean).join(' · ') || '—'} />
                   <SummaryRow label="Provincia" value={form.province || '—'} />
-                  {form.notes && <SummaryRow label="Notas" value={form.notes} />}
+                  {form.zootechnicClassification && <SummaryRow label="Clasificación zootécnica" value={form.zootechnicClassification} />}
+                  {form.spindle && <SummaryRow label="Huso" value={form.spindle} />}
+                  {form.xCoordinate && <SummaryRow label="Coordenada X" value={form.xCoordinate} />}
+                  {form.yCoordinate && <SummaryRow label="Coordenada Y" value={form.yCoordinate} />}
                 </div>
               </div>
 
@@ -465,7 +524,6 @@ export function FarmsPage() {
   const [farmers, setFarmers] = useState([]);
   const [search, setSearch] = useState('');
   const [filterSpecies, setFilterSpecies] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalStep, setModalStep] = useState(1);
   const [modalForm, setModalForm] = useState(initialForm);
@@ -505,12 +563,11 @@ export function FarmsPage() {
         farm.name.toLowerCase().includes(search.toLowerCase()) ||
         farm.regaCode.toLowerCase().includes(search.toLowerCase());
       const matchesSpecies = !filterSpecies || farm.livestockSpecies === filterSpecies;
-      const matchesStatus = !filterStatus || farm.status === filterStatus;
       const matchesFarmer = !selectedFarmerId || String(farm.farmerId) === selectedFarmerId;
 
-      return matchesSearch && matchesSpecies && matchesStatus && matchesFarmer;
+      return matchesSearch && matchesSpecies && matchesFarmer;
     });
-  }, [farms, filterSpecies, filterStatus, search, selectedFarmerId]);
+  }, [farms, filterSpecies, search, selectedFarmerId]);
 
   const resetModal = () => {
     setModalOpen(false);
@@ -597,10 +654,13 @@ export function FarmsPage() {
           porcineRegistryNumber: modalForm.livestockSpecies === 'Porcine'
             ? emptyToNull(modalForm.porcineRegistryNumber)
             : null,
-          responsible: null,
-          zootechnicClassification: null,
-          xCoordinate: null,
-          yCoordinate: null
+          livestockType: emptyToNull(modalForm.livestockType),
+          productionCapacity: modalForm.productionCapacity === '' ? null : Number(modalForm.productionCapacity),
+          responsible: emptyToNull(modalForm.responsible),
+          zootechnicClassification: emptyToNull(modalForm.zootechnicClassification),
+          spindle: modalForm.spindle === '' ? null : Number(modalForm.spindle),
+          xCoordinate: modalForm.xCoordinate === '' ? null : Number(modalForm.xCoordinate),
+          yCoordinate: modalForm.yCoordinate === '' ? null : Number(modalForm.yCoordinate)
         }
       });
 
@@ -636,9 +696,7 @@ export function FarmsPage() {
       <header className="page-header page-header-actions">
         <div>
           <h1>Explotaciones</h1>
-          <p>
-            {farms.length} explotaciones registradas · {farms.filter((farm) => farm.status === 'Active').length} activas
-          </p>
+          <p>{farms.length} explotaciones registradas</p>
         </div>
         <button className="primary-button" onClick={openModal} type="button">
           <Plus size={16} />
@@ -691,24 +749,12 @@ export function FarmsPage() {
               <ChevronDown size={16} />
             </div>
           </label>
-          <label className="toolbar-field">
-            Estado
-            <div className="select-wrapper">
-              <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
-                {statusOptions.map((option) => (
-                  <option key={option.value || 'all'} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-              <ChevronDown size={16} />
-            </div>
-          </label>
           <button
             className="secondary-button"
             type="button"
             onClick={() => {
               setSearch('');
               setFilterSpecies('');
-              setFilterStatus('');
               if (selectedFarmerId) {
                 setSearchParams({});
               }
@@ -723,7 +769,6 @@ export function FarmsPage() {
           <div className="farm-card-list">
             {filteredFarms.map((farm) => {
               const speciesTone = speciesToneMap[farm.livestockSpecies] ?? { bg: '#F3F4F6', color: '#6B7280', label: farm.livestockSpecies };
-              const statusTone = statusToneMap[farm.status] ?? statusToneMap.Inactive;
               const isPorcine = farm.livestockSpecies === 'Porcine';
               const occupancy = isPorcine && farm.authorisedCapacity ? Math.round((farm.animalCount / farm.authorisedCapacity) * 100) : null;
               const occupancyTone = occupancy !== null && occupancy > 90 ? '#DC2626' : '#2F6B4F';
@@ -754,9 +799,6 @@ export function FarmsPage() {
                       <div className="farm-card-badges">
                         <span className="farm-badge" style={{ background: speciesTone.bg, color: speciesTone.color }}>
                           {speciesTone.label}
-                        </span>
-                        <span className="farm-badge" style={{ background: statusTone.bg, color: statusTone.color }}>
-                          {statusTone.label}
                         </span>
                       </div>
                     </div>

@@ -10,7 +10,13 @@ public interface IFarmOperationService
 {
     Task<IReadOnlyList<FarmBirthResponse>> GetBirthsAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
 
+    Task<FarmAutorrepositionAvailabilityResponse> GetAutorrepositionAvailabilityAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
+
     Task<FarmBirthResponse> CreateBirthAsync(long userId, UserRole role, long farmId, CreateFarmBirthRequest request, CancellationToken cancellationToken);
+
+    Task<FarmBirthResponse> UpdateBirthAsync(long userId, UserRole role, long farmId, long birthId, UpdateFarmBirthRequest request, CancellationToken cancellationToken);
+
+    Task DeleteBirthAsync(long userId, UserRole role, long farmId, long birthId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<FarmDeathResponse>> GetDeathsAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
 
@@ -39,7 +45,7 @@ public interface IFarmOperationService
     Task<FarmInspectionResponse> CreateInspectionAsync(long userId, UserRole role, long farmId, CreateFarmInspectionRequest request, CancellationToken cancellationToken);
 }
 
-public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clock) : IFarmOperationService
+public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clock, IFarmCensusProjectionService censusProjectionService) : IFarmOperationService
 {
     private const string BirthBalanceCause = "Nacimiento";
 
@@ -57,20 +63,28 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         return births.Select(MapBirth).ToList();
     }
 
+    public async Task<FarmAutorrepositionAvailabilityResponse> GetAutorrepositionAvailabilityAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken)
+    {
+        await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+        var today = DateOnly.FromDateTime(clock.UtcNow.Date);
+        return await CalculateAutorrepositionAvailabilityAsync(farmId, today, cancellationToken);
+    }
+
     public async Task<FarmBirthResponse> CreateBirthAsync(long userId, UserRole role, long farmId, CreateFarmBirthRequest request, CancellationToken cancellationToken)
     {
         var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
-        EnsureOvineOrCaprineFarm(farm);
+        ValidateBirthRequest(request.BirthDate, request.OffspringNumber, request.BirthWeight);
 
-        if (request.OffspringNumber <= 0)
+        var balance = new Balance
         {
-            throw new DomainException("El número de crías debe ser mayor que cero.");
-        }
+            LivestockFarmId = farm.Id,
+            BalanceDate = request.BirthDate,
+            ModificationCause = BirthBalanceCause,
+            NumberOfAnimals = request.OffspringNumber
+        };
 
-        if (request.BirthWeight is < 0)
-        {
-            throw new DomainException("El peso de nacimiento no puede ser negativo.");
-        }
+        dbContext.Balances.Add(balance);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         var birth = new AnimalBirth
         {
@@ -78,15 +92,80 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             BirthDate = request.BirthDate,
             BirthWeight = request.BirthWeight,
             Observations = NormalizeNullable(request.Observations),
-            OffspringNumber = request.OffspringNumber
+            OffspringNumber = request.OffspringNumber,
+            BalanceId = balance.Id
         };
 
         dbContext.AnimalBirths.Add(birth);
-        AddBalanceEvent(farm.Id, request.BirthDate, BirthBalanceCause, request.OffspringNumber);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return MapBirth(birth);
+    }
+
+    public async Task<FarmBirthResponse> UpdateBirthAsync(long userId, UserRole role, long farmId, long birthId, UpdateFarmBirthRequest request, CancellationToken cancellationToken)
+    {
+        await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+        ValidateBirthRequest(request.BirthDate, request.OffspringNumber, request.BirthWeight);
+
+        var birth = await dbContext.AnimalBirths
+            .Include(entity => entity.Balance)
+            .SingleOrDefaultAsync(entity => entity.Id == birthId && entity.LivestockFarmId == farmId, cancellationToken);
+
+        if (birth is null)
+        {
+            throw new DomainException("Nacimiento no encontrado.");
+        }
+
+        var consumedAnimals = await dbContext.Animals.CountAsync(entity => entity.SourceBirthId == birth.Id, cancellationToken);
+        if (request.OffspringNumber < consumedAnimals)
+        {
+            throw new DomainException("No puedes declarar menos crías que las ya consumidas por autoreposición.");
+        }
+
+        birth.BirthDate = request.BirthDate;
+        birth.OffspringNumber = request.OffspringNumber;
+        birth.BirthWeight = request.BirthWeight;
+        birth.Observations = NormalizeNullable(request.Observations);
+
+        if (birth.Balance is not null)
+        {
+            birth.Balance.BalanceDate = request.BirthDate;
+            birth.Balance.NumberOfAnimals = request.OffspringNumber;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return MapBirth(birth);
+    }
+
+    public async Task DeleteBirthAsync(long userId, UserRole role, long farmId, long birthId, CancellationToken cancellationToken)
+    {
+        await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+
+        var birth = await dbContext.AnimalBirths
+            .Include(entity => entity.Balance)
+            .SingleOrDefaultAsync(entity => entity.Id == birthId && entity.LivestockFarmId == farmId, cancellationToken);
+
+        if (birth is null)
+        {
+            throw new DomainException("Nacimiento no encontrado.");
+        }
+
+        var consumedAnimals = await dbContext.Animals.AnyAsync(entity => entity.SourceBirthId == birth.Id, cancellationToken);
+        if (consumedAnimals)
+        {
+            throw new DomainException("No puedes eliminar un nacimiento que ya ha sido consumido por autoreposición.");
+        }
+
+        dbContext.AnimalBirths.Remove(birth);
+
+        if (birth.Balance is not null)
+        {
+            dbContext.Balances.Remove(birth.Balance);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<FarmDeathResponse>> GetDeathsAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken)
@@ -240,60 +319,18 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
     public async Task<FarmCensusResponse> GetCensusAsync(long userId, UserRole role, long farmId, int? year, CancellationToken cancellationToken)
     {
         var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
-
         var targetYear = NormalizeYear(year);
-        var availableYears = await LoadAvailableCensusYearsAsync(farm.Id, cancellationToken);
-        var census = await LoadAnnualCensusAsync(farm.Id, targetYear, cancellationToken);
-
-        return census is null
-            ? BuildEmptyCensusResponse(farm, targetYear, availableYears)
-            : MapCensus(farm, census, targetYear, availableYears);
+        var today = DateOnly.FromDateTime(clock.UtcNow.Date);
+        var asOfDate = targetYear == today.Year ? today : new DateOnly(targetYear, 12, 31);
+        return await censusProjectionService.BuildCensusResponseAsync(farm, targetYear, asOfDate, cancellationToken);
     }
 
     public async Task<FarmCensusResponse> UpdateCensusAsync(long userId, UserRole role, long farmId, int year, UpdateFarmCensusRequest request, CancellationToken cancellationToken)
     {
-        var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
-        ValidateCensus(farm, request);
-
-        var targetYear = NormalizeYear(year);
-        var census = await LoadAnnualCensusAsync(farm.Id, targetYear, cancellationToken);
-
-        if (census is null)
-        {
-            census = new Census
-            {
-                LivestockFarmId = farm.Id,
-                CensusDate = new DateOnly(targetYear, 1, 1),
-                OvinoCaprino = IsOvineOrCaprine(farm) ? new CensusOvinoCaprino() : null,
-                Porcino = farm.LivestockSpecies == LivestockSpecies.Porcine ? new CensusPorcino() : null
-            };
-            dbContext.Census.Add(census);
-        }
-
-        if (IsOvineOrCaprine(farm))
-        {
-            census.OvinoCaprino ??= new CensusOvinoCaprino();
-            census.OvinoCaprino.NonReproductiveUnder4Months = request.NonReproductiveUnder4Months ?? 0;
-            census.OvinoCaprino.NonReproductiveBetween4And12Months = request.NonReproductiveBetween4And12Months ?? 0;
-            census.OvinoCaprino.ReproductiveFemale = request.ReproductiveFemales ?? 0;
-            census.OvinoCaprino.ReproductiveMale = request.ReproductiveMales ?? 0;
-        }
-        else
-        {
-            census.Porcino ??= new CensusPorcino();
-            census.Porcino.Boars = request.Boars ?? 0;
-            census.Porcino.Sow = request.SowsForLive ?? 0;
-            census.Porcino.SowsReposition = request.SowsReposition ?? 0;
-            census.Porcino.PigsReposition = request.MalesReposition ?? 0;
-            census.Porcino.Piglets = request.Piglets ?? 0;
-            census.Porcino.Rears = request.Rears ?? 0;
-            census.Porcino.Baits = request.Baits ?? 0;
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        var availableYears = await LoadAvailableCensusYearsAsync(farm.Id, cancellationToken);
-        return MapCensus(farm, census, targetYear, availableYears);
+        await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+        _ = NormalizeYear(year);
+        _ = request;
+        throw new DomainException("El censo se calcula automáticamente y no admite edición manual.");
     }
 
     public async Task<FarmBalanceResponse> GetBalanceAsync(long userId, UserRole role, long farmId, int? year, CancellationToken cancellationToken)
@@ -554,6 +591,64 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         });
     }
 
+    private async Task<FarmAutorrepositionAvailabilityResponse> CalculateAutorrepositionAvailabilityAsync(long farmId, DateOnly asOfDate, CancellationToken cancellationToken)
+    {
+        var births = await dbContext.AnimalBirths
+            .AsNoTracking()
+            .Where(entity => entity.LivestockFarmId == farmId && entity.BirthDate <= asOfDate)
+            .OrderBy(entity => entity.BirthDate)
+            .ThenBy(entity => entity.Id)
+            .ToListAsync(cancellationToken);
+
+        var birthIds = births.Select(entity => entity.Id).ToArray();
+        var consumedByBirthId = birthIds.Length == 0
+            ? new Dictionary<long, int>()
+            : await dbContext.Animals
+                .AsNoTracking()
+                .Where(entity =>
+                    entity.SourceBirthId != null &&
+                    birthIds.Contains(entity.SourceBirthId.Value) &&
+                    (entity.RegistrationDate == null || entity.RegistrationDate <= asOfDate))
+                .GroupBy(entity => entity.SourceBirthId!.Value)
+                .Select(entity => new { BirthId = entity.Key, Count = entity.Count() })
+                .ToDictionaryAsync(entity => entity.BirthId, entity => entity.Count, cancellationToken);
+
+        var availableAnimals = 0;
+        var eligibleAnimals = 0;
+
+        foreach (var birth in births)
+        {
+            var available = Math.Max(0, birth.OffspringNumber - consumedByBirthId.GetValueOrDefault(birth.Id));
+            if (available == 0)
+            {
+                continue;
+            }
+
+            availableAnimals += available;
+            if (FarmCensusProjectionSupport.IsOlderThanMonths(birth.BirthDate, asOfDate, 4))
+            {
+                eligibleAnimals += available;
+            }
+        }
+
+        return new FarmAutorrepositionAvailabilityResponse(availableAnimals, eligibleAnimals);
+    }
+
+    private static void ValidateBirthRequest(DateOnly birthDate, int offspringNumber, decimal? birthWeight)
+    {
+        _ = birthDate;
+
+        if (offspringNumber <= 0)
+        {
+            throw new DomainException("El número de crías debe ser mayor que cero.");
+        }
+
+        if (birthWeight is < 0)
+        {
+            throw new DomainException("El peso de nacimiento no puede ser negativo.");
+        }
+    }
+
     private static FarmMonthlyBalanceResponse BuildMonthlyBalance(int month, IEnumerable<Balance> balances)
     {
         var registrations = 0;
@@ -624,7 +719,7 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             animal.Identification,
             EmptyToNull(animal.Breed),
             EmptyToNull(animal.Sex),
-            animal.BirthYear,
+            FarmCensusProjectionSupport.ResolveBirthYear(animal),
             animal.DischargeDate!.Value,
             animal.DischargeCause!.Value.ToString(),
             EmptyToNull(animal.DestinationCode));

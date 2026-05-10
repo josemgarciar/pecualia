@@ -49,14 +49,14 @@ export function DashboardPage() {
     if (user?.role === 'Manager') {
       baseMetrics.push(
         { label: 'Ganaderos gestionados', value: summary?.managedFarmers ?? '—', icon: Users, tone: 'success' },
-        { label: 'Explotaciones activas', value: summary?.activeFarms ?? '—', icon: Building2, tone: 'success' },
+        { label: 'Explotaciones', value: summary?.activeFarms ?? '—', icon: Building2, tone: 'success' },
         { label: 'Movimientos este mes', value: summary?.movementsThisMonth ?? '—', icon: ArrowLeftRight, tone: 'info' },
         { label: 'Activaciones pendientes', value: summary?.pendingActivations ?? '—', icon: ClipboardCheck, tone: 'violet' }
       );
     } else {
       baseMetrics.push(
         { label: 'Explotaciones', value: summary?.farms ?? '—', icon: Building2, tone: 'success' },
-        { label: 'Explotaciones activas', value: summary?.activeFarms ?? '—', icon: Building2, tone: 'success' },
+        { label: 'Explotaciones gestionadas', value: summary?.activeFarms ?? '—', icon: Building2, tone: 'success' },
         { label: 'Animales registrados', value: summary?.totalAnimals ?? '—', icon: Users, tone: 'info' },
         { label: 'Actuaciones próximas', value: summary?.upcomingActions ?? '—', icon: Syringe, tone: 'violet' }
       );

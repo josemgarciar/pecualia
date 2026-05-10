@@ -100,11 +100,13 @@ Cada módulo se considerará correctamente cubierto cuando existan pruebas para:
 | ANIMAL-04 | Alta con identificación inválida | Verifica rechazo de crotales o identificaciones que no cumplen reglas del dominio. | Backend + E2E | Alta |
 | ANIMAL-05 | Alta con REGA origen inválido | Verifica rechazo cuando el REGA de origen no supera validación. | Backend + E2E | Alta |
 | ANIMAL-06 | Alta de porcino con campos específicos | Verifica obligación y persistencia de `animalType`, `tag`, `pigRegistrationNumber` o `identificationDate` cuando aplique. | Backend + E2E | Alta |
-| ANIMAL-07 | Autorreposición múltiple | Verifica creación masiva de animales consecutivos con la misma configuración base. | Backend + E2E | Crítica |
-| ANIMAL-08 | Edición de animal | Verifica actualización de datos editables sin romper restricciones por especie o estado. | Backend + E2E | Alta |
-| ANIMAL-09 | Baja de animal | Verifica persistencia de causa, fecha y destino, y coherencia cronológica. | Backend + E2E | Crítica |
-| ANIMAL-10 | Eliminación de animal | Verifica borrado permitido y protección frente a estados no eliminables si la lógica lo impide. | Backend + E2E | Alta |
-| ANIMAL-11 | Consulta de detalle de animal | Verifica recuperación de todos los datos del animal, incluidos específicos de especie e histórico. | Backend + E2E | Alta |
+| ANIMAL-07 | Autorreposición múltiple desde censo agregado | Verifica creación masiva de animales consecutivos a partir del stock no identificado agregado del censo, sin seleccionar nacimientos en UI. | Backend + E2E | Crítica |
+| ANIMAL-08 | Autorreposición con animales de exactamente 4 meses | Verifica rechazo cuando la fecha de alta coincide exactamente con los 4 meses desde el nacimiento, ya que solo son válidos animales con más de 4 meses. | Backend | Crítica |
+| ANIMAL-09 | Autorreposición con stock insuficiente | Verifica rechazo cuando se intentan convertir más animales que los no identificados disponibles o más de los elegibles por edad. | Backend + E2E | Alta |
+| ANIMAL-10 | Edición de animal | Verifica actualización de datos editables sin romper restricciones por especie o estado. | Backend + E2E | Alta |
+| ANIMAL-11 | Baja de animal | Verifica persistencia de causa, fecha y destino, y coherencia cronológica. | Backend + E2E | Crítica |
+| ANIMAL-12 | Eliminación de animal | Verifica borrado permitido y protección frente a estados no eliminables si la lógica lo impide. | Backend + E2E | Alta |
+| ANIMAL-13 | Consulta de detalle de animal | Verifica recuperación de todos los datos del animal, incluidos específicos de especie e histórico. | Backend + E2E | Alta |
 
 ## 5.5 Operaciones de explotación
 
@@ -112,9 +114,14 @@ Cada módulo se considerará correctamente cubierto cuando existan pruebas para:
 
 | ID | Prueba | Lógica validada | Cobertura | Prioridad |
 | --- | --- | --- | --- | --- |
-| BIRTH-01 | Registro de nacimiento válido | Verifica creación de nacimiento con madre/padre opcionales, número de crías y fecha correcta. | Backend + E2E | Alta |
-| BIRTH-02 | Nacimiento sobre explotación ajena | Verifica rechazo por permisos. | Backend | Alta |
-| BIRTH-03 | Nacimiento con cronología inválida | Verifica rechazo si la fecha no encaja con reglas del dominio. | Backend | Media |
+| BIRTH-01 | Registro de nacimiento válido | Verifica creación de nacimiento con fecha, número de crías, peso y observaciones correctas, sin alta individual automática de animales. | Backend + E2E | Alta |
+| BIRTH-02 | Edición de nacimiento válido | Verifica actualización de fecha, número de crías, peso y observaciones, junto con la actualización del asiento de balance asociado. | Backend + E2E | Alta |
+| BIRTH-03 | Edición de nacimiento por debajo de lo ya autorepuesto | Verifica rechazo cuando se intenta reducir `offspringNumber` por debajo de las unidades ya consumidas por autoreposición. | Backend | Crítica |
+| BIRTH-04 | Eliminación de nacimiento no consumido | Verifica borrado del nacimiento y del asiento de balance asociado cuando no ha sido usado en autoreposición. | Backend + E2E | Alta |
+| BIRTH-05 | Eliminación de nacimiento consumido | Verifica rechazo al eliminar un nacimiento que ya soporta animales dados de alta por autoreposición. | Backend | Crítica |
+| BIRTH-06 | Nacimiento sobre explotación ajena | Verifica rechazo por permisos. | Backend | Alta |
+| BIRTH-07 | Nacimiento con cronología inválida | Verifica rechazo si la fecha no encaja con reglas del dominio. | Backend | Media |
+| BIRTH-08 | Disponibilidad agregada para autoreposición | Verifica que el endpoint auxiliar devuelve únicamente el total disponible y el total elegible por edad, sin exponer contadores derivados por nacimiento. | Backend + E2E | Alta |
 
 ### Muertes
 
@@ -137,10 +144,14 @@ Cada módulo se considerará correctamente cubierto cuando existan pruebas para:
 
 | ID | Prueba | Lógica validada | Cobertura | Prioridad |
 | --- | --- | --- | --- | --- |
-| CENSUS-01 | Consulta de censo anual | Verifica lectura del censo por año y especie. | Backend + E2E | Alta |
-| CENSUS-02 | Actualización de censo anual | Verifica persistencia de cambios manuales en censo. | Backend + E2E | Alta |
-| BALANCE-01 | Cálculo de balance anual | Verifica agregación de entradas, salidas, muertes y otros movimientos. | Backend + E2E | Alta |
-| BALANCE-02 | Coherencia censo-balance | Verifica que cambios en censo y operaciones se reflejan correctamente en resumen y balance. | Backend + E2E | Media |
+| CENSUS-01 | Consulta de censo anual calculado | Verifica lectura del censo proyectado por año y especie a partir de nacimientos, animales activos, movimientos, muertes y autoreposición. | Backend + E2E | Alta |
+| CENSUS-02 | Reclasificación automática por edad | Verifica que el stock no identificado pasa de `<4 meses` a `4-12 meses` o de `lechones` a `recría` únicamente por efecto de la fecha de consulta. | Backend | Alta |
+| CENSUS-03 | Impacto automático de la autoreposición | Verifica que la autoreposición reduce stock no identificado y aumenta reproductores macho o hembra sin edición manual del censo. | Backend + E2E | Crítica |
+| CENSUS-04 | Impacto automático de guías | Verifica que las guías de entrada y salida recalculan correctamente reproductores y categorías no identificadas según edad, especie y tipo. | Backend + E2E | Alta |
+| CENSUS-05 | Impacto automático de nacimientos y muertes | Verifica que un nacimiento incrementa la categoría juvenil correspondiente y que una muerte reduce la categoría reproductiva correcta. | Backend + E2E | Alta |
+| CENSUS-06 | Censo de solo lectura | Verifica que no existe edición manual operativa del censo y que cualquier intento de actualización manual se rechaza o queda fuera del flujo funcional. | Backend + E2E | Alta |
+| BALANCE-01 | Cálculo de balance anual | Verifica agregación de entradas, salidas, muertes, nacimientos y autoreposición en el balance anual. | Backend + E2E | Alta |
+| BALANCE-02 | Coherencia censo-balance | Verifica que las operaciones de explotación se reflejan de forma consistente en censo proyectado, resumen y balance. | Backend + E2E | Media |
 
 ### Incidencias e inspecciones
 

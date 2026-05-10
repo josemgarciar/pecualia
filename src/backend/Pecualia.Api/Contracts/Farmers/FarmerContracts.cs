@@ -53,7 +53,6 @@ public sealed record FarmerFarmItemResponse(
     string Name,
     string RegaCode,
     string LivestockSpecies,
-    string Status,
     int AnimalCount);
 
 public sealed record FarmerDetailResponse(

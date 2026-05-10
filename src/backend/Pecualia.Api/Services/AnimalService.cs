@@ -55,6 +55,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
 {
     private const int DefaultPageSize = 25;
     private const int MaxPageSize = 100;
+    private const string AutorrepositionBalanceCause = "Autorreposicion";
 
     public async Task<IReadOnlyList<AnimalListItemResponse>> GetAnimalsAsync(
         long userId,
@@ -197,7 +198,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
             throw new DomainException("La identificación inicial es obligatoria.");
         }
 
-        if (request.NumberOfAnimals <= 0)
+        if (request.Quantity <= 0)
         {
             throw new DomainException("El número de animales debe ser mayor que cero.");
         }
@@ -212,22 +213,46 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
             throw new DomainException("El sexo es obligatorio.");
         }
 
-        if (request.BirthYear is null)
-        {
-            throw new DomainException("El año de nacimiento es obligatorio.");
-        }
-
-        if (request.BirthYear < 1900 || request.BirthYear > 2100)
-        {
-            throw new DomainException("El año de nacimiento debe ser válido.");
-        }
-
         if (request.RegistrationDate is null)
         {
             throw new DomainException("La fecha de alta es obligatoria.");
         }
 
-        var identifications = BuildConsecutiveIdentifications(farm.LivestockSpecies, request.StartIdentification, request.NumberOfAnimals);
+        var eligibleBirths = await dbContext.AnimalBirths
+            .Where(entity =>
+                entity.LivestockFarmId == farm.Id &&
+                entity.BirthDate.AddMonths(4) < request.RegistrationDate.Value)
+            .OrderBy(entity => entity.BirthDate)
+            .ThenBy(entity => entity.Id)
+            .ToListAsync(cancellationToken);
+
+        if (eligibleBirths.Count == 0)
+        {
+            throw new DomainException("No hay animales no reproductores sin identificar con más de 4 meses disponibles para autoreposición.");
+        }
+
+        var eligibleBirthIds = eligibleBirths.Select(entity => entity.Id).ToArray();
+        var consumedByBirthId = await dbContext.Animals
+            .Where(entity =>
+                entity.SourceBirthId != null &&
+                eligibleBirthIds.Contains(entity.SourceBirthId.Value) &&
+                (entity.RegistrationDate == null || entity.RegistrationDate <= request.RegistrationDate.Value))
+            .GroupBy(entity => entity.SourceBirthId!.Value)
+            .Select(entity => new { BirthId = entity.Key, Count = entity.Count() })
+            .ToDictionaryAsync(entity => entity.BirthId, entity => entity.Count, cancellationToken);
+
+        var availableUnits = eligibleBirths
+            .SelectMany(entity => Enumerable.Repeat(
+                new AllocatedBirthUnit(entity.Id, entity.BirthDate),
+                Math.Max(0, entity.OffspringNumber - consumedByBirthId.GetValueOrDefault(entity.Id))))
+            .ToList();
+
+        if (request.Quantity > availableUnits.Count)
+        {
+            throw new DomainException("No puedes autoreponer más animales que los no reproductores sin identificar disponibles en el censo.");
+        }
+
+        var identifications = BuildConsecutiveIdentifications(farm.LivestockSpecies, request.StartIdentification, request.Quantity);
         var existingIdentifications = await dbContext.Animals
             .Where(entity => identifications.Contains(entity.Identification))
             .Select(entity => entity.Identification)
@@ -242,7 +267,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         var createRequest = new CreateAnimalRequest(
             farmId,
             string.Empty,
-            request.BirthYear,
+            availableUnits[0].BirthDate.Year,
             request.Breed,
             request.Sex,
             request.RegistrationDate,
@@ -252,8 +277,16 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
             request.OvinoCaprino,
             request.Porcino);
 
+        var allocatedUnits = availableUnits.Take(request.Quantity).ToList();
         var animals = identifications
-            .Select(identification => BuildBaseAnimal(farm, identification, createRequest))
+            .Select((identification, index) =>
+            {
+                var animal = BuildBaseAnimal(farm, identification, createRequest);
+                animal.BirthDate = allocatedUnits[index].BirthDate;
+                animal.BirthYear = allocatedUnits[index].BirthDate.Year;
+                animal.SourceBirthId = allocatedUnits[index].BirthId;
+                return animal;
+            })
             .ToList();
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -274,6 +307,55 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
                 .Select(animal => BuildOvinoCaprinoAnimal(animal.Id, farm, createRequest))
                 .ToList();
             dbContext.OvinoCaprinoAnimals.AddRange(ovinoCaprinoAnimals);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var balance = new Balance
+        {
+            LivestockFarmId = farm.Id,
+            BalanceDate = request.RegistrationDate.Value,
+            ModificationCause = AutorrepositionBalanceCause,
+            NumberOfAnimals = animals.Count
+        };
+
+        dbContext.Balances.Add(balance);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (farm.LivestockSpecies == LivestockSpecies.Porcine)
+        {
+            dbContext.BalancePorcino.Add(new BalancePorcino
+            {
+                BalanceId = balance.Id,
+                Baits = 0,
+                Boars = 0,
+                Breed = animals.Select(entity => entity.Breed).FirstOrDefault(entity => !string.IsNullOrWhiteSpace(entity)),
+                Piglets = 0,
+                PigsReposition = FarmCensusProjectionSupport.NormalizeType(request.Porcino?.AnimalType)?.Contains("sow", StringComparison.Ordinal) == true ||
+                    FarmCensusProjectionSupport.NormalizeType(request.Porcino?.AnimalType)?.Contains("cerda", StringComparison.Ordinal) == true
+                    ? 0
+                    : animals.Count,
+                Rear = 0,
+                SowsForLive = 0,
+                SowsReposition = FarmCensusProjectionSupport.NormalizeType(request.Porcino?.AnimalType)?.Contains("sow", StringComparison.Ordinal) == true ||
+                    FarmCensusProjectionSupport.NormalizeType(request.Porcino?.AnimalType)?.Contains("cerda", StringComparison.Ordinal) == true
+                    ? animals.Count
+                    : 0,
+                Tag = request.Porcino?.Tag,
+                Type = request.Porcino?.AnimalType?.Trim()
+            });
+        }
+        else
+        {
+            var normalizedSex = FarmCensusProjectionSupport.NormalizeSex(request.Sex);
+            dbContext.BalanceOvinoCaprino.Add(new BalanceOvinoCaprino
+            {
+                BalanceId = balance.Id,
+                NonReproductiveBetween4And12Months = 0,
+                NonReproductiveUnder4Months = 0,
+                ReproductiveFemales = normalizedSex == "female" ? animals.Count : 0,
+                ReproductiveMales = normalizedSex == "male" ? animals.Count : 0
+            });
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -504,7 +586,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
             BookDocumentSupport.MapBreedCode(animal.LivestockFarm.LivestockSpecies, animal.Breed),
             EmptyToNull(animal.Sex),
             BookDocumentSupport.MapSexCode(animal.Sex),
-            animal.BirthYear,
+            FarmCensusProjectionSupport.ResolveBirthYear(animal),
             animal.LivestockFarm.LivestockSpecies == LivestockSpecies.Porcine ? animal.Porcino?.IdentificationDate ?? animal.RegistrationDate : animal.RegistrationDate,
             animal.RegistrationDate,
             FormatRegistrationCause(animal.RegistrationCause),
@@ -597,7 +679,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
             animal.LivestockFarm.RegaCode,
             EmptyToNull(animal.Breed),
             EmptyToNull(animal.Sex),
-            animal.BirthYear,
+            FarmCensusProjectionSupport.ResolveBirthYear(animal),
             animal.RegistrationDate,
             FormatRegistrationCause(animal.RegistrationCause),
             animal.RegistrationCause?.ToString(),
@@ -753,6 +835,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         animal.LivestockFarmId = farm.Id;
         animal.Identification = identification;
         animal.BirthYear = request.BirthYear;
+        animal.BirthDate = request.BirthYear is null ? null : new DateOnly(request.BirthYear.Value, 1, 1);
         animal.Breed = Normalize(request.Breed);
         animal.Sex = Normalize(request.Sex);
         animal.RegistrationDate = request.RegistrationDate;
@@ -768,6 +851,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
         animal.LivestockFarmId = farm.Id;
         animal.Identification = identification;
         animal.BirthYear = request.BirthYear;
+        animal.BirthDate = request.BirthYear is null ? null : new DateOnly(request.BirthYear.Value, 1, 1);
         animal.Breed = Normalize(request.Breed);
         animal.Sex = Normalize(request.Sex);
         animal.RegistrationDate = request.RegistrationDate;
@@ -852,4 +936,6 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
     private static string? FormatRegistrationCause(AnimalRegistrationCause? value) => value?.ToString();
 
     private static string? FormatDischargeCause(AnimalDischargeCause? value) => value?.ToString();
+
+    private sealed record AllocatedBirthUnit(long BirthId, DateOnly BirthDate);
 }

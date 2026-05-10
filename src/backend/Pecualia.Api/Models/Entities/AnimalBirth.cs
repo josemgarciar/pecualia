@@ -18,7 +18,11 @@ public sealed class AnimalBirth
 
     public int OffspringNumber { get; set; }
 
+    public long? BalanceId { get; set; }
+
     public LivestockFarm LivestockFarm { get; set; } = null!;
+
+    public Balance? Balance { get; set; }
 
     public Animal? MotherAnimal { get; set; }
 

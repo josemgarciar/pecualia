@@ -8,7 +8,17 @@ public sealed record FarmBirthResponse(
     decimal? BirthWeight,
     string? Observations);
 
+public sealed record FarmAutorrepositionAvailabilityResponse(
+    int AvailableAnimals,
+    int EligibleAnimals);
+
 public sealed record CreateFarmBirthRequest(
+    DateOnly BirthDate,
+    int OffspringNumber,
+    decimal? BirthWeight,
+    string? Observations);
+
+public sealed record UpdateFarmBirthRequest(
     DateOnly BirthDate,
     int OffspringNumber,
     decimal? BirthWeight,

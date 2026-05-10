@@ -12,8 +12,6 @@ public sealed class LivestockFarm
 
     public string? Address { get; set; }
 
-    public FarmStatus Status { get; set; } = FarmStatus.Active;
-
     public LivestockSpecies LivestockSpecies { get; set; }
 
     public string? LivestockType { get; set; }
@@ -22,7 +20,7 @@ public sealed class LivestockFarm
 
     public string? PorcineRegistryNumber { get; set; }
 
-    public string? ProductionCapacity { get; set; }
+    public int? ProductionCapacity { get; set; }
 
     public string? Province { get; set; }
 

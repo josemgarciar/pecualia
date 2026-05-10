@@ -67,8 +67,27 @@ public static class FarmController
         group.MapGet("/{farmId:long}/births", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetBirthsAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
 
+        group.MapGet("/{farmId:long}/births/autorreposition-availability", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.GetAutorrepositionAvailabilityAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
+
         group.MapPost("/{farmId:long}/births", async (ClaimsPrincipal user, long farmId, CreateFarmBirthRequest request, IFarmOperationService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.CreateBirthAsync(user.GetUserId(), user.GetRole(), farmId, request, cancellationToken)));
+
+        group.MapPut("/{farmId:long}/births/{birthId:long}", async (ClaimsPrincipal user, long farmId, long birthId, UpdateFarmBirthRequest request, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.UpdateBirthAsync(user.GetUserId(), user.GetRole(), farmId, birthId, request, cancellationToken)));
+
+        group.MapDelete("/{farmId:long}/births/{birthId:long}", async (ClaimsPrincipal user, long farmId, long birthId, IFarmOperationService service, CancellationToken cancellationToken) =>
+        {
+            try
+            {
+                await service.DeleteBirthAsync(user.GetUserId(), user.GetRole(), farmId, birthId, cancellationToken);
+                return Results.NoContent();
+            }
+            catch (DomainException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+        });
 
         group.MapGet("/{farmId:long}/deaths", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetDeathsAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));

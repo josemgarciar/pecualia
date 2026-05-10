@@ -302,7 +302,6 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
                     entity.Name,
                     entity.RegaCode,
                     entity.LivestockSpecies.ToString(),
-                    entity.Status.ToString(),
                     entity.Animals.Count))
                 .ToList());
     }

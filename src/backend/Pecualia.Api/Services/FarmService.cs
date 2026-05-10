@@ -64,6 +64,16 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             throw new DomainException("El número de registro porcino es obligatorio para explotaciones porcinas.");
         }
 
+        if (request.ProductionCapacity < 0)
+        {
+            throw new DomainException("La capacidad productiva debe ser un número entero igual o mayor que cero.");
+        }
+
+        if (request.Spindle is <= 0)
+        {
+            throw new DomainException("El huso debe ser un número entero positivo.");
+        }
+
         if (role == UserRole.Manager)
         {
             var canManage = await dbContext.Farmers.AnyAsync(entity => entity.UserId == request.FarmerId && entity.ManagerId == userId, cancellationToken);
@@ -92,11 +102,13 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             ZipCode = Normalize(request.ZipCode),
             AuthorisedCapacity = request.LivestockSpecies == LivestockSpecies.Porcine ? request.AuthorisedCapacity : null,
             PorcineRegistryNumber = request.LivestockSpecies == LivestockSpecies.Porcine ? Normalize(request.PorcineRegistryNumber).ToUpperInvariant() : string.Empty,
+            LivestockType = Normalize(request.LivestockType),
+            ProductionCapacity = request.ProductionCapacity,
             Responsible = Normalize(request.Responsible),
             ZootechnicClassification = Normalize(request.ZootechnicClassification),
+            Spindle = request.Spindle,
             XCoordinate = request.XCoordinate,
-            YCoordinate = request.YCoordinate,
-            Status = FarmStatus.Active
+            YCoordinate = request.YCoordinate
         };
 
         dbContext.Farms.Add(farm);
@@ -152,6 +164,16 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             throw new DomainException("El número de registro porcino es obligatorio para explotaciones porcinas.");
         }
 
+        if (request.ProductionCapacity < 0)
+        {
+            throw new DomainException("La capacidad productiva debe ser un número entero igual o mayor que cero.");
+        }
+
+        if (request.Spindle is <= 0)
+        {
+            throw new DomainException("El huso debe ser un número entero positivo.");
+        }
+
         if (string.IsNullOrWhiteSpace(request.Town))
         {
             throw new DomainException("La localidad es obligatoria.");
@@ -171,8 +193,11 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
         farm.ZipCode = Normalize(request.ZipCode);
         farm.AuthorisedCapacity = farm.LivestockSpecies == LivestockSpecies.Porcine ? request.AuthorisedCapacity : null;
         farm.PorcineRegistryNumber = farm.LivestockSpecies == LivestockSpecies.Porcine ? Normalize(request.PorcineRegistryNumber).ToUpperInvariant() : string.Empty;
+        farm.LivestockType = Normalize(request.LivestockType);
+        farm.ProductionCapacity = request.ProductionCapacity;
         farm.Responsible = Normalize(request.Responsible);
         farm.ZootechnicClassification = Normalize(request.ZootechnicClassification);
+        farm.Spindle = request.Spindle;
         farm.XCoordinate = request.XCoordinate;
         farm.YCoordinate = request.YCoordinate;
 
@@ -200,7 +225,6 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             farm.Name,
             farm.RegaCode,
             farm.LivestockSpecies.ToString(),
-            farm.Status.ToString(),
             $"{farm.Farmer.User.Name} {farm.Farmer.User.Surname}".Trim(),
             farm.Animals.Count,
             farm.AuthorisedCapacity,
@@ -231,14 +255,13 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             farm.Name,
             farm.RegaCode,
             farm.LivestockSpecies.ToString(),
-            farm.Status.ToString(),
             BuildFarmerName(farm.Farmer),
             farm.Animals.Count,
             farm.AuthorisedCapacity,
             EmptyToNull(farm.PorcineRegistryNumber),
             farm.Regime?.ToString(),
             EmptyToNull(farm.LivestockType),
-            EmptyToNull(farm.ProductionCapacity),
+            farm.ProductionCapacity,
             EmptyToNull(farm.Town),
             EmptyToNull(farm.Province),
             EmptyToNull(farm.Address),
@@ -289,7 +312,6 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             farm.Name,
             farm.RegaCode,
             farm.LivestockSpecies.ToString(),
-            farm.Status.ToString(),
             EmptyToNull(farm.Town),
             EmptyToNull(farm.Province),
             BuildFarmerName(farm.Farmer),
