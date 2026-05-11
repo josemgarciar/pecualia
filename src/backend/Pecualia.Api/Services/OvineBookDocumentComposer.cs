@@ -209,7 +209,6 @@ internal static class OvineBookDocumentComposer
                             columns.ConstantColumn(136);
                             columns.ConstantColumn(76);
                             columns.ConstantColumn(48);
-                            columns.ConstantColumn(38);
                             columns.ConstantColumn(34);
                             columns.ConstantColumn(34);
                             columns.ConstantColumn(28);
@@ -227,9 +226,7 @@ internal static class OvineBookDocumentComposer
                             header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Nº Identificación");
                             header.Cell().Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Año nacimiento");
                             header.Cell().Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Raza (1)");
-                            header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Genotipado (3)");
-                            header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Alelo");
-                            header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Alelo");
+                            header.Cell().ColumnSpan(2).Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Genotipado (3)");
                             header.Cell().Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Alta");
                             header.Cell().Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Causa (4)");
                             header.Cell().Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Fecha alta");
@@ -239,6 +236,8 @@ internal static class OvineBookDocumentComposer
 
                             header.Cell().Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Fecha Identificación");
                             header.Cell().Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Sexo (2)");
+                            header.Cell().Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Alelo");
+                            header.Cell().Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Alelo");
                             header.Cell().Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Baja");
                             header.Cell().Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Causa (5)");
                             header.Cell().Element(BookDocumentSupport.OfficialOvineSheetHeaderCell).Text("Fecha baja");
@@ -255,7 +254,6 @@ internal static class OvineBookDocumentComposer
                             table.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialOvineSheetBodyCellLeft).Text(row.Identification);
                             table.Cell().Element(BookDocumentSupport.OfficialOvineSheetBodyCell).Text(row.BirthYear ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialOvineSheetBodyCell).Text(row.BreedCode ?? string.Empty);
-                            table.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialOvineSheetBodyCell).Text(row.Genotyping ?? string.Empty);
                             table.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialOvineSheetBodyCell).Text(row.DominantAllele ?? string.Empty);
                             table.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialOvineSheetBodyCell).Text(row.LowAllele ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialOvineSheetBodyCell).Text(orderText.Length == 0 ? string.Empty : "A");
