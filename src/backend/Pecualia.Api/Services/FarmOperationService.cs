@@ -65,9 +65,9 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
 
     public async Task<FarmAutorrepositionAvailabilityResponse> GetAutorrepositionAvailabilityAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken)
     {
-        await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+        var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
         var today = DateOnly.FromDateTime(clock.UtcNow.Date);
-        return await CalculateAutorrepositionAvailabilityAsync(farmId, today, cancellationToken);
+        return await CalculateAutorrepositionAvailabilityAsync(farm, today, cancellationToken);
     }
 
     public async Task<FarmBirthResponse> CreateBirthAsync(long userId, UserRole role, long farmId, CreateFarmBirthRequest request, CancellationToken cancellationToken)
@@ -784,46 +784,11 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         return "rears";
     }
 
-    private async Task<FarmAutorrepositionAvailabilityResponse> CalculateAutorrepositionAvailabilityAsync(long farmId, DateOnly asOfDate, CancellationToken cancellationToken)
+    private async Task<FarmAutorrepositionAvailabilityResponse> CalculateAutorrepositionAvailabilityAsync(LivestockFarm farm, DateOnly asOfDate, CancellationToken cancellationToken)
     {
-        var births = await dbContext.AnimalBirths
-            .AsNoTracking()
-            .Where(entity => entity.LivestockFarmId == farmId && entity.BirthDate <= asOfDate)
-            .OrderBy(entity => entity.BirthDate)
-            .ThenBy(entity => entity.Id)
-            .ToListAsync(cancellationToken);
-
-        var birthIds = births.Select(entity => entity.Id).ToArray();
-        var consumedByBirthId = birthIds.Length == 0
-            ? new Dictionary<long, int>()
-            : await dbContext.Animals
-                .AsNoTracking()
-                .Where(entity =>
-                    entity.SourceBirthId != null &&
-                    birthIds.Contains(entity.SourceBirthId.Value) &&
-                    (entity.RegistrationDate == null || entity.RegistrationDate <= asOfDate))
-                .GroupBy(entity => entity.SourceBirthId!.Value)
-                .Select(entity => new { BirthId = entity.Key, Count = entity.Count() })
-                .ToDictionaryAsync(entity => entity.BirthId, entity => entity.Count, cancellationToken);
-
-        var availableAnimals = 0;
-        var eligibleAnimals = 0;
-
-        foreach (var birth in births)
-        {
-            var available = Math.Max(0, birth.OffspringNumber - consumedByBirthId.GetValueOrDefault(birth.Id));
-            if (available == 0)
-            {
-                continue;
-            }
-
-            availableAnimals += available;
-            if (FarmCensusProjectionSupport.IsOlderThanMonths(birth.BirthDate, asOfDate, 4))
-            {
-                eligibleAnimals += available;
-            }
-        }
-
+        var snapshot = await censusProjectionService.BuildSnapshotAsync(farm, asOfDate, cancellationToken);
+        var availableAnimals = snapshot.NonReproductiveUnder4Months + snapshot.NonReproductiveBetween4And12Months;
+        var eligibleAnimals = snapshot.NonReproductiveBetween4And12Months;
         return new FarmAutorrepositionAvailabilityResponse(availableAnimals, eligibleAnimals);
     }
 

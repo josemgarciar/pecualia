@@ -129,6 +129,18 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
                 ))
             .ToListAsync(cancellationToken);
 
+        var consumedUnidentifiedMovementsByAutorreposition = farm.LivestockSpecies == LivestockSpecies.Porcine
+            ? 0
+            : await dbContext.Animals
+                .AsNoTracking()
+                .Where(entity =>
+                    entity.LivestockFarmId == farm.Id &&
+                    entity.RegistrationCause == AnimalRegistrationCause.Autorreposicion &&
+                    entity.SourceBirthId == null &&
+                    entity.RegistrationDate != null &&
+                    entity.RegistrationDate <= asOfDate)
+                .CountAsync(cancellationToken);
+
         var birthIds = births.Select(entity => entity.Id).ToArray();
         var consumedByBirthId = birthIds.Length == 0
             ? new Dictionary<long, int>()
@@ -196,6 +208,10 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
             {
                 AccumulateUnidentifiedMovement(projection, farm.Id, movement);
             }
+
+            projection.NonReproductiveBetween4And12Months = Math.Max(
+                0,
+                projection.NonReproductiveBetween4And12Months - consumedUnidentifiedMovementsByAutorreposition);
         }
 
         return projection;
