@@ -8,6 +8,8 @@ namespace Pecualia.Api.Services;
 
 public interface IFarmCensusProjectionService
 {
+    Task<FarmCensusResponse> BuildSnapshotAsync(LivestockFarm farm, DateOnly asOfDate, CancellationToken cancellationToken);
+
     Task<FarmCensusResponse> BuildCensusResponseAsync(LivestockFarm farm, int year, DateOnly asOfDate, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<int>> GetAvailableYearsAsync(long farmId, CancellationToken cancellationToken);
@@ -17,29 +19,17 @@ public interface IFarmCensusProjectionService
 
 public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, IClock clock) : IFarmCensusProjectionService
 {
+    public async Task<FarmCensusResponse> BuildSnapshotAsync(LivestockFarm farm, DateOnly asOfDate, CancellationToken cancellationToken)
+    {
+        var projection = await BuildProjectionAsync(farm, asOfDate, cancellationToken);
+        return CreateResponse(farm, asOfDate.Year, projection, []);
+    }
+
     public async Task<FarmCensusResponse> BuildCensusResponseAsync(LivestockFarm farm, int year, DateOnly asOfDate, CancellationToken cancellationToken)
     {
         var projection = await BuildProjectionAsync(farm, asOfDate, cancellationToken);
         var availableYears = await GetAvailableYearsAsync(farm.Id, cancellationToken);
-
-        return new FarmCensusResponse(
-            null,
-            farm.Id,
-            year,
-            farm.LivestockSpecies.ToString(),
-            projection.NonReproductiveUnder4Months,
-            projection.NonReproductiveBetween4And12Months,
-            projection.ReproductiveFemales,
-            projection.ReproductiveMales,
-            projection.Boars,
-            projection.SowsForLive,
-            projection.SowsReposition,
-            projection.MalesReposition,
-            projection.Piglets,
-            projection.Rears,
-            projection.Baits,
-            projection.Total,
-            availableYears);
+        return CreateResponse(farm, year, projection, availableYears);
     }
 
     public async Task<IReadOnlyList<int>> GetAvailableYearsAsync(long farmId, CancellationToken cancellationToken)
@@ -110,6 +100,8 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
 
     private async Task<FarmCensusProjection> BuildProjectionAsync(LivestockFarm farm, DateOnly asOfDate, CancellationToken cancellationToken)
     {
+        var asOfExclusiveUtc = DateTime.SpecifyKind(asOfDate.AddDays(1).ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+
         var animals = await dbContext.Animals
             .AsNoTracking()
             .Include(entity => entity.Porcino)
@@ -124,6 +116,17 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
             .Where(entity => entity.LivestockFarmId == farm.Id && entity.BirthDate <= asOfDate)
             .OrderBy(entity => entity.BirthDate)
             .ThenBy(entity => entity.Id)
+            .ToListAsync(cancellationToken);
+
+        var unidentifiedMovements = await dbContext.MovementCertificates
+            .AsNoTracking()
+            .Where(entity =>
+                entity.UnidentifiedCategory != null &&
+                entity.Specie != LivestockSpecies.Porcine.ToString() &&
+                (
+                    (entity.OriginLivestockId == farm.Id && entity.DepartureDate < asOfExclusiveUtc) ||
+                    (entity.DestinationLivestockId == farm.Id && (entity.ArrivalDate ?? entity.DepartureDate) < asOfExclusiveUtc)
+                ))
             .ToListAsync(cancellationToken);
 
         var birthIds = births.Select(entity => entity.Id).ToArray();
@@ -184,6 +187,14 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
                 {
                     projection.NonReproductiveBetween4And12Months += available;
                 }
+            }
+        }
+
+        if (farm.LivestockSpecies is LivestockSpecies.Ovine or LivestockSpecies.Caprine)
+        {
+            foreach (var movement in unidentifiedMovements)
+            {
+                AccumulateUnidentifiedMovement(projection, farm.Id, movement);
             }
         }
 
@@ -288,6 +299,26 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
         }
     }
 
+    private static void AccumulateUnidentifiedMovement(FarmCensusProjection projection, long farmId, MovementCertificate movement)
+    {
+        if (movement.UnidentifiedCategory is null)
+        {
+            return;
+        }
+
+        var sign = movement.DestinationLivestockId == farmId ? 1 : -1;
+        var count = movement.NumberOfAnimals * sign;
+
+        if (movement.UnidentifiedCategory == MovementUnidentifiedCategory.Under4Months)
+        {
+            projection.NonReproductiveUnder4Months += count;
+        }
+        else
+        {
+            projection.NonReproductiveBetween4And12Months += count;
+        }
+    }
+
     private static Census CreateSyntheticCensus(LivestockFarm farm, DateOnly censusDate, FarmCensusProjection projection)
     {
         return new Census
@@ -316,6 +347,32 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
                     Baits = projection.Baits
                 }
         };
+    }
+
+    private static FarmCensusResponse CreateResponse(
+        LivestockFarm farm,
+        int year,
+        FarmCensusProjection projection,
+        IReadOnlyList<int> availableYears)
+    {
+        return new FarmCensusResponse(
+            null,
+            farm.Id,
+            year,
+            farm.LivestockSpecies.ToString(),
+            projection.NonReproductiveUnder4Months,
+            projection.NonReproductiveBetween4And12Months,
+            projection.ReproductiveFemales,
+            projection.ReproductiveMales,
+            projection.Boars,
+            projection.SowsForLive,
+            projection.SowsReposition,
+            projection.MalesReposition,
+            projection.Piglets,
+            projection.Rears,
+            projection.Baits,
+            projection.Total,
+            availableYears);
     }
 
     private sealed class FarmCensusProjection

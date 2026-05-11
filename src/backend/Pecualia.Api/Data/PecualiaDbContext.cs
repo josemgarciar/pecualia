@@ -303,6 +303,12 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         movementCertificate.Property(entity => entity.SolicitationDate).HasColumnName("solicitation_date");
         movementCertificate.Property(entity => entity.TransportName).HasColumnName("transport_name").HasMaxLength(180);
         movementCertificate.Property(entity => entity.VehicleRegistrationNumber).HasColumnName("vehicle_registration_number").HasMaxLength(40);
+        movementCertificate.Property(entity => entity.UnidentifiedCategory)
+            .HasColumnName("unidentified_category")
+            .HasConversion(
+                entity => entity == null ? null : entity.ToString(),
+                value => string.IsNullOrWhiteSpace(value) ? null : Enum.Parse<MovementUnidentifiedCategory>(value, true))
+            .HasMaxLength(40);
         movementCertificate.HasOne(entity => entity.OriginFarm)
             .WithMany()
             .HasForeignKey(entity => entity.OriginLivestockId)

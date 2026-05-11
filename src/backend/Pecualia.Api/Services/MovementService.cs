@@ -40,7 +40,7 @@ public interface IMovementService
         CancellationToken cancellationToken);
 }
 
-public sealed class MovementService(PecualiaDbContext dbContext) : IMovementService
+public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProjectionService censusProjectionService) : IMovementService
 {
     private static readonly Regex SpanishOfficialIdentificationRegex = new("^ES\\d{12}$", RegexOptions.Compiled);
     private static readonly Regex OvineOrCaprineLegacyIdentificationRegex = new("^ES\\d{12}-[A-Z0-9]{3,}$", RegexOptions.Compiled);
@@ -207,7 +207,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
 
         if (request.UnidentifiedAnimalCount is > 0)
         {
-            ValidateUnidentifiedAnimalRequest(context, request.UnidentifiedAnimalCount.Value);
+            ValidateUnidentifiedAnimalRequest(context, request.UnidentifiedAnimalCount.Value, request.UnidentifiedCategory);
             var summary = new MovementImportPreviewSummaryResponse(0, 0, 0, 0, 0, 0, 0, 0);
             return new MovementImportPreviewResponse(context.Species.ToString(), false, [], summary);
         }
@@ -241,7 +241,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
 
         if (request.UnidentifiedAnimalCount is > 0)
         {
-            ValidateUnidentifiedAnimalRequest(context, request.UnidentifiedAnimalCount.Value);
+            ValidateUnidentifiedAnimalRequest(context, request.UnidentifiedAnimalCount.Value, request.UnidentifiedCategory);
             return await CommitUnidentifiedAnimalMovementAsync(
                 context,
                 request.Serie,
@@ -253,6 +253,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
                 request.VehicleRegistrationNumber,
                 request.HealthDocumentNumber,
                 request.UnidentifiedAnimalCount.Value,
+                request.UnidentifiedCategory!.Value,
                 cancellationToken);
         }
 
@@ -339,6 +340,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         string? vehicleRegistrationNumber,
         string? healthDocumentNumber,
         int unidentifiedAnimalCount,
+        MovementUnidentifiedCategory unidentifiedCategory,
         CancellationToken cancellationToken)
     {
         var movement = BuildMovementCertificate(
@@ -350,10 +352,21 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             meansOfTransport,
             transportName,
             vehicleRegistrationNumber,
-            unidentifiedAnimalCount);
+            unidentifiedAnimalCount,
+            unidentifiedCategory);
 
         dbContext.MovementCertificates.Add(movement);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await RecordUnidentifiedMovementSnapshotsAsync(
+            context,
+            unidentifiedAnimalCount,
+            unidentifiedCategory,
+            ToDateOnly(departureDate),
+            arrivalDate is null ? null : ToDateOnly(arrivalDate.Value),
+            healthDocumentNumber,
+            transportName,
+            vehicleRegistrationNumber,
+            cancellationToken);
 
         var summary = new MovementImportPreviewSummaryResponse(0, 0, 0, 0, 0, 0, 0, 0);
 
@@ -366,7 +379,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             summary);
     }
 
-    private static void ValidateUnidentifiedAnimalRequest(MovementContext context, int count)
+    private static void ValidateUnidentifiedAnimalRequest(MovementContext context, int count, MovementUnidentifiedCategory? category)
     {
         if (context.Species is not (LivestockSpecies.Ovine or LivestockSpecies.Caprine))
         {
@@ -376,6 +389,11 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         if (count <= 0 || count > 10000)
         {
             throw new DomainException("El número de animales sin identificar debe estar entre 1 y 10.000.");
+        }
+
+        if (category is null)
+        {
+            throw new DomainException("Debes indicar si los animales sin identificar son menores de 4 meses o de 4 a 12 meses.");
         }
     }
 
@@ -511,7 +529,16 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         }));
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await RecordMovementSnapshotsAsync(context, animals, departureDay, arrivalDay, healthDocumentNumber, cancellationToken);
+        await RecordMovementSnapshotsAsync(
+            context,
+            animals,
+            departureDay,
+            arrivalDay,
+            transportName,
+            vehicleRegistrationNumber,
+            healthDocumentNumber,
+            BuildPorcineBalanceMetadata(animals),
+            cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 
@@ -678,7 +705,21 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         }));
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await RecordMovementSnapshotsAsync(context, affectedAnimals, departureDay, arrivalDay, healthDocumentNumber, cancellationToken);
+        await RecordMovementSnapshotsAsync(
+            context,
+            affectedAnimals,
+            departureDay,
+            arrivalDay,
+            transportName,
+            vehicleRegistrationNumber,
+            healthDocumentNumber,
+            sharedAnimalData?.Porcino is null
+                ? BuildPorcineBalanceMetadata(affectedAnimals)
+                : new PorcineBalanceMetadata(
+                    sharedAnimalData.Porcino.AnimalType,
+                    sharedAnimalData.Breed,
+                    sharedAnimalData.Porcino.Tag),
+            cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 
@@ -690,17 +731,20 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         IReadOnlyCollection<Animal> movedAnimals,
         DateOnly departureDate,
         DateOnly? arrivalDate,
+        string? transportName,
+        string? vehicleRegistrationNumber,
         string? healthDocumentNumber,
+        PorcineBalanceMetadata? porcineMetadata,
         CancellationToken cancellationToken)
     {
         var movementDate = arrivalDate ?? departureDate;
-        var snapshots = BuildSnapshotRequests(context, movedAnimals, movementDate, healthDocumentNumber);
+        var snapshots = BuildSnapshotRequests(context, movementDate);
 
         foreach (var snapshot in snapshots)
         {
             var balance = new Balance
             {
-                LivestockFarmId = snapshot.FarmId,
+                LivestockFarmId = snapshot.Farm.Id,
                 BalanceDate = snapshot.Date,
                 DestinationLivestockCode = snapshot.DestinationCode,
                 HealthDocumentNumber = NormalizeNullable(healthDocumentNumber),
@@ -712,58 +756,45 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             dbContext.Balances.Add(balance);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            if (snapshot.Species == LivestockSpecies.Porcine)
+            if (snapshot.Farm.LivestockSpecies == LivestockSpecies.Porcine)
             {
-                dbContext.BalancePorcino.Add(BuildPorcineBalance(balance.Id, movedAnimals, snapshot.Date));
+                dbContext.BalancePorcino.Add(BuildPorcineBalance(balance.Id, movedAnimals, snapshot.Date, porcineMetadata));
             }
             else
             {
-                dbContext.BalanceOvinoCaprino.Add(BuildOvineOrCaprineBalance(balance.Id, movedAnimals, snapshot.Date));
+                dbContext.BalanceOvinoCaprino.Add(BuildOvineOrCaprineBalance(
+                    balance.Id,
+                    movedAnimals,
+                    snapshot.Date,
+                    new OvineBalanceMetadata(transportName, vehicleRegistrationNumber)));
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            var activeAnimals = await dbContext.Animals
-                .AsNoTracking()
-                .Include(entity => entity.Porcino)
-                .Include(entity => entity.OvinoCaprino)
-                .Where(entity => entity.LivestockFarmId == snapshot.FarmId && entity.DischargeDate == null)
-                .ToListAsync(cancellationToken);
-
             var census = new Census
             {
-                LivestockFarmId = snapshot.FarmId,
+                LivestockFarmId = snapshot.Farm.Id,
                 CensusDate = snapshot.Date
             };
 
             dbContext.Census.Add(census);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            if (snapshot.Species == LivestockSpecies.Porcine)
-            {
-                dbContext.CensusPorcino.Add(BuildPorcineCensus(census.Id, activeAnimals, snapshot.Date));
-            }
-            else
-            {
-                dbContext.CensusOvinoCaprino.Add(BuildOvineOrCaprineCensus(census.Id, activeAnimals, snapshot.Date));
-            }
-
+            var balanceSnapshot = await censusProjectionService.BuildSnapshotAsync(snapshot.Farm, snapshot.Date, cancellationToken);
+            await BalanceSnapshotSupport.UpsertCensusSnapshotAsync(dbContext, census, snapshot.Farm, balanceSnapshot, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
 
     private static IReadOnlyList<SnapshotRequest> BuildSnapshotRequests(
         MovementContext context,
-        IReadOnlyCollection<Animal> movedAnimals,
-        DateOnly movementDate,
-        string? healthDocumentNumber)
+        DateOnly movementDate)
     {
         var requests = new List<SnapshotRequest>();
         if (context.Direction == MovementDirection.Exit)
         {
             requests.Add(new SnapshotRequest(
-                context.CurrentFarm.Id,
-                context.Species,
+                context.CurrentFarm,
                 movementDate,
                 context.Cause,
                 context.CurrentFarm.RegaCode,
@@ -772,8 +803,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             if (context.CounterpartyFarm is not null)
             {
                 requests.Add(new SnapshotRequest(
-                    context.CounterpartyFarm.Id,
-                    context.Species,
+                    context.CounterpartyFarm,
                     movementDate,
                     context.Cause,
                     context.CurrentFarm.RegaCode,
@@ -784,8 +814,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         }
 
         requests.Add(new SnapshotRequest(
-            context.CurrentFarm.Id,
-            context.Species,
+            context.CurrentFarm,
             movementDate,
             context.Cause,
             context.CounterpartyCode,
@@ -794,8 +823,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         if (context.CounterpartyFarm is not null)
         {
             requests.Add(new SnapshotRequest(
-                context.CounterpartyFarm.Id,
-                context.Species,
+                context.CounterpartyFarm,
                 movementDate,
                 context.Cause,
                 context.CounterpartyFarm.RegaCode,
@@ -1497,7 +1525,8 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         string? meansOfTransport,
         string? transportName,
         string? vehicleRegistrationNumber,
-        int numberOfAnimals)
+        int numberOfAnimals,
+        MovementUnidentifiedCategory? unidentifiedCategory = null)
     {
         var isEntry = context.Direction == MovementDirection.Entry;
         return new MovementCertificate
@@ -1522,8 +1551,62 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             OriginExternalCode = isEntry && context.CounterpartyType == MovementCounterpartyType.External ? context.CounterpartyCode : null,
             OriginExternalName = isEntry && context.CounterpartyType == MovementCounterpartyType.External ? context.CounterpartyName : null,
             DestinationExternalCode = !isEntry && context.CounterpartyType == MovementCounterpartyType.External ? context.CounterpartyCode : null,
-            DestinationExternalName = !isEntry && context.CounterpartyType == MovementCounterpartyType.External ? context.CounterpartyName : null
+            DestinationExternalName = !isEntry && context.CounterpartyType == MovementCounterpartyType.External ? context.CounterpartyName : null,
+            UnidentifiedCategory = unidentifiedCategory
         };
+    }
+
+    private async Task RecordUnidentifiedMovementSnapshotsAsync(
+        MovementContext context,
+        int numberOfAnimals,
+        MovementUnidentifiedCategory unidentifiedCategory,
+        DateOnly departureDate,
+        DateOnly? arrivalDate,
+        string? healthDocumentNumber,
+        string? transportName,
+        string? vehicleRegistrationNumber,
+        CancellationToken cancellationToken)
+    {
+        var movementDate = arrivalDate ?? departureDate;
+        var snapshots = BuildSnapshotRequests(context, movementDate);
+
+        foreach (var snapshot in snapshots)
+        {
+            var balance = new Balance
+            {
+                LivestockFarmId = snapshot.Farm.Id,
+                BalanceDate = snapshot.Date,
+                DestinationLivestockCode = snapshot.DestinationCode,
+                HealthDocumentNumber = NormalizeNullable(healthDocumentNumber),
+                ModificationCause = snapshot.Cause,
+                NumberOfAnimals = numberOfAnimals,
+                OriginLivestockCode = snapshot.OriginCode
+            };
+
+            dbContext.Balances.Add(balance);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            dbContext.BalanceOvinoCaprino.Add(BuildUnidentifiedOvineBalance(
+                balance.Id,
+                numberOfAnimals,
+                unidentifiedCategory,
+                transportName,
+                vehicleRegistrationNumber));
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            var census = new Census
+            {
+                LivestockFarmId = snapshot.Farm.Id,
+                CensusDate = snapshot.Date
+            };
+
+            dbContext.Census.Add(census);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            var balanceSnapshot = await censusProjectionService.BuildSnapshotAsync(snapshot.Farm, snapshot.Date, cancellationToken);
+            await BalanceSnapshotSupport.UpsertCensusSnapshotAsync(dbContext, census, snapshot.Farm, balanceSnapshot, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static FarmMovementListItemResponse MapFarmMovementListItem(MovementCertificate movement, long farmId)
@@ -1729,7 +1812,11 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         return tokens.Count == 0 ? null : string.Join(" · ", tokens);
     }
 
-    private static BalanceOvinoCaprino BuildOvineOrCaprineBalance(long balanceId, IReadOnlyCollection<Animal> animals, DateOnly asOfDate)
+    private static BalanceOvinoCaprino BuildOvineOrCaprineBalance(
+        long balanceId,
+        IReadOnlyCollection<Animal> animals,
+        DateOnly asOfDate,
+        OvineBalanceMetadata? metadata)
     {
         var classification = ClassifyOvineOrCaprineAnimals(animals, asOfDate);
         return new BalanceOvinoCaprino
@@ -1739,8 +1826,27 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             NonReproductiveUnder4Months = classification.NonReproductiveUnder4Months,
             ReproductiveFemales = classification.ReproductiveFemales,
             ReproductiveMales = classification.ReproductiveMales,
-            TransportTicketNumber = null,
-            TransporterName = null
+            TransportTicketNumber = metadata?.TransportTicketNumber,
+            TransporterName = metadata?.TransporterName
+        };
+    }
+
+    private static BalanceOvinoCaprino BuildUnidentifiedOvineBalance(
+        long balanceId,
+        int numberOfAnimals,
+        MovementUnidentifiedCategory category,
+        string? transportName,
+        string? vehicleRegistrationNumber)
+    {
+        return new BalanceOvinoCaprino
+        {
+            BalanceId = balanceId,
+            NonReproductiveUnder4Months = category == MovementUnidentifiedCategory.Under4Months ? numberOfAnimals : 0,
+            NonReproductiveBetween4And12Months = category == MovementUnidentifiedCategory.Between4And12Months ? numberOfAnimals : 0,
+            ReproductiveFemales = 0,
+            ReproductiveMales = 0,
+            TransporterName = NormalizeNullable(transportName),
+            TransportTicketNumber = NormalizeNullable(vehicleRegistrationNumber)
         };
     }
 
@@ -1821,24 +1927,27 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
             reproductiveMales);
     }
 
-    private static BalancePorcino BuildPorcineBalance(long balanceId, IReadOnlyCollection<Animal> animals, DateOnly asOfDate)
+    private static BalancePorcino BuildPorcineBalance(
+        long balanceId,
+        IReadOnlyCollection<Animal> animals,
+        DateOnly asOfDate,
+        PorcineBalanceMetadata? metadata)
     {
-        var classification = ClassifyPorcineAnimals(animals, asOfDate);
-        var firstPorcine = animals.Select(entity => entity.Porcino).FirstOrDefault(entity => entity is not null);
+        var classification = ClassifyPorcineAnimals(animals, asOfDate, metadata?.Type);
 
         return new BalancePorcino
         {
             BalanceId = balanceId,
             Baits = classification.Baits,
             Boars = classification.Boars,
-            Breed = NormalizeNullable(animals.Select(entity => entity.Breed).FirstOrDefault(entity => !string.IsNullOrWhiteSpace(entity))),
+            Breed = NormalizeNullable(metadata?.Breed ?? animals.Select(entity => entity.Breed).FirstOrDefault(entity => !string.IsNullOrWhiteSpace(entity))),
             Piglets = classification.Piglets,
             PigsReposition = classification.PigsReposition,
             Rear = classification.Rears,
             SowsForLive = classification.Sows,
             SowsReposition = classification.SowsReposition,
-            Tag = NormalizeNullable(firstPorcine?.Tag),
-            Type = NormalizeNullable(firstPorcine?.AnimalType)
+            Tag = NormalizeNullable(metadata?.Tag),
+            Type = NormalizeNullable(metadata?.Type)
         };
     }
 
@@ -1858,13 +1967,13 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         };
     }
 
-    private static PorcineBreakdown ClassifyPorcineAnimals(IReadOnlyCollection<Animal> animals, DateOnly asOfDate)
+    private static PorcineBreakdown ClassifyPorcineAnimals(IReadOnlyCollection<Animal> animals, DateOnly asOfDate, string? fallbackType = null)
     {
         var breakdown = new PorcineBreakdown();
 
         foreach (var animal in animals)
         {
-            var type = FarmCensusProjectionSupport.NormalizeType(animal.Porcino?.AnimalType);
+            var type = FarmCensusProjectionSupport.NormalizeType(animal.Porcino?.AnimalType ?? fallbackType);
             if (string.IsNullOrWhiteSpace(type))
             {
                 var birthDate = FarmCensusProjectionSupport.ResolveBirthDate(animal);
@@ -1927,8 +2036,7 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
     private sealed record ParsedIdentificationLine(int LineNumber, string Value);
 
     private sealed record SnapshotRequest(
-        long FarmId,
-        LivestockSpecies Species,
+        LivestockFarm Farm,
         DateOnly Date,
         string Cause,
         string? OriginCode,
@@ -1957,5 +2065,14 @@ public sealed class MovementService(PecualiaDbContext dbContext) : IMovementServ
         public int Sows { get; set; }
 
         public int SowsReposition { get; set; }
+    }
+
+    private static PorcineBalanceMetadata BuildPorcineBalanceMetadata(IReadOnlyCollection<Animal> animals)
+    {
+        var firstPorcine = animals.Select(entity => entity.Porcino).FirstOrDefault(entity => entity is not null);
+        return new PorcineBalanceMetadata(
+            firstPorcine?.AnimalType,
+            animals.Select(entity => entity.Breed).FirstOrDefault(entity => !string.IsNullOrWhiteSpace(entity)),
+            firstPorcine?.Tag);
     }
 }

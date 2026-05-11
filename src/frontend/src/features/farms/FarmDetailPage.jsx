@@ -825,12 +825,6 @@ function AnimalAutorrepositionModal({
       />
       <ModalBody className="operation-modal-body">
           {requestError && <div className="error-banner">{requestError}</div>}
-
-          <div className="info-callout">
-            <Tag size={16} />
-            <p>La autoreposición toma el stock agregado del censo. Solo puede convertir animales no reproductores sin identificar con más de 4 meses.</p>
-          </div>
-
           <div className="grid-form">
             <label className="farm-form-field">
               <span className="farm-field-label">Identificación inicial <span className="farm-field-label-required">*</span></span>
@@ -2034,10 +2028,6 @@ function FarmVaccinationsSection({ farm, token }) {
 
   return (
     <section className="panel-card stack">
-      <div className="info-callout">
-        <Shield size={18} />
-        <p>Histórico sanitario de la explotación. Registra cada pauta aplicada y, si procede, la fecha estimada de la siguiente dosis.</p>
-      </div>
 
       <div className="farm-detail-metrics">
         <SummaryMetric label="Vacunaciones" value={vaccinations.length} />

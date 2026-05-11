@@ -208,10 +208,6 @@ export function SettingsPage() {
             <RefreshCw size={15} />
             Recargar perfil
           </button>
-          <button className="primary-button" type="button" onClick={logout}>
-            <LogOut size={15} />
-            Cerrar sesión
-          </button>
         </div>
       </section>
 

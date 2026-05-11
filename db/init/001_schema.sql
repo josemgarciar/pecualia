@@ -176,9 +176,13 @@ CREATE TABLE movement_certificate (
     status VARCHAR(32) NOT NULL DEFAULT 'Pending',
     transport_name VARCHAR(180),
     vehicle_registration_number VARCHAR(40),
+    unidentified_category VARCHAR(40),
     CONSTRAINT movement_number_of_animals_positive_chk CHECK (number_of_animals > 0),
     CONSTRAINT movement_dates_chk CHECK (arrival_date IS NULL OR arrival_date >= departure_date),
-    CONSTRAINT movement_status_chk CHECK (status IN ('Pending', 'Confirmed'))
+    CONSTRAINT movement_status_chk CHECK (status IN ('Pending', 'Confirmed')),
+    CONSTRAINT movement_unidentified_category_chk CHECK (
+        unidentified_category IS NULL OR unidentified_category IN ('Under4Months', 'Between4And12Months')
+    )
 );
 
 CREATE TABLE movement_certificate_animals (

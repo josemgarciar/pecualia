@@ -357,7 +357,6 @@ public sealed class AnimalService(PecualiaDbContext dbContext) : IAnimalService
                 ReproductiveMales = normalizedSex == "male" ? animals.Count : 0
             });
         }
-
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 

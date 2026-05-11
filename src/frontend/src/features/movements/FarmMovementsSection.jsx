@@ -326,6 +326,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
   const [breedOptions, setBreedOptions] = useState([]);
   const [unidentifiedAnimals, setUnidentifiedAnimals] = useState(false);
   const [unidentifiedAnimalCount, setUnidentifiedAnimalCount] = useState('');
+  const [unidentifiedCategory, setUnidentifiedCategory] = useState('Under4Months');
 
   const isOvineOrCaprine = farm.livestockSpecies === 'Ovine' || farm.livestockSpecies === 'Caprine';
 
@@ -401,6 +402,10 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
       const count = Number(unidentifiedAnimalCount);
       if (!count || count < 1 || count > 10000) {
         setRequestError('Indica un número de animales entre 1 y 10.000.');
+        return;
+      }
+      if (!unidentifiedCategory) {
+        setRequestError('Selecciona la categoría de edad de los animales sin identificar.');
         return;
       }
       setStep(4);
@@ -523,7 +528,8 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
         cause: derivedCause,
         rawText: unidentifiedAnimals ? null : rawText,
         sharedAnimalData: preview?.requiresSharedAnimalData ? buildSharedAnimalDataPayload(sharedAnimalData, farm.livestockSpecies) : null,
-        unidentifiedAnimalCount: unidentifiedAnimals ? Number(unidentifiedAnimalCount) : null
+        unidentifiedAnimalCount: unidentifiedAnimals ? Number(unidentifiedAnimalCount) : null,
+        unidentifiedCategory: unidentifiedAnimals ? unidentifiedCategory : null
       };
 
       const response = await apiRequest('/api/movements/imports/commit', {
@@ -570,29 +576,48 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
                       checked={unidentifiedAnimals}
                       onChange={(event) => {
                         setUnidentifiedAnimals(event.target.checked);
+                        if (!event.target.checked) {
+                          setUnidentifiedCategory('Under4Months');
+                          setUnidentifiedAnimalCount('');
+                        }
                         setRequestError('');
                       }}
                     />
                     <div>
-                      <strong>Animales menores de 4 meses sin identificar</strong>
-                      <span>Los animales menores de cuatro meses no están obligados a estar identificados individualmente. Activa esta opción para registrar el movimiento solo con el número de cabezas.</span>
+                      <strong>Animales sin identificar individualmente</strong>
+                      <span>Registra la guía solo con el número de cabezas y clasifica si son no reproductores menores de 4 meses o de 4 a 12 meses para actualizar automáticamente el censo.</span>
                     </div>
                   </label>
                   {unidentifiedAnimals && (
-                    <label className="farm-form-field movement-unidentified-count">
-                      <span className="farm-field-label">Número de animales <span className="farm-field-label-required">*</span></span>
-                      <input
-                        type="number"
-                        min="1"
-                        max="10000"
-                        value={unidentifiedAnimalCount}
-                        onChange={(event) => {
-                          setUnidentifiedAnimalCount(event.target.value);
-                          setRequestError('');
-                        }}
-                        placeholder="Ej. 25"
-                      />
-                    </label>
+                    <>
+                      <label className="farm-form-field movement-unidentified-count">
+                        <span className="farm-field-label">Categoría de edad <span className="farm-field-label-required">*</span></span>
+                        <select
+                          value={unidentifiedCategory}
+                          onChange={(event) => {
+                            setUnidentifiedCategory(event.target.value);
+                            setRequestError('');
+                          }}
+                        >
+                          <option value="Under4Months">No reproductores menores de 4 meses</option>
+                          <option value="Between4And12Months">No reproductores de 4 a 12 meses</option>
+                        </select>
+                      </label>
+                      <label className="farm-form-field movement-unidentified-count">
+                        <span className="farm-field-label">Número de animales <span className="farm-field-label-required">*</span></span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="10000"
+                          value={unidentifiedAnimalCount}
+                          onChange={(event) => {
+                            setUnidentifiedAnimalCount(event.target.value);
+                            setRequestError('');
+                          }}
+                          placeholder="Ej. 25"
+                        />
+                      </label>
+                    </>
                   )}
                 </div>
               )}
@@ -756,7 +781,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
                   <h3>Resumen de importación</h3>
                   {unidentifiedAnimals ? (
                     <p>
-                      Se registrará un movimiento de <strong>{unidentifiedAnimalCount}</strong> animales sin identificar como {directionLabel}.
+                      Se registrará un movimiento de <strong>{unidentifiedAnimalCount}</strong> animales sin identificar como {directionLabel} en la categoría <strong>{unidentifiedCategory === 'Under4Months' ? 'no reproductores menores de 4 meses' : 'no reproductores de 4 a 12 meses'}</strong>.
                     </p>
                   ) : (
                     <p>
