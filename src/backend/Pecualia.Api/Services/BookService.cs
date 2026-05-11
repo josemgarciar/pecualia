@@ -85,12 +85,12 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
 
         var balances = await dbContext.Balances
             .AsNoTracking()
-            .Include(entity => entity.OvinoCaprino)
-            .Include(entity => entity.Porcino)
             .Where(entity => entity.LivestockFarmId == farm.Id)
             .OrderBy(entity => entity.BalanceDate)
             .ThenBy(entity => entity.Id)
             .ToListAsync(cancellationToken);
+        await AttachBalanceDetailsAsync(farm, balances, cancellationToken);
+        await NormalizeBalanceDetailsForBookAsync(farm, balances, cancellationToken);
         await EnrichBalancesForBookAsync(farm, balances, cancellationToken);
 
         var censuses = await censusProjectionService.BuildBookCensusesAsync(farm, cancellationToken);
@@ -150,6 +150,93 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
         return new BookAggregate(farm, animals, balances, censuses, incidents, inspections, movements, guideSeriesLookup);
     }
 
+    private async Task AttachBalanceDetailsAsync(LivestockFarm farm, IReadOnlyList<Balance> balances, CancellationToken cancellationToken)
+    {
+        if (balances.Count == 0)
+        {
+            return;
+        }
+
+        var balanceIds = balances.Select(entity => entity.Id).ToArray();
+        if (farm.LivestockSpecies == LivestockSpecies.Porcine)
+        {
+            var porcineByBalanceId = await dbContext.BalancePorcino
+                .AsNoTracking()
+                .Where(entity => balanceIds.Contains(entity.BalanceId))
+                .ToDictionaryAsync(entity => entity.BalanceId, cancellationToken);
+
+            foreach (var balance in balances)
+            {
+                balance.Porcino = porcineByBalanceId.GetValueOrDefault(balance.Id);
+            }
+
+            return;
+        }
+
+        var ovineByBalanceId = await dbContext.BalanceOvinoCaprino
+            .AsNoTracking()
+            .Where(entity => balanceIds.Contains(entity.BalanceId))
+            .ToDictionaryAsync(entity => entity.BalanceId, cancellationToken);
+
+        foreach (var balance in balances)
+        {
+            balance.OvinoCaprino = ovineByBalanceId.GetValueOrDefault(balance.Id);
+        }
+    }
+
+    private async Task NormalizeBalanceDetailsForBookAsync(LivestockFarm farm, IReadOnlyList<Balance> balances, CancellationToken cancellationToken)
+    {
+        if (farm.LivestockSpecies == LivestockSpecies.Porcine)
+        {
+            return;
+        }
+
+        var deathBalances = balances
+            .Where(entity => entity.ModificationCause.Equals(AnimalDischargeCause.Muerte.ToString(), StringComparison.OrdinalIgnoreCase))
+            .OrderBy(entity => entity.BalanceDate)
+            .ThenBy(entity => entity.Id)
+            .ToList();
+
+        if (deathBalances.Count == 0)
+        {
+            return;
+        }
+
+        var dischargedAnimals = await dbContext.Animals
+            .AsNoTracking()
+            .Where(entity =>
+                entity.LivestockFarmId == farm.Id &&
+                entity.DischargeCause == AnimalDischargeCause.Muerte &&
+                entity.DischargeDate != null)
+            .OrderBy(entity => entity.DischargeDate)
+            .ThenBy(entity => entity.Id)
+            .ToListAsync(cancellationToken);
+
+        var animalsByDate = dischargedAnimals
+            .GroupBy(entity => entity.DischargeDate!.Value)
+            .ToDictionary(entity => entity.Key, entity => new Queue<Animal>(entity));
+
+        foreach (var balance in deathBalances)
+        {
+            if (!animalsByDate.TryGetValue(balance.BalanceDate, out var queue) || queue.Count == 0)
+            {
+                continue;
+            }
+
+            var animal = queue.Dequeue();
+            balance.OvinoCaprino ??= new BalanceOvinoCaprino
+            {
+                BalanceId = balance.Id
+            };
+
+            var bucket = ResolveOvineBookDeathBucket(animal, balance.BalanceDate);
+            balance.OvinoCaprino.NonReproductiveUnder4Months = bucket == "under4" ? balance.NumberOfAnimals : 0;
+            balance.OvinoCaprino.NonReproductiveBetween4And12Months = bucket == "from4to12" ? balance.NumberOfAnimals : 0;
+            balance.OvinoCaprino.ReproductiveFemales = bucket == "female" ? balance.NumberOfAnimals : 0;
+            balance.OvinoCaprino.ReproductiveMales = bucket == "male" ? balance.NumberOfAnimals : 0;
+        }
+    }
+
     private async Task EnrichBalancesForBookAsync(LivestockFarm farm, IReadOnlyList<Balance> balances, CancellationToken cancellationToken)
     {
         var groups = balances
@@ -172,6 +259,7 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
 
                 foreach (var balance in group.OrderByDescending(entity => entity.Id))
                 {
+                    var storedDelta = ClonePorcineBalanceDetail(balance.Porcino);
                     balance.Porcino ??= new BalancePorcino
                     {
                         BalanceId = balance.Id
@@ -185,7 +273,7 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
                     balance.Porcino.Rear = state.Rears;
                     balance.Porcino.Baits = state.Baits;
 
-                    ApplyReversePorcineDelta(balance, state);
+                    ApplyReversePorcineDelta(balance, state, storedDelta);
                 }
 
                 continue;
@@ -199,6 +287,7 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
 
             foreach (var balance in group.OrderByDescending(entity => entity.Id))
             {
+                var storedDelta = CloneOvineBalanceDetail(balance.OvinoCaprino);
                 balance.OvinoCaprino ??= new BalanceOvinoCaprino
                 {
                     BalanceId = balance.Id
@@ -209,21 +298,20 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
                 balance.OvinoCaprino.ReproductiveFemales = ovineState.ReproductiveFemales;
                 balance.OvinoCaprino.ReproductiveMales = ovineState.ReproductiveMales;
 
-                ApplyReverseOvineDelta(balance, ovineState);
+                ApplyReverseOvineDelta(balance, ovineState, storedDelta);
             }
         }
     }
 
-    private static void ApplyReverseOvineDelta(Balance balance, OvineBalanceState state)
+    private static void ApplyReverseOvineDelta(Balance balance, OvineBalanceState state, BalanceOvinoCaprino? storedDelta)
     {
-        var detail = balance.OvinoCaprino;
-        var useStoredDelta = detail is not null && GetOvineDeltaTotal(detail) > 0 && GetOvineDeltaTotal(detail) <= balance.NumberOfAnimals;
+        var useStoredDelta = storedDelta is not null && GetOvineDeltaTotal(storedDelta) > 0 && GetOvineDeltaTotal(storedDelta) <= balance.NumberOfAnimals;
         var deltaUnder4 = useStoredDelta
-            ? detail!.NonReproductiveUnder4Months
+            ? storedDelta!.NonReproductiveUnder4Months
             : (IsBirthCause(balance.ModificationCause) ? balance.NumberOfAnimals : 0);
-        var deltaFrom4To12 = useStoredDelta ? detail!.NonReproductiveBetween4And12Months : 0;
-        var deltaFemales = useStoredDelta ? detail!.ReproductiveFemales : 0;
-        var deltaMales = useStoredDelta ? detail!.ReproductiveMales : 0;
+        var deltaFrom4To12 = useStoredDelta ? storedDelta!.NonReproductiveBetween4And12Months : 0;
+        var deltaFemales = useStoredDelta ? storedDelta!.ReproductiveFemales : 0;
+        var deltaMales = useStoredDelta ? storedDelta!.ReproductiveMales : 0;
 
         if (IsNegativeCause(balance.ModificationCause))
         {
@@ -234,23 +322,31 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
             return;
         }
 
+        if (IsAutorrepositionCause(balance.ModificationCause))
+        {
+            state.NonReproductiveUnder4Months -= deltaUnder4;
+            state.NonReproductiveBetween4And12Months += balance.NumberOfAnimals - deltaUnder4;
+            state.ReproductiveFemales -= deltaFemales;
+            state.ReproductiveMales -= deltaMales;
+            return;
+        }
+
         state.NonReproductiveUnder4Months -= deltaUnder4;
         state.NonReproductiveBetween4And12Months -= deltaFrom4To12;
         state.ReproductiveFemales -= deltaFemales;
         state.ReproductiveMales -= deltaMales;
     }
 
-    private static void ApplyReversePorcineDelta(Balance balance, PorcineBalanceState state)
+    private static void ApplyReversePorcineDelta(Balance balance, PorcineBalanceState state, BalancePorcino? storedDelta)
     {
-        var detail = balance.Porcino;
-        var useStoredDelta = detail is not null && GetPorcineDeltaTotal(detail) > 0 && GetPorcineDeltaTotal(detail) <= balance.NumberOfAnimals;
-        var deltaBoars = useStoredDelta ? detail!.Boars : 0;
-        var deltaSowsForLive = useStoredDelta ? detail!.SowsForLive : 0;
-        var deltaSowsReposition = useStoredDelta ? detail!.SowsReposition : 0;
-        var deltaPigsReposition = useStoredDelta ? detail!.PigsReposition : 0;
-        var deltaPiglets = useStoredDelta ? detail!.Piglets : (IsBirthCause(balance.ModificationCause) ? balance.NumberOfAnimals : 0);
-        var deltaRears = useStoredDelta ? detail!.Rear : 0;
-        var deltaBaits = useStoredDelta ? detail!.Baits : 0;
+        var useStoredDelta = storedDelta is not null && GetPorcineDeltaTotal(storedDelta) > 0 && GetPorcineDeltaTotal(storedDelta) <= balance.NumberOfAnimals;
+        var deltaBoars = useStoredDelta ? storedDelta!.Boars : 0;
+        var deltaSowsForLive = useStoredDelta ? storedDelta!.SowsForLive : 0;
+        var deltaSowsReposition = useStoredDelta ? storedDelta!.SowsReposition : 0;
+        var deltaPigsReposition = useStoredDelta ? storedDelta!.PigsReposition : 0;
+        var deltaPiglets = useStoredDelta ? storedDelta!.Piglets : (IsBirthCause(balance.ModificationCause) ? balance.NumberOfAnimals : 0);
+        var deltaRears = useStoredDelta ? storedDelta!.Rear : 0;
+        var deltaBaits = useStoredDelta ? storedDelta!.Baits : 0;
 
         if (IsNegativeCause(balance.ModificationCause))
         {
@@ -264,6 +360,18 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
             return;
         }
 
+        if (IsAutorrepositionCause(balance.ModificationCause))
+        {
+            state.Boars -= deltaBoars;
+            state.SowsForLive -= deltaSowsForLive;
+            state.SowsReposition -= deltaSowsReposition;
+            state.PigsReposition -= deltaPigsReposition;
+            state.Piglets -= deltaPiglets;
+            state.Rears += balance.NumberOfAnimals - deltaPiglets;
+            state.Baits -= deltaBaits;
+            return;
+        }
+
         state.Boars -= deltaBoars;
         state.SowsForLive -= deltaSowsForLive;
         state.SowsReposition -= deltaSowsReposition;
@@ -273,11 +381,90 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
         state.Baits -= deltaBaits;
     }
 
+    private static BalanceOvinoCaprino? CloneOvineBalanceDetail(BalanceOvinoCaprino? detail)
+    {
+        if (detail is null)
+        {
+            return null;
+        }
+
+        return new BalanceOvinoCaprino
+        {
+            BalanceId = detail.BalanceId,
+            NonReproductiveUnder4Months = detail.NonReproductiveUnder4Months,
+            NonReproductiveBetween4And12Months = detail.NonReproductiveBetween4And12Months,
+            ReproductiveFemales = detail.ReproductiveFemales,
+            ReproductiveMales = detail.ReproductiveMales,
+            TransporterName = detail.TransporterName,
+            TransportTicketNumber = detail.TransportTicketNumber
+        };
+    }
+
+    private static BalancePorcino? ClonePorcineBalanceDetail(BalancePorcino? detail)
+    {
+        if (detail is null)
+        {
+            return null;
+        }
+
+        return new BalancePorcino
+        {
+            BalanceId = detail.BalanceId,
+            Boars = detail.Boars,
+            SowsForLive = detail.SowsForLive,
+            SowsReposition = detail.SowsReposition,
+            PigsReposition = detail.PigsReposition,
+            Piglets = detail.Piglets,
+            Rear = detail.Rear,
+            Baits = detail.Baits,
+            Type = detail.Type,
+            Breed = detail.Breed,
+            Tag = detail.Tag
+        };
+    }
+
     private static bool IsBirthCause(string cause) => cause.Equals("Nacimiento", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsAutorrepositionCause(string cause) =>
+        cause.Equals("Autorreposicion", StringComparison.OrdinalIgnoreCase) ||
+        cause.Equals("Autorreposición", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsNegativeCause(string cause) =>
         cause.Equals("Salida", StringComparison.OrdinalIgnoreCase) ||
         cause.Equals("Muerte", StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveOvineBookDeathBucket(Animal animal, DateOnly asOfDate)
+    {
+        if (animal.RegistrationCause == AnimalRegistrationCause.Autorreposicion)
+        {
+            var normalizedSex = FarmCensusProjectionSupport.NormalizeSex(animal.Sex);
+            if (normalizedSex == "female")
+            {
+                return "female";
+            }
+
+            if (normalizedSex == "male")
+            {
+                return "male";
+            }
+
+            return "from4to12";
+        }
+
+        var birthDate = FarmCensusProjectionSupport.ResolveBirthDate(animal);
+        if (birthDate is not null && FarmCensusProjectionSupport.IsYoungerThanMonths(birthDate.Value, asOfDate, 4))
+        {
+            return "under4";
+        }
+
+        if (birthDate is not null && FarmCensusProjectionSupport.IsYoungerThanMonths(birthDate.Value, asOfDate, 12))
+        {
+            return "from4to12";
+        }
+
+        var normalizedSexFallback = FarmCensusProjectionSupport.NormalizeSex(animal.Sex);
+        return normalizedSexFallback == "male" ? "male" : "female";
+    }
 
     private sealed class OvineBalanceState(
         int nonReproductiveUnder4Months,

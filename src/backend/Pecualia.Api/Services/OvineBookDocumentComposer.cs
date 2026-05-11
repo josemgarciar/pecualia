@@ -7,6 +7,8 @@ namespace Pecualia.Api.Services;
 
 internal static class OvineBookDocumentComposer
 {
+    private const int OvineAnimalRowsPerPage = 9;
+
     internal static void ComposeGeneralPages(IDocumentContainer container, BookRenderContext context)
     {
         var aggregate = context.Aggregate;
@@ -165,8 +167,14 @@ internal static class OvineBookDocumentComposer
             .ToList();
 
         var pagedRows = rows.Count == 0
-            ? new[] { Enumerable.Repeat(OvineAnimalRow.Empty, 12).ToArray() }
-            : rows.Chunk(12).ToArray();
+            ? new[] { Enumerable.Repeat(OvineAnimalRow.Empty, OvineAnimalRowsPerPage).ToArray() }
+            : rows
+                .Chunk(OvineAnimalRowsPerPage)
+                .Select(chunk => chunk
+                    .Concat(Enumerable.Repeat(OvineAnimalRow.Empty, OvineAnimalRowsPerPage))
+                    .Take(OvineAnimalRowsPerPage)
+                    .ToArray())
+                .ToArray();
 
         foreach (var pageRows in pagedRows)
         {
@@ -206,18 +214,18 @@ internal static class OvineBookDocumentComposer
                         table.ColumnsDefinition(columns =>
                         {
                             columns.ConstantColumn(36);
-                            columns.ConstantColumn(136);
-                            columns.ConstantColumn(76);
-                            columns.ConstantColumn(48);
-                            columns.ConstantColumn(34);
-                            columns.ConstantColumn(34);
-                            columns.ConstantColumn(28);
-                            columns.ConstantColumn(42);
-                            columns.ConstantColumn(54);
-                            columns.ConstantColumn(78);
-                            columns.ConstantColumn(112);
-                            columns.ConstantColumn(34);
-                            columns.ConstantColumn(34);
+                            columns.ConstantColumn(148);
+                            columns.ConstantColumn(82);
+                            columns.ConstantColumn(52);
+                            columns.ConstantColumn(38);
+                            columns.ConstantColumn(38);
+                            columns.ConstantColumn(30);
+                            columns.ConstantColumn(46);
+                            columns.ConstantColumn(58);
+                            columns.ConstantColumn(84);
+                            columns.ConstantColumn(120);
+                            columns.ConstantColumn(37);
+                            columns.ConstantColumn(37);
                         });
 
                         table.Header(header =>

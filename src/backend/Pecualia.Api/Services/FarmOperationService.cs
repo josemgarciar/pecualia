@@ -722,6 +722,22 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
 
     private static string ResolveOvineDeathBucket(Animal animal, DateOnly asOfDate)
     {
+        if (animal.RegistrationCause == AnimalRegistrationCause.Autorreposicion)
+        {
+            var normalizedSex = FarmCensusProjectionSupport.NormalizeSex(animal.Sex);
+            if (normalizedSex == "female")
+            {
+                return "female";
+            }
+
+            if (normalizedSex == "male")
+            {
+                return "male";
+            }
+
+            return "from4to12";
+        }
+
         var birthDate = FarmCensusProjectionSupport.ResolveBirthDate(animal);
         if (birthDate is not null && FarmCensusProjectionSupport.IsYoungerThanMonths(birthDate.Value, asOfDate, 4))
         {
