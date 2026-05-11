@@ -794,6 +794,20 @@
   padding-top: 20px;
 }
 
+.inline-form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.inline-form-actions input {
+  flex: 1 1 auto;
+}
+
+.inline-form-actions button {
+  flex: 0 0 auto;
+}
+
 .operation-modal-body > :first-child {
   margin-top: 0;
 }

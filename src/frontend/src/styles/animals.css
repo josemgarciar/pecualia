@@ -224,6 +224,20 @@
   gap: 10px;
 }
 
+.animal-discharge-mer-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.animal-discharge-mer-row input {
+  flex: 1 1 auto;
+}
+
+.animal-discharge-mer-row button {
+  flex: 0 0 auto;
+}
+
 .farm-inline-error {
   color: #dc2626;
   font-size: 0.76rem;

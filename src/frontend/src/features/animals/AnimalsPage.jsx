@@ -4,9 +4,13 @@ import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 import {
+  buildMerCodeExample,
+  buildRandomMerCode,
   getAnimalIdentificationFormatMessage,
   isValidAnimalIdentification,
+  isValidMerCode,
   isValidRegaCode,
+  normalizeMerCode,
   normalizeAnimalIdentification,
   normalizeRegaCode
 } from '../../shared/validation/identifiers';
@@ -77,6 +81,15 @@ function formatDate(value) {
 
 function emptyToNull(value) {
   return value.trim() ? value.trim() : null;
+}
+
+function createDischargeFormState(species) {
+  return {
+    dischargeDate: new Date().toISOString().slice(0, 10),
+    dischargeCause: 'Salida',
+    destinationCode: species === 'Porcine' ? 'MER' : '',
+    merCode: ''
+  };
 }
 
 function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
@@ -288,20 +301,26 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
   const [tab, setTab] = useState('data');
   const [dischargeError, setDischargeError] = useState('');
   const [discharging, setDischarging] = useState(false);
+  const [dischargeModalOpen, setDischargeModalOpen] = useState(false);
+  const [dischargeForm, setDischargeForm] = useState(() => createDischargeFormState(animal?.livestockSpecies));
 
   if (!animal) {
     return null;
   }
 
   const speciesTone = speciesToneMap[animal.livestockSpecies] ?? speciesToneMap.Ovine;
+  const merCodeExample = buildMerCodeExample();
 
-  async function handleDischarge() {
-    const cause = window.prompt('Causa de baja: Salida o Muerte', 'Salida');
-    if (!cause) {
-      return;
-    }
+  function openDischargeModal() {
+    setDischargeError('');
+    setDischargeForm(createDischargeFormState(animal.livestockSpecies));
+    setDischargeModalOpen(true);
+  }
 
-    const normalizedCause = cause.trim();
+  async function handleDischargeSubmit(event) {
+    event.preventDefault();
+
+    const normalizedCause = dischargeForm.dischargeCause.trim();
     if (!dischargeCauseLabelMap[normalizedCause]) {
       setDischargeError('La causa de baja debe ser Salida (S) o Muerte (M).');
       return;
@@ -310,20 +329,44 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
     let destinationCode = null;
     if (normalizedCause === 'Muerte') {
       if (animal.livestockSpecies === 'Porcine') {
-        destinationCode = 'MER';
-      } else {
-        const destination = window.prompt('Destino de la baja por muerte: SANDACH o MER', 'SANDACH');
-        if (!destination) {
+        if (!dischargeForm.merCode.trim()) {
+          setDischargeError('Debes indicar el número de MER.');
           return;
         }
 
-        const normalizedDestination = destination.trim().toUpperCase();
+        if (!isValidMerCode(dischargeForm.merCode)) {
+          setDischargeError(`El número MER debe tener formato ${merCodeExample}.`);
+          return;
+        }
+
+        destinationCode = normalizeMerCode(dischargeForm.merCode);
+      } else {
+        if (!dischargeForm.destinationCode) {
+          setDischargeError('El destino de una baja por muerte debe ser SANDACH o MER.');
+          return;
+        }
+
+        const normalizedDestination = dischargeForm.destinationCode.trim().toUpperCase();
         if (!['SANDACH', 'MER'].includes(normalizedDestination)) {
           setDischargeError('El destino de una baja por muerte debe ser SANDACH o MER.');
           return;
         }
 
-        destinationCode = normalizedDestination;
+        if (normalizedDestination === 'MER') {
+          if (!dischargeForm.merCode.trim()) {
+            setDischargeError('Debes indicar el número de MER.');
+            return;
+          }
+
+          if (!isValidMerCode(dischargeForm.merCode)) {
+            setDischargeError(`El número MER debe tener formato ${merCodeExample}.`);
+            return;
+          }
+
+          destinationCode = normalizeMerCode(dischargeForm.merCode);
+        } else {
+          destinationCode = normalizedDestination;
+        }
       }
     }
 
@@ -331,10 +374,11 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
     setDischargeError('');
     try {
       await onDischarged(animal.id, {
-        dischargeDate: new Date().toISOString().slice(0, 10),
+        dischargeDate: dischargeForm.dischargeDate,
         dischargeCause: normalizedCause,
         destinationCode
       });
+      setDischargeModalOpen(false);
     } catch (requestError) {
       setDischargeError(requestError.message);
     } finally {
@@ -343,71 +387,150 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
   }
 
   return (
-    <aside className="animal-detail-panel">
-      <div className="animal-detail-hero">
-        <div className="animal-detail-hero-top">
-          <div>
-            <span>IDENTIFICACIÓN</span>
-            <strong>{animal.identification}</strong>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Cerrar detalle">×</button>
-        </div>
-        <div className="animal-detail-badges">
-          <span>{formatSpecies(animal.livestockSpecies)}</span>
-          {animal.breed && <span>{animal.breed}</span>}
-        </div>
-      </div>
-
-      <div className="animal-detail-tabs">
-        <button type="button" className={tab === 'data' ? 'animal-detail-tab-active' : ''} onClick={() => setTab('data')}>Datos</button>
-        <button type="button" className={tab === 'history' ? 'animal-detail-tab-active' : ''} onClick={() => setTab('history')}>Historial</button>
-      </div>
-
-      <div className="animal-detail-body">
-        {loading && <div className="muted-text">Cargando detalle...</div>}
-        {dischargeError && <div className="error-banner">{dischargeError}</div>}
-
-        {tab === 'data' && !loading && (
-          <>
-            <AnimalDetailField label="Sexo" value={`${sexSymbol(animal.sex)} ${formatSex(animal.sex)}`.trim()} />
-            <AnimalDetailField label="Año de identificación" value={animal.birthYear ?? 'No informado'} />
-            <AnimalDetailField label="Explotación" value={animal.farmName} />
-            <AnimalDetailField label="Fecha de alta" value={formatDate(animal.registrationDate)} />
-            <AnimalDetailField label="Causa de alta" value={formatCause(animal.registrationCause)} />
-            <AnimalDetailField label="Documento sanitario" value={animal.healthDocumentNumber ?? 'No informado'} />
-
-            {animal.ovinoCaprino && (
-              <div className="animal-specific-detail">
-                <h3>Datos ovino/caprino</h3>
-                <AnimalDetailField label="Genotipado" value={animal.ovinoCaprino.genotyping ?? 'No informado'} />
-                <AnimalDetailField label="Alelo dominante" value={animal.ovinoCaprino.dominantAllele ?? 'No informado'} />
-                <AnimalDetailField label="Alelo bajo" value={animal.ovinoCaprino.lowAllele ?? 'No informado'} />
-              </div>
-            )}
-
-            {animal.porcino && (
-              <div className="animal-specific-detail">
-                <h3>Datos porcino</h3>
-                <AnimalDetailField label="Tipo de animal" value={animal.porcino.animalType} />
-                <AnimalDetailField label="Nº registro porcino" value={animal.porcino.pigRegistrationNumber ?? 'No informado'} />
-                <AnimalDetailField label="Marca/crotal" value={animal.porcino.tag ?? 'No informado'} />
-              </div>
-            )}
-
-            <div className="animal-detail-actions">
-              <button className="primary-button" type="button">Ver movimientos</button>
-              <button className="danger-button" type="button" onClick={handleDischarge} disabled={animal.status === 'Discharged' || discharging}>
-                {discharging ? 'Registrando...' : 'Registrar baja'}
-              </button>
+    <>
+      <aside className="animal-detail-panel">
+        <div className="animal-detail-hero">
+          <div className="animal-detail-hero-top">
+            <div>
+              <span>IDENTIFICACIÓN</span>
+              <strong>{animal.identification}</strong>
             </div>
-          </>
-        )}
+            <button type="button" onClick={onClose} aria-label="Cerrar detalle">×</button>
+          </div>
+          <div className="animal-detail-badges">
+            <span>{formatSpecies(animal.livestockSpecies)}</span>
+            {animal.breed && <span>{animal.breed}</span>}
+          </div>
+        </div>
 
-        {tab === 'history' && (
-          <div className="empty-state">El historial detallado se completará al conectar movimientos e incidencias por animal.</div>
-        )}
-      </div>
-    </aside>
+        <div className="animal-detail-tabs">
+          <button type="button" className={tab === 'data' ? 'animal-detail-tab-active' : ''} onClick={() => setTab('data')}>Datos</button>
+          <button type="button" className={tab === 'history' ? 'animal-detail-tab-active' : ''} onClick={() => setTab('history')}>Historial</button>
+        </div>
+
+        <div className="animal-detail-body">
+          {loading && <div className="muted-text">Cargando detalle...</div>}
+          {dischargeError && <div className="error-banner">{dischargeError}</div>}
+
+          {tab === 'data' && !loading && (
+            <>
+              <AnimalDetailField label="Sexo" value={`${sexSymbol(animal.sex)} ${formatSex(animal.sex)}`.trim()} />
+              <AnimalDetailField label="Año de identificación" value={animal.birthYear ?? 'No informado'} />
+              <AnimalDetailField label="Explotación" value={animal.farmName} />
+              <AnimalDetailField label="Fecha de alta" value={formatDate(animal.registrationDate)} />
+              <AnimalDetailField label="Causa de alta" value={formatCause(animal.registrationCause)} />
+              <AnimalDetailField label="Documento sanitario" value={animal.healthDocumentNumber ?? 'No informado'} />
+
+              {animal.ovinoCaprino && (
+                <div className="animal-specific-detail">
+                  <h3>Datos ovino/caprino</h3>
+                  <AnimalDetailField label="Genotipado" value={animal.ovinoCaprino.genotyping ?? 'No informado'} />
+                  <AnimalDetailField label="Alelo dominante" value={animal.ovinoCaprino.dominantAllele ?? 'No informado'} />
+                  <AnimalDetailField label="Alelo bajo" value={animal.ovinoCaprino.lowAllele ?? 'No informado'} />
+                </div>
+              )}
+
+              {animal.porcino && (
+                <div className="animal-specific-detail">
+                  <h3>Datos porcino</h3>
+                  <AnimalDetailField label="Tipo de animal" value={animal.porcino.animalType} />
+                  <AnimalDetailField label="Nº registro porcino" value={animal.porcino.pigRegistrationNumber ?? 'No informado'} />
+                  <AnimalDetailField label="Marca/crotal" value={animal.porcino.tag ?? 'No informado'} />
+                </div>
+              )}
+
+              <div className="animal-detail-actions">
+                <button className="primary-button" type="button">Ver movimientos</button>
+                <button className="danger-button" type="button" onClick={openDischargeModal} disabled={animal.status === 'Discharged' || discharging}>
+                  {discharging ? 'Registrando...' : 'Registrar baja'}
+                </button>
+              </div>
+            </>
+          )}
+
+          {tab === 'history' && (
+            <div className="empty-state">El historial detallado se completará al conectar movimientos e incidencias por animal.</div>
+          )}
+        </div>
+      </aside>
+
+      {dischargeModalOpen && (
+        <ModalDialog cardAs="form" size="wide" onSubmit={handleDischargeSubmit}>
+          <ModalHeader
+            title="Registrar baja"
+            subtitle={animal.identification}
+            onClose={() => setDischargeModalOpen(false)}
+          />
+          <ModalBody>
+            <label>
+              Fecha de baja
+              <input
+                type="date"
+                value={dischargeForm.dischargeDate}
+                onChange={(event) => setDischargeForm({ ...dischargeForm, dischargeDate: event.target.value })}
+              />
+            </label>
+            <label>
+              Causa
+              <select
+                value={dischargeForm.dischargeCause}
+                onChange={(event) => setDischargeForm({
+                  ...dischargeForm,
+                  dischargeCause: event.target.value,
+                  destinationCode: event.target.value === 'Muerte'
+                    ? animal.livestockSpecies === 'Porcine' ? 'MER' : dischargeForm.destinationCode
+                    : '',
+                  merCode: event.target.value === 'Muerte' ? dischargeForm.merCode : ''
+                })}>
+                <option value="Salida">Salida</option>
+                <option value="Muerte">Muerte</option>
+              </select>
+            </label>
+            {dischargeForm.dischargeCause === 'Muerte' && animal.livestockSpecies !== 'Porcine' && (
+              <label>
+                Destino
+                <select
+                  value={dischargeForm.destinationCode}
+                  onChange={(event) => setDischargeForm({
+                    ...dischargeForm,
+                    destinationCode: event.target.value,
+                    merCode: event.target.value === 'MER' ? dischargeForm.merCode : ''
+                  })}>
+                  <option value="">Seleccionar...</option>
+                  <option value="SANDACH">SANDACH</option>
+                  <option value="MER">MER</option>
+                </select>
+              </label>
+            )}
+            {dischargeForm.dischargeCause === 'Muerte' && (animal.livestockSpecies === 'Porcine' || dischargeForm.destinationCode === 'MER') && (
+              <label>
+                Nº MER
+                <div className="animal-discharge-mer-row">
+                  <input
+                    value={dischargeForm.merCode}
+                    onChange={(event) => setDischargeForm({ ...dischargeForm, merCode: event.target.value })}
+                    placeholder={merCodeExample}
+                  />
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => setDischargeForm({ ...dischargeForm, merCode: buildRandomMerCode() })}>
+                    Generar
+                  </button>
+                </div>
+                <small>Formato obligatorio: {merCodeExample}</small>
+              </label>
+            )}
+          </ModalBody>
+          <ModalFooter align="end">
+            <button className="secondary-button" type="button" onClick={() => setDischargeModalOpen(false)}>Cancelar</button>
+            <button className="danger-button" type="submit" disabled={discharging}>
+              {discharging ? 'Registrando...' : 'Guardar baja'}
+            </button>
+          </ModalFooter>
+        </ModalDialog>
+      )}
+    </>
   );
 }
 

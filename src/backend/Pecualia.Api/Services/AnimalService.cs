@@ -51,7 +51,7 @@ public interface IAnimalService
     Task DeleteAnimalAsync(long userId, UserRole role, long animalId, CancellationToken cancellationToken);
 }
 
-public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjectionService censusProjectionService) : IAnimalService
+public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjectionService censusProjectionService, IClock clock) : IAnimalService
 {
     private const int DefaultPageSize = 25;
     private const int MaxPageSize = 100;
@@ -866,31 +866,9 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
 
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static string NormalizeDeathDestinationCode(LivestockSpecies species, string? destinationCode)
+    private string NormalizeDeathDestinationCode(LivestockSpecies species, string? destinationCode)
     {
-        var normalizedDestinationCode = Normalize(destinationCode)?.ToUpperInvariant();
-
-        if (normalizedDestinationCode is null)
-        {
-            throw new DomainException("El destino de una baja por muerte es obligatorio.");
-        }
-
-        if (species == LivestockSpecies.Porcine)
-        {
-            if (normalizedDestinationCode != "MER")
-            {
-                throw new DomainException("En ganado porcino, una baja por muerte solo puede registrarse con destino MER.");
-            }
-
-            return normalizedDestinationCode;
-        }
-
-        if (normalizedDestinationCode is not ("SANDACH" or "MER"))
-        {
-            throw new DomainException("El destino de una baja por muerte debe ser SANDACH o MER.");
-        }
-
-        return normalizedDestinationCode;
+        return MerCodeSupport.NormalizeDeathDestinationCode(species, destinationCode, clock.UtcNow.Year);
     }
 
     private static string? NormalizeRegaOriginCode(string? originCode)

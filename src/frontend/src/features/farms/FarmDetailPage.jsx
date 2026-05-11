@@ -35,9 +35,14 @@ import { apiBlobRequest, apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 import {
+  buildMerCodeExample,
+  buildRandomMerCode,
   getAnimalIdentificationFormatMessage,
   isValidAnimalIdentification,
+  isMerDestinationCode,
+  isValidMerCode,
   isValidRegaCode,
+  normalizeMerCode,
   normalizeAnimalIdentification,
   normalizeRegaCode
 } from '../../shared/validation/identifiers';
@@ -149,6 +154,24 @@ function getDeathDestinationOptions(species) {
       ];
 }
 
+function getDeathDestinationType(value) {
+  if (isMerDestinationCode(value)) {
+    return 'MER';
+  }
+
+  return value ?? '';
+}
+
+function formatDeathDestination(value) {
+  if (!value) {
+    return '—';
+  }
+
+  return isMerDestinationCode(value) && value !== 'MER'
+    ? `MER · ${value}`
+    : value;
+}
+
 function parsePositiveNumber(value) {
   return value === '' ? null : Number(value);
 }
@@ -160,6 +183,15 @@ function parseOptionalInteger(value) {
 function emptyToNull(value) {
   const normalized = value?.trim();
   return normalized ? normalized : null;
+}
+
+function createDeathFormState(species) {
+  return {
+    identification: '',
+    dischargeDate: new Date().toISOString().slice(0, 10),
+    destinationCode: species === 'Porcine' ? 'MER' : '',
+    merCode: ''
+  };
 }
 
 function createAutorrepositionForm(farm) {
@@ -1706,11 +1738,8 @@ function FarmDeathsSection({ farm, token }) {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({
-    identification: '',
-    dischargeDate: new Date().toISOString().slice(0, 10),
-    destinationCode: ''
-  });
+  const [form, setForm] = useState(() => createDeathFormState(farm.livestockSpecies));
+  const merCodeExample = buildMerCodeExample();
 
   async function loadDeaths() {
     setLoading(true);
@@ -1741,8 +1770,18 @@ function FarmDeathsSection({ farm, token }) {
       return;
     }
 
+    if (form.destinationCode === 'MER' && !form.merCode.trim()) {
+      setError('Debes indicar el número de MER.');
+      return;
+    }
+
     if (!isValidAnimalIdentification(farm.livestockSpecies, form.identification)) {
       setError(getAnimalIdentificationFormatMessage(farm.livestockSpecies));
+      return;
+    }
+
+    if (form.destinationCode === 'MER' && !isValidMerCode(form.merCode)) {
+      setError(`El número MER debe tener formato ${merCodeExample}.`);
       return;
     }
 
@@ -1754,12 +1793,12 @@ function FarmDeathsSection({ farm, token }) {
         body: {
           identification: normalizeAnimalIdentification(form.identification),
           dischargeDate: form.dischargeDate,
-          destinationCode: form.destinationCode
+          destinationCode: form.destinationCode === 'MER' ? normalizeMerCode(form.merCode) : form.destinationCode
         }
       });
       setSuccess('Baja por muerte registrada correctamente.');
       setModalOpen(false);
-      setForm({ identification: '', dischargeDate: new Date().toISOString().slice(0, 10), destinationCode: '' });
+      setForm(createDeathFormState(farm.livestockSpecies));
       await loadDeaths();
     } catch (requestError) {
       setError(requestError.message);
@@ -1770,12 +1809,12 @@ function FarmDeathsSection({ farm, token }) {
 
   const filteredDeaths = deaths.filter((death) => {
     const matchesSearch = !search.trim() || `${death.identification} ${death.breed ?? ''}`.toLowerCase().includes(search.trim().toLowerCase());
-    const matchesDestination = !destination || death.destinationCode === destination;
+    const matchesDestination = !destination || getDeathDestinationType(death.destinationCode) === destination;
     return matchesSearch && matchesDestination;
   });
   const destinationOptions = getDeathDestinationOptions(farm.livestockSpecies);
   const sandachCount = deaths.filter((death) => death.destinationCode === 'SANDACH').length;
-  const merCount = deaths.filter((death) => death.destinationCode === 'MER').length;
+  const merCount = deaths.filter((death) => getDeathDestinationType(death.destinationCode) === 'MER').length;
 
   if (loading) {
     return <div className="panel-card empty-state">Cargando bajas por muerte...</div>;
@@ -1807,7 +1846,12 @@ function FarmDeathsSection({ farm, token }) {
             ))}
           </select>
         </div>
-        <button className="primary-button" type="button" onClick={() => setModalOpen(true)}>
+        <button className="primary-button" type="button" onClick={() => {
+          setError('');
+          setSuccess('');
+          setForm(createDeathFormState(farm.livestockSpecies));
+          setModalOpen(true);
+        }}>
           <Plus size={16} />
           Registrar baja
         </button>
@@ -1828,7 +1872,7 @@ function FarmDeathsSection({ farm, token }) {
                   <td>{death.breed ?? '—'} · {death.sex ?? 'Sexo no informado'} · {death.birthYear ?? 'Año no informado'}</td>
                   <td>{formatDate(death.dischargeDate)}</td>
                   <td><span className="animal-chip death-chip">Muerte</span></td>
-                  <td>{death.destinationCode ?? '—'}</td>
+                  <td>{formatDeathDestination(death.destinationCode)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1856,19 +1900,32 @@ function FarmDeathsSection({ farm, token }) {
               </label>
               <label>
                 <span>Destino *</span>
-                <select value={form.destinationCode} onChange={(event) => setForm({ ...form, destinationCode: event.target.value })}>
+                <select value={form.destinationCode} onChange={(event) => setForm({ ...form, destinationCode: event.target.value, merCode: event.target.value === 'MER' ? form.merCode : '' })}>
                   <option value="">Seleccionar...</option>
                   {destinationOptions.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>
               </label>
+              {form.destinationCode === 'MER' && (
+                <label>
+                  <span>Nº MER *</span>
+                  <div className="inline-form-actions">
+                    <input
+                      value={form.merCode}
+                      onChange={(event) => setForm({ ...form, merCode: event.target.value })}
+                      placeholder={merCodeExample}
+                    />
+                  </div>
+                  <small>Formato obligatorio: {merCodeExample}</small>
+                </label>
+              )}
               <div className="info-callout">
                 <Skull size={18} />
                 <p>
                   {farm.livestockSpecies === 'Porcine'
-                    ? 'En porcino, la baja por muerte solo puede registrarse con destino MER.'
-                  : 'La causa oficial guardada será Baja - Causa Muerte. No se modificarán animales dados de baja por Salida.'}
+                    ? `En porcino, la baja por muerte solo puede registrarse con un número MER válido (${merCodeExample}).`
+                    : `La causa oficial guardada será Baja - Causa Muerte. Si el destino es MER, debes indicar un número válido con formato ${merCodeExample}.`}
                 </p>
               </div>
           </ModalBody>

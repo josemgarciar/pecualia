@@ -1000,31 +1000,9 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
 
     private static string? NormalizeNullable(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static string NormalizeDeathDestinationCode(LivestockSpecies species, string? destinationCode)
+    private string NormalizeDeathDestinationCode(LivestockSpecies species, string? destinationCode)
     {
-        var normalizedDestinationCode = NormalizeNullable(destinationCode)?.ToUpperInvariant();
-
-        if (normalizedDestinationCode is null)
-        {
-            throw new DomainException("El destino de una baja por muerte es obligatorio.");
-        }
-
-        if (species == LivestockSpecies.Porcine)
-        {
-            if (normalizedDestinationCode != "MER")
-            {
-                throw new DomainException("En ganado porcino, una baja por muerte solo puede registrarse con destino MER.");
-            }
-
-            return normalizedDestinationCode;
-        }
-
-        if (normalizedDestinationCode is not ("SANDACH" or "MER"))
-        {
-            throw new DomainException("El destino de una baja por muerte debe ser SANDACH o MER.");
-        }
-
-        return normalizedDestinationCode;
+        return MerCodeSupport.NormalizeDeathDestinationCode(species, destinationCode, clock.UtcNow.Year);
     }
 
     private static string NormalizeIdentifier(LivestockSpecies species, string? value, string invalidMessage)

@@ -2,6 +2,7 @@ const REGA_CODE_REGEX = /^ES\d{12}$/;
 const OFFICIAL_ANIMAL_IDENTIFICATION_REGEX = /^ES\d{12}$/;
 const OVINE_OR_CAPRINE_LEGACY_IDENTIFICATION_REGEX = /^ES\d{12}-[A-Z0-9]{3,}$/;
 const PORCINE_ALTERNATIVE_IDENTIFICATION_REGEX = /^GT\d+$/;
+const MER_CODE_REGEX = /^AR(\d{2})-(\d{7})$/;
 const DNI_REGEX = /^\d{8}[A-Z]$/;
 const NIE_REGEX = /^[XYZ]\d{7}[A-Z]$/;
 const SPECIAL_NIF_REGEX = /^[KLM]\d{7}[A-Z]$/;
@@ -53,6 +54,38 @@ export function getAnimalIdentificationFormatMessage(species) {
   return species === 'Porcine'
     ? 'Formato inválido. Usa ES + 12 dígitos o GT + números.'
     : 'Formato inválido. Usa ES + 12 dígitos o ES + 12 dígitos con sufijo.';
+}
+
+export function normalizeMerCode(value) {
+  return value.trim().toUpperCase();
+}
+
+export function isValidMerCode(value, year = new Date().getFullYear()) {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = normalizeMerCode(value);
+  const match = normalized.match(MER_CODE_REGEX);
+  return Boolean(match && match[1] === getMerYearSuffix(year));
+}
+
+export function isMerDestinationCode(value) {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = normalizeMerCode(value);
+  return normalized === 'MER' || MER_CODE_REGEX.test(normalized);
+}
+
+export function buildMerCodeExample(year = new Date().getFullYear()) {
+  return `AR${getMerYearSuffix(year)}-1234567`;
+}
+
+export function buildRandomMerCode(year = new Date().getFullYear()) {
+  const randomDigits = String(Math.floor(Math.random() * 10000000)).padStart(7, '0');
+  return `AR${getMerYearSuffix(year)}-${randomDigits}`;
 }
 
 export function normalizeTaxIdentifier(value) {
@@ -119,4 +152,8 @@ function isValidCompanyTaxIdentifier(value) {
 
 function hasExpectedControlLetter(numericPart, controlLetter) {
   return DNI_LETTERS[Number(numericPart) % DNI_LETTERS.length] === controlLetter;
+}
+
+function getMerYearSuffix(year) {
+  return String(year % 100).padStart(2, '0');
 }

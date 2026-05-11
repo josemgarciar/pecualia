@@ -40,7 +40,7 @@ public interface IMovementService
         CancellationToken cancellationToken);
 }
 
-public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProjectionService censusProjectionService) : IMovementService
+public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProjectionService censusProjectionService, IClock clock) : IMovementService
 {
     private static readonly Regex SpanishOfficialIdentificationRegex = new("^ES\\d{12}$", RegexOptions.Compiled);
     private static readonly Regex OvineOrCaprineLegacyIdentificationRegex = new("^ES\\d{12}-[A-Z0-9]{3,}$", RegexOptions.Compiled);
@@ -1460,31 +1460,9 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         throw new DomainException("La causa de baja debe ser Salida (S) o Muerte (M).");
     }
 
-    private static string NormalizeDeathDestinationCode(LivestockSpecies species, string? destinationCode)
+    private string NormalizeDeathDestinationCode(LivestockSpecies species, string? destinationCode)
     {
-        var normalizedDestinationCode = NormalizeNullable(destinationCode)?.ToUpperInvariant();
-
-        if (normalizedDestinationCode is null)
-        {
-            throw new DomainException("El destino de una baja por muerte es obligatorio.");
-        }
-
-        if (species == LivestockSpecies.Porcine)
-        {
-            if (normalizedDestinationCode != "MER")
-            {
-                throw new DomainException("En ganado porcino, una baja por muerte solo puede registrarse con destino MER.");
-            }
-
-            return normalizedDestinationCode;
-        }
-
-        if (normalizedDestinationCode is not ("SANDACH" or "MER"))
-        {
-            throw new DomainException("El destino de una baja por muerte debe ser SANDACH o MER.");
-        }
-
-        return normalizedDestinationCode;
+        return MerCodeSupport.NormalizeDeathDestinationCode(species, destinationCode, clock.UtcNow.Year);
     }
 
     private static string NormalizeExternalCounterpartyRegaCode(string? counterpartyExternalCode)
