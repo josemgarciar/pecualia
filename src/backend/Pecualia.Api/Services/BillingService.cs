@@ -482,7 +482,7 @@ public sealed class BillingService(
     {
         if (string.IsNullOrWhiteSpace(_stripeOptions.SecretKey))
         {
-            throw new DomainException("Stripe no está configurado todavía en este entorno. Falta Stripe__SecretKey en la API.");
+            throw new DomainException("Stripe no está configurado todavía en este entorno.");
         }
     }
 }

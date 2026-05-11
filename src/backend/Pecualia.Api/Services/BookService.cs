@@ -112,6 +112,8 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
 
         var movements = await dbContext.MovementCertificates
             .AsNoTracking()
+            .Include(entity => entity.OriginFarm)
+            .Include(entity => entity.DestinationFarm)
             .Where(entity => entity.OriginLivestockId == farm.Id || entity.DestinationLivestockId == farm.Id)
             .OrderBy(entity => entity.DepartureDate)
             .ThenBy(entity => entity.Id)

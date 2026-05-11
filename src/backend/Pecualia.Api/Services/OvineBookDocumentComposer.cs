@@ -309,15 +309,20 @@ internal static class OvineBookDocumentComposer
     internal static void ComposeBalanceSection(IDocumentContainer container, BookRenderContext context)
     {
         var aggregate = context.Aggregate;
+        var balanceMovementLookup = BookBalanceSupport.BuildBalanceMovementLookup(aggregate.Farm, aggregate.Balances, aggregate.Movements);
         var rows = aggregate.Balances
             .Select((balance, index) => new OvineBalanceRow(
                 index + 1,
                 BookDocumentSupport.FormatDate(balance.BalanceDate),
                 balance.NumberOfAnimals.ToString(),
                 BookDocumentSupport.MapOvineBalanceCause(balance.ModificationCause),
-                BookDocumentSupport.EmptyToNull(balance.OriginLivestockCode),
-                BookDocumentSupport.EmptyToNull(balance.DestinationLivestockCode),
-                BookDocumentSupport.EmptyToNull(balance.HealthDocumentNumber),
+                BookBalanceSupport.ResolveOvineCounterpartyCode(
+                    balance,
+                    balanceMovementLookup.GetValueOrDefault(balance.Id)),
+                null,
+                BookBalanceSupport.ResolveOvineHealthDocumentNumber(
+                    balance,
+                    balanceMovementLookup.GetValueOrDefault(balance.Id)),
                 BookDocumentSupport.EmptyToNull(balance.OvinoCaprino?.TransporterName),
                 BookDocumentSupport.EmptyToNull(balance.OvinoCaprino?.TransportTicketNumber),
                 (balance.OvinoCaprino?.NonReproductiveUnder4Months ?? 0).ToString(),
@@ -373,7 +378,7 @@ internal static class OvineBookDocumentComposer
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.Date ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.CauseCode ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.NumberOfAnimals ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCellLeft).Text(BookDocumentSupport.JoinValues(" / ", row.OriginCode, row.DestinationCode) ?? string.Empty);
+                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCellLeft).Text(row.OriginCode ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.HealthDocumentNumber ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCellLeft).Text(row.TransporterName ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.TransportTicketNumber ?? string.Empty);
