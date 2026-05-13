@@ -45,7 +45,6 @@ const initialForm = {
   registrationDate: '',
   registrationCause: '',
   originCode: '',
-  healthDocumentNumber: '',
   genotyping: '',
   dominantAllele: '',
   lowAllele: '',
@@ -136,7 +135,6 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
       registrationDate: form.registrationDate || null,
       registrationCause: form.registrationCause || null,
       originCode: form.originCode.trim() ? normalizeRegaCode(form.originCode) : null,
-      healthDocumentNumber: emptyToNull(form.healthDocumentNumber),
       ovinoCaprino: isOvineCaprine
         ? {
             speciesType: selectedFarm.livestockSpecies,
@@ -235,10 +233,6 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
             <label>
               Código origen
               <input value={form.originCode} onChange={(event) => updateField('originCode', event.target.value)} placeholder="ES06000058" />
-            </label>
-            <label className="form-full">
-              Documento sanitario
-              <input value={form.healthDocumentNumber} onChange={(event) => updateField('healthDocumentNumber', event.target.value)} placeholder="Número de documento sanitario" />
             </label>
           </div>
 
@@ -419,7 +413,8 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
               <AnimalDetailField label="Explotación" value={animal.farmName} />
               <AnimalDetailField label="Fecha de alta" value={formatDate(animal.registrationDate)} />
               <AnimalDetailField label="Causa de alta" value={formatCause(animal.registrationCause)} />
-              <AnimalDetailField label="Documento sanitario" value={animal.healthDocumentNumber ?? 'No informado'} />
+              <AnimalDetailField label="Serie guía entrada" value={animal.entryGuideSerie ?? 'No informada'} />
+              <AnimalDetailField label="Serie guía salida" value={animal.exitGuideSerie ?? 'No informada'} />
 
               {animal.ovinoCaprino && (
                 <div className="animal-specific-detail">

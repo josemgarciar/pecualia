@@ -283,7 +283,6 @@ export function createAnimalDetailForm(animal) {
     registrationDate: animal?.registrationDate ?? '',
     registrationCause: animal?.registrationCauseValue ?? '',
     originCode: animal?.originCode ?? '',
-    healthDocumentNumber: animal?.healthDocumentNumber ?? '',
     genotyping: animal?.ovinoCaprino?.genotyping ?? '',
     dominantAllele: animal?.ovinoCaprino?.dominantAllele ?? '',
     lowAllele: animal?.ovinoCaprino?.lowAllele ?? '',
@@ -294,18 +293,12 @@ export function createAnimalDetailForm(animal) {
   };
 }
 
-export function resolveAnimalGuideField(animal, form) {
-  const registrationCause = form.registrationCause || animal?.registrationCauseValue || '';
-
-  if (registrationCause === 'Autorreposicion') {
-    return { value: '', disabled: true };
+export function formatAnimalGuideSeries(entryGuideSerie, exitGuideSerie) {
+  if (!entryGuideSerie && !exitGuideSerie) {
+    return 'No informadas';
   }
 
-  if (registrationCause === 'Entrada') {
-    return { value: animal?.entryGuideSerie ?? '', disabled: true };
-  }
-
-  return { value: form.healthDocumentNumber, disabled: false };
+  return `${entryGuideSerie ?? '—'} / ${exitGuideSerie ?? '—'}`;
 }
 
 export function validateAnimalDetailForm(form, species) {
@@ -631,8 +624,6 @@ export function AnimalDetailModal({
   onSave,
   onDelete
 }) {
-  const guideField = resolveAnimalGuideField(animal, form);
-
   return (
     <ModalDialog size="wide" shellClassName="animal-modal">
       <ModalHeader
@@ -705,12 +696,10 @@ export function AnimalDetailModal({
                 {errors.originCode && <span className="farm-inline-error">{errors.originCode}</span>}
               </label>
               <label className="form-full">
-                Documento sanitario / guía
+                Serie guía entrada / salida
                 <input
-                  value={guideField.value}
-                  onChange={(event) => onChange('healthDocumentNumber', event.target.value)}
-                  disabled={guideField.disabled}
-                  placeholder={guideField.disabled ? 'No aplica' : undefined}
+                  value={formatAnimalGuideSeries(animal.entryGuideSerie, animal.exitGuideSerie)}
+                  disabled
                 />
               </label>
             </div>

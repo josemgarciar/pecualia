@@ -263,7 +263,7 @@ internal static class PorcineBookDocumentComposer
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.RegistrationCause ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.RegistrationDate ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCellLeft).Text(row.OriginCode ?? string.Empty);
-                            table.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.HealthDocumentNumber ?? string.Empty);
+                            table.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.GuideSerie ?? string.Empty);
                             table.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.IncidentPage ?? string.Empty);
                             table.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.IncidentOrder ?? string.Empty);
 
@@ -302,6 +302,7 @@ internal static class PorcineBookDocumentComposer
     internal static void ComposeBalanceSection(IDocumentContainer container, BookRenderContext context)
     {
         var aggregate = context.Aggregate;
+        var balanceMovementLookup = BookBalanceSupport.BuildBalanceMovementLookup(aggregate.Farm, aggregate.Balances, aggregate.Movements);
         var rows = aggregate.Balances
             .Select((balance, index) => new PorcineBalanceRow(
                 index + 1,
@@ -319,7 +320,7 @@ internal static class PorcineBookDocumentComposer
                 (balance.Porcino?.Piglets ?? 0).ToString(),
                 (balance.Porcino?.Rear ?? 0).ToString(),
                 (balance.Porcino?.Baits ?? 0).ToString(),
-                BookDocumentSupport.EmptyToNull(balance.HealthDocumentNumber)))
+                BookBalanceSupport.ResolveGuideSerie(balanceMovementLookup.GetValueOrDefault(balance.Id))))
             .ToList();
 
         foreach (var pageRows in BookDocumentSupport.ChunkOrBlank(rows, 20, PorcineBalanceRow.Empty))
@@ -388,7 +389,7 @@ internal static class PorcineBookDocumentComposer
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.Type ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.BreedCode ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.Tag ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.HealthDocumentNumber ?? string.Empty);
+                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.GuideSerie ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.CauseCode ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCellLeft).Text(row.Route ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.Boars ?? string.Empty);

@@ -186,7 +186,6 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
                 value => ParseAnimalDischargeCause(value))
             .HasMaxLength(80);
         animal.Property(entity => entity.Identification).HasColumnName("identification").HasMaxLength(80).IsRequired();
-        animal.Property(entity => entity.HealthDocumentNumber).HasColumnName("health_document_number").HasMaxLength(80);
         animal.Property(entity => entity.OriginCode).HasColumnName("origin_code").HasMaxLength(32);
         animal.Property(entity => entity.RegistrationCause)
             .HasColumnName("registration_cause")
@@ -342,7 +341,6 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         balance.Property(entity => entity.LivestockFarmId).HasColumnName("livestock_farm_id");
         balance.Property(entity => entity.BalanceDate).HasColumnName("balance_date");
         balance.Property(entity => entity.DestinationLivestockCode).HasColumnName("destination_livestock_code").HasMaxLength(32);
-        balance.Property(entity => entity.HealthDocumentNumber).HasColumnName("health_document_number").HasMaxLength(80);
         balance.Property(entity => entity.ModificationCause).HasColumnName("modification_cause").HasMaxLength(80).IsRequired();
         balance.Property(entity => entity.NumberOfAnimals).HasColumnName("number_of_animals");
         balance.Property(entity => entity.OriginLivestockCode).HasColumnName("origin_livestock_code").HasMaxLength(32);

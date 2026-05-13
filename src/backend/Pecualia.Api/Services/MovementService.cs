@@ -156,7 +156,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 request.MeansOfTransport,
                 request.TransportName,
                 request.VehicleRegistrationNumber,
-                request.HealthDocumentNumber,
                 request.SharedAnimalData,
                 parsedRows,
                 cancellationToken);
@@ -181,7 +180,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             request.MeansOfTransport,
             request.TransportName,
             request.VehicleRegistrationNumber,
-            request.HealthDocumentNumber,
             animalIds,
             cancellationToken);
     }
@@ -251,7 +249,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 request.MeansOfTransport,
                 request.TransportName,
                 request.VehicleRegistrationNumber,
-                request.HealthDocumentNumber,
                 request.UnidentifiedAnimalCount.Value,
                 request.UnidentifiedCategory!.Value,
                 cancellationToken);
@@ -291,7 +288,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 request.MeansOfTransport,
                 request.TransportName,
                 request.VehicleRegistrationNumber,
-                request.HealthDocumentNumber,
                 request.SharedAnimalData,
                 processableRows,
                 cancellationToken);
@@ -313,7 +309,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 request.MeansOfTransport,
                 request.TransportName,
                 request.VehicleRegistrationNumber,
-                request.HealthDocumentNumber,
                 animalIds,
                 cancellationToken);
         }
@@ -338,7 +333,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         string? meansOfTransport,
         string? transportName,
         string? vehicleRegistrationNumber,
-        string? healthDocumentNumber,
         int unidentifiedAnimalCount,
         MovementUnidentifiedCategory unidentifiedCategory,
         CancellationToken cancellationToken)
@@ -363,7 +357,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             unidentifiedCategory,
             ToDateOnly(departureDate),
             arrivalDate is null ? null : ToDateOnly(arrivalDate.Value),
-            healthDocumentNumber,
             transportName,
             vehicleRegistrationNumber,
             cancellationToken);
@@ -480,7 +473,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         string? meansOfTransport,
         string? transportName,
         string? vehicleRegistrationNumber,
-        string? healthDocumentNumber,
         IReadOnlyCollection<long> animalIds,
         CancellationToken cancellationToken)
     {
@@ -519,7 +511,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
 
         foreach (var animal in animals)
         {
-            ApplyMovementToExistingAnimal(context, animal, departureDay, arrivalDay, healthDocumentNumber);
+            ApplyMovementToExistingAnimal(context, animal, departureDay, arrivalDay);
         }
 
         dbContext.MovementCertificateAnimals.AddRange(animals.Select(entity => new MovementCertificateAnimal
@@ -536,7 +528,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             arrivalDay,
             transportName,
             vehicleRegistrationNumber,
-            healthDocumentNumber,
             BuildPorcineBalanceMetadata(animals),
             cancellationToken);
 
@@ -554,7 +545,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         string? meansOfTransport,
         string? transportName,
         string? vehicleRegistrationNumber,
-        string? healthDocumentNumber,
         SharedAnimalDataRequest? sharedAnimalData,
         IReadOnlyList<ParsedIdentificationLine> parsedLines,
         CancellationToken cancellationToken)
@@ -579,7 +569,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             meansOfTransport,
             transportName,
             vehicleRegistrationNumber,
-            healthDocumentNumber,
             sharedAnimalData,
             processableRows,
             cancellationToken);
@@ -594,7 +583,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         string? meansOfTransport,
         string? transportName,
         string? vehicleRegistrationNumber,
-        string? healthDocumentNumber,
         SharedAnimalDataRequest? sharedAnimalData,
         IReadOnlyList<MovementImportPreviewRowResponse> rows,
         CancellationToken cancellationToken)
@@ -652,7 +640,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
 
         foreach (var animal in existingAnimalsToReactivate)
         {
-            ApplyExternalEntryToExistingAnimal(context, animal, departureDay, arrivalDay, healthDocumentNumber);
+            ApplyExternalEntryToExistingAnimal(context, animal, departureDay, arrivalDay);
             affectedAnimals.Add(animal);
         }
 
@@ -663,8 +651,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 entity.Row.Identification,
                 sharedAnimalData!,
                 departureDay,
-                arrivalDay,
-                healthDocumentNumber))
+                arrivalDay))
             .ToList();
 
         if (newAnimals.Count > 0)
@@ -712,7 +699,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             arrivalDay,
             transportName,
             vehicleRegistrationNumber,
-            healthDocumentNumber,
             sharedAnimalData?.Porcino is null
                 ? BuildPorcineBalanceMetadata(affectedAnimals)
                 : new PorcineBalanceMetadata(
@@ -733,7 +719,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         DateOnly? arrivalDate,
         string? transportName,
         string? vehicleRegistrationNumber,
-        string? healthDocumentNumber,
         PorcineBalanceMetadata? porcineMetadata,
         CancellationToken cancellationToken)
     {
@@ -747,7 +732,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 LivestockFarmId = snapshot.Farm.Id,
                 BalanceDate = snapshot.Date,
                 DestinationLivestockCode = snapshot.DestinationCode,
-                HealthDocumentNumber = NormalizeNullable(healthDocumentNumber),
                 ModificationCause = snapshot.Cause,
                 NumberOfAnimals = movedAnimals.Count,
                 OriginLivestockCode = snapshot.OriginCode
@@ -888,8 +872,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         MovementContext context,
         Animal animal,
         DateOnly departureDate,
-        DateOnly? arrivalDate,
-        string? healthDocumentNumber)
+        DateOnly? arrivalDate)
     {
         if (context.Direction == MovementDirection.Exit)
         {
@@ -905,7 +888,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 animal.RegistrationDate = arrivalDate ?? departureDate;
                 animal.RegistrationCause = ParseRegistrationCause(context.Cause);
                 animal.OriginCode = context.CurrentFarm.RegaCode;
-                animal.HealthDocumentNumber = NormalizeNullable(healthDocumentNumber) ?? animal.HealthDocumentNumber;
                 animal.DischargeDate = null;
                 animal.DischargeCause = null;
                 animal.DestinationCode = null;
@@ -918,7 +900,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         animal.RegistrationDate = arrivalDate ?? departureDate;
         animal.RegistrationCause = ParseRegistrationCause(context.Cause);
         animal.OriginCode = context.CounterpartyCode;
-        animal.HealthDocumentNumber = NormalizeNullable(healthDocumentNumber) ?? animal.HealthDocumentNumber;
         animal.DischargeDate = null;
         animal.DischargeCause = null;
         animal.DestinationCode = null;
@@ -928,14 +909,12 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         MovementContext context,
         Animal animal,
         DateOnly departureDate,
-        DateOnly? arrivalDate,
-        string? healthDocumentNumber)
+        DateOnly? arrivalDate)
     {
         animal.LivestockFarmId = context.CurrentFarm.Id;
         animal.RegistrationDate = arrivalDate ?? departureDate;
         animal.RegistrationCause = ParseRegistrationCause(context.Cause);
         animal.OriginCode = context.CounterpartyCode;
-        animal.HealthDocumentNumber = NormalizeNullable(healthDocumentNumber) ?? animal.HealthDocumentNumber;
         animal.DischargeDate = null;
         animal.DischargeCause = null;
         animal.DestinationCode = null;
@@ -946,8 +925,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         string identification,
         SharedAnimalDataRequest sharedAnimalData,
         DateOnly departureDate,
-        DateOnly? arrivalDate,
-        string? healthDocumentNumber)
+        DateOnly? arrivalDate)
     {
         return new Animal
         {
@@ -960,7 +938,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             RegistrationDate = arrivalDate ?? departureDate,
             RegistrationCause = ParseRegistrationCause(context.Cause),
             OriginCode = context.CounterpartyCode,
-            HealthDocumentNumber = NormalizeNullable(healthDocumentNumber),
             DischargeDate = null,
             DischargeCause = null,
             DestinationCode = null
@@ -1475,7 +1452,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
 
         if (!DomainValidators.IsValidRegaCode(normalizedCounterpartyCode))
         {
-            throw new DomainException("El código REGA de la contraparte externa no es válido. Debe seguir el formato ES seguido de 12 dígitos.");
+            throw new DomainException("El código REGA no es válido. Debe seguir el formato ES seguido de 12 dígitos.");
         }
 
         return normalizedCounterpartyCode;
@@ -1540,7 +1517,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         MovementUnidentifiedCategory unidentifiedCategory,
         DateOnly departureDate,
         DateOnly? arrivalDate,
-        string? healthDocumentNumber,
         string? transportName,
         string? vehicleRegistrationNumber,
         CancellationToken cancellationToken)
@@ -1555,7 +1531,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 LivestockFarmId = snapshot.Farm.Id,
                 BalanceDate = snapshot.Date,
                 DestinationLivestockCode = snapshot.DestinationCode,
-                HealthDocumentNumber = NormalizeNullable(healthDocumentNumber),
                 ModificationCause = snapshot.Cause,
                 NumberOfAnimals = numberOfAnimals,
                 OriginLivestockCode = snapshot.OriginCode

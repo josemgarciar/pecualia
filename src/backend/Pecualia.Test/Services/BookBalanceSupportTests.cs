@@ -46,7 +46,7 @@ public sealed class BookBalanceSupportTests
         lookup[balance.Id].CounterpartyCode.Should().Be("ES020");
         lookup[balance.Id].GuideNumber.Should().Be("GUIA-EXIT-01");
         BookBalanceSupport.ResolveOvineCounterpartyCode(balance, lookup[balance.Id]).Should().Be("ES020");
-        BookBalanceSupport.ResolveOvineHealthDocumentNumber(balance, lookup[balance.Id]).Should().Be("GUIA-EXIT-01");
+        BookBalanceSupport.ResolveGuideSerie(lookup[balance.Id]).Should().Be("GUIA-EXIT-01");
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class BookBalanceSupportTests
         lookup[balance.Id].CounterpartyCode.Should().Be("ES020");
         lookup[balance.Id].GuideNumber.Should().Be("GUIA-ENTRY-01");
         BookBalanceSupport.ResolveOvineCounterpartyCode(balance, lookup[balance.Id]).Should().Be("ES020");
-        BookBalanceSupport.ResolveOvineHealthDocumentNumber(balance, lookup[balance.Id]).Should().Be("GUIA-ENTRY-01");
+        BookBalanceSupport.ResolveGuideSerie(lookup[balance.Id]).Should().Be("GUIA-ENTRY-01");
     }
 
     [Fact]
@@ -99,19 +99,16 @@ public sealed class BookBalanceSupportTests
         var exitBalance = new Balance
         {
             ModificationCause = "Salida",
-            DestinationLivestockCode = "ES999",
-            HealthDocumentNumber = "DOC-EXT-01"
+            DestinationLivestockCode = "ES999"
         };
         var entryBalance = new Balance
         {
             ModificationCause = "Entrada",
-            OriginLivestockCode = "ES111",
-            HealthDocumentNumber = "DOC-EXT-02"
+            OriginLivestockCode = "ES111"
         };
 
         BookBalanceSupport.ResolveOvineCounterpartyCode(exitBalance, null).Should().Be("ES999");
         BookBalanceSupport.ResolveOvineCounterpartyCode(entryBalance, null).Should().Be("ES111");
-        BookBalanceSupport.ResolveOvineHealthDocumentNumber(exitBalance, null).Should().Be("DOC-EXT-01");
-        BookBalanceSupport.ResolveOvineHealthDocumentNumber(entryBalance, null).Should().Be("DOC-EXT-02");
+        BookBalanceSupport.ResolveGuideSerie(null).Should().BeNull();
     }
 }

@@ -298,8 +298,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
     solicitationDate: currentDateTimeLocalValue(),
     meansOfTransport: '',
     transportName: '',
-    vehicleRegistrationNumber: '',
-    healthDocumentNumber: ''
+    vehicleRegistrationNumber: ''
   });
   const [sharedAnimalData, setSharedAnimalData] = useState({
     birthYear: '',
@@ -376,7 +375,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
     }
 
     if (!isValidRegaCode(config.counterpartyExternalCode)) {
-      return 'El código REGA de la contraparte externa no es válido.';
+      return 'El código REGA no es válido.';
     }
 
     return '';
@@ -484,7 +483,6 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
           meansOfTransport: emptyToNull(config.meansOfTransport),
           transportName: emptyToNull(config.transportName),
           vehicleRegistrationNumber: emptyToNull(config.vehicleRegistrationNumber),
-          healthDocumentNumber: emptyToNull(config.healthDocumentNumber),
           cause: derivedCause,
           rawText,
           sharedAnimalData: null
@@ -524,7 +522,6 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
         meansOfTransport: emptyToNull(config.meansOfTransport),
         transportName: emptyToNull(config.transportName),
         vehicleRegistrationNumber: emptyToNull(config.vehicleRegistrationNumber),
-        healthDocumentNumber: emptyToNull(config.healthDocumentNumber),
         cause: derivedCause,
         rawText: unidentifiedAnimals ? null : rawText,
         sharedAnimalData: preview?.requiresSharedAnimalData ? buildSharedAnimalDataPayload(sharedAnimalData, farm.livestockSpecies) : null,
@@ -682,10 +679,6 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
                   <span className="farm-field-label">Matrícula</span>
                   <input value={config.vehicleRegistrationNumber} onChange={(event) => updateConfig('vehicleRegistrationNumber', event.target.value)} />
                 </label>
-                <label className="farm-form-field">
-                  <span className="farm-field-label">Documento sanitario</span>
-                  <input value={config.healthDocumentNumber} onChange={(event) => updateConfig('healthDocumentNumber', event.target.value)} />
-                </label>
               </div>
             </div>
           )}
@@ -807,8 +800,8 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
                         <strong>{config.counterpartyExternalCode || 'No informado'}</strong>
                       </div>
                       <div className="movement-detail-group">
-                        <span>Documento sanitario</span>
-                        <strong>{config.healthDocumentNumber || 'No informado'}</strong>
+                        <span>Serie guía</span>
+                        <strong>{config.serie || 'No informada'}</strong>
                       </div>
                     </div>
                   </section>

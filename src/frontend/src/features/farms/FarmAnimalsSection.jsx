@@ -255,10 +255,6 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
     setDetailError('');
 
     try {
-      const normalizedHealthDocumentNumber = animalForm.registrationCause === 'Autorreposicion'
-        ? null
-        : emptyToNull(animalForm.healthDocumentNumber);
-
       const updatedAnimal = await apiRequest(`/api/animals/${selectedAnimal.id}`, {
         method: 'PUT',
         token,
@@ -270,7 +266,6 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
           registrationDate: animalForm.registrationDate || null,
           registrationCause: animalForm.registrationCause || null,
           originCode: animalForm.originCode.trim() ? normalizeRegaCode(animalForm.originCode) : null,
-          healthDocumentNumber: normalizedHealthDocumentNumber,
           ovinoCaprino: selectedAnimal.ovinoCaprino
             ? {
                 speciesType: selectedAnimal.ovinoCaprino.speciesType,

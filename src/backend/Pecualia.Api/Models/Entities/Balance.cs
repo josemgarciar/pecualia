@@ -10,8 +10,6 @@ public sealed class Balance
 
     public string? DestinationLivestockCode { get; set; }
 
-    public string? HealthDocumentNumber { get; set; }
-
     public string ModificationCause { get; set; } = string.Empty;
 
     public int NumberOfAnimals { get; set; }

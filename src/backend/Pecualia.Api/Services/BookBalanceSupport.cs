@@ -64,11 +64,11 @@ internal static class BookBalanceSupport
             : BookDocumentSupport.EmptyToNull(balance.OriginLivestockCode);
     }
 
-    internal static string? ResolveOvineHealthDocumentNumber(Balance balance, BookBalanceMovementInfo? movementInfo)
+    internal static string? ResolveGuideSerie(BookBalanceMovementInfo? movementInfo)
     {
         return !string.IsNullOrWhiteSpace(movementInfo?.GuideNumber)
             ? movementInfo.GuideNumber
-            : BookDocumentSupport.EmptyToNull(balance.HealthDocumentNumber);
+            : null;
     }
 
     private static bool IsMovementForFarm(MovementCertificate movement, long farmId)

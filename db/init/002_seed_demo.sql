@@ -625,7 +625,6 @@ INSERT INTO balance (
     livestock_farm_id,
     balance_date,
     destination_livestock_code,
-    health_document_number,
     modification_cause,
     number_of_animals,
     origin_livestock_code
@@ -634,18 +633,17 @@ SELECT
     farm.id,
     balance_data.balance_date,
     balance_data.destination_livestock_code,
-    balance_data.health_document_number,
     balance_data.modification_cause,
     balance_data.number_of_animals,
     balance_data.origin_livestock_code
 FROM livestock_farm farm
 JOIN (
     VALUES
-        (CURRENT_DATE - INTERVAL '127 days', NULL::text, 'GSP-260102', 'Entrada', 42, 'ES100200300400'),
-        (CURRENT_DATE - INTERVAL '53 days', NULL::text, 'GSP-260310', 'Nacimiento', 24, NULL::text),
-        (CURRENT_DATE - INTERVAL '14 days', 'ES100200300900', 'GSP-260418', 'Salida', 18, NULL::text),
-        (CURRENT_DATE - INTERVAL '6 days', NULL::text, 'GSP-260426', 'Muerte', 2, NULL::text)
-) AS balance_data(balance_date, destination_livestock_code, health_document_number, modification_cause, number_of_animals, origin_livestock_code) ON TRUE
+        (CURRENT_DATE - INTERVAL '127 days', NULL::text, 'Entrada', 42, 'ES100200300400'),
+        (CURRENT_DATE - INTERVAL '53 days', NULL::text, 'Nacimiento', 24, NULL::text),
+        (CURRENT_DATE - INTERVAL '14 days', 'ES100200300900', 'Salida', 18, NULL::text),
+        (CURRENT_DATE - INTERVAL '6 days', NULL::text, 'Muerte', 2, NULL::text)
+) AS balance_data(balance_date, destination_livestock_code, modification_cause, number_of_animals, origin_livestock_code) ON TRUE
 WHERE farm.rega_code = 'ES060180000046'
   AND NOT EXISTS (
       SELECT 1

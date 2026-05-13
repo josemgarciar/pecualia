@@ -268,7 +268,7 @@ internal static class OvineBookDocumentComposer
                             table.Cell().Element(BookDocumentSupport.OfficialOvineSheetBodyCell).Text(row.RegistrationCause ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialOvineSheetBodyCell).Text(row.RegistrationDate ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialOvineSheetBodyCellLeft).Text(row.OriginCode ?? string.Empty);
-                            table.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialOvineSheetBodyCell).Text(row.HealthDocumentNumber ?? string.Empty);
+                            table.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialOvineSheetBodyCell).Text(row.GuideSerie ?? string.Empty);
                             table.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialOvineSheetBodyCell).Text(row.IncidentPage ?? string.Empty);
                             table.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialOvineSheetBodyCell).Text(row.IncidentOrder ?? string.Empty);
 
@@ -320,9 +320,7 @@ internal static class OvineBookDocumentComposer
                     balance,
                     balanceMovementLookup.GetValueOrDefault(balance.Id)),
                 null,
-                BookBalanceSupport.ResolveOvineHealthDocumentNumber(
-                    balance,
-                    balanceMovementLookup.GetValueOrDefault(balance.Id)),
+                BookBalanceSupport.ResolveGuideSerie(balanceMovementLookup.GetValueOrDefault(balance.Id)),
                 BookDocumentSupport.EmptyToNull(balance.OvinoCaprino?.TransporterName),
                 BookDocumentSupport.EmptyToNull(balance.OvinoCaprino?.TransportTicketNumber),
                 (balance.OvinoCaprino?.NonReproductiveUnder4Months ?? 0).ToString(),
@@ -379,7 +377,7 @@ internal static class OvineBookDocumentComposer
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.CauseCode ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.NumberOfAnimals ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCellLeft).Text(row.OriginCode ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.HealthDocumentNumber ?? string.Empty);
+                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.GuideSerie ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCellLeft).Text(row.TransporterName ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.TransportTicketNumber ?? string.Empty);
                             table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.Under4 ?? string.Empty);

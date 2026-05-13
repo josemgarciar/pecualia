@@ -88,7 +88,6 @@ classDiagram
         +char destination_code
         +char discharge_cause
         +date discharge_date
-        +char health_document_number
         +char identification
         +char origin_code
         +char registration_cause
@@ -192,7 +191,6 @@ classDiagram
         +int id
         +date balance_date
         +char destination_livestock_code
-        +char health_document_number
         +char modification_cause
         +int number_of_animals
         +char origin_livestock_code
@@ -339,7 +337,6 @@ Animal base identificado.
 | `destination_code` | `VARCHAR(32)` | Codigo destino |
 | `discharge_cause` | `VARCHAR(80)` | Causa de baja |
 | `discharge_date` | `DATE` | Fecha de baja |
-| `health_document_number` | `VARCHAR(80)` | Documento sanitario |
 | `identification` | `VARCHAR(80)` | Identificacion oficial unica |
 | `origin_code` | `VARCHAR(32)` | Codigo origen |
 | `registration_cause` | `VARCHAR(80)` | Causa de alta |

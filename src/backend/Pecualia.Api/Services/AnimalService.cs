@@ -287,7 +287,6 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             request.RegistrationDate,
             AnimalRegistrationCause.Autorreposicion,
             null,
-            null,
             request.OvinoCaprino,
             request.Porcino);
 
@@ -449,7 +448,6 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
                     request.RegistrationDate,
                     request.RegistrationCause,
                     request.OriginCode,
-                    request.HealthDocumentNumber,
                     request.OvinoCaprino,
                     null));
             }
@@ -609,7 +607,6 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             FormatDischargeCause(animal.DischargeCause),
             BookDocumentSupport.MapDischargeCauseCode(animal.DischargeCause),
             EmptyToNull(animal.DestinationCode),
-            EmptyToNull(animal.HealthDocumentNumber),
             null,
             null,
             BuildStatus(animal));
@@ -682,6 +679,15 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             .OrderByDescending(entity => entity.MovementCertificate.DepartureDate)
             .Select(entity => entity.MovementCertificate.Serie)
             .FirstOrDefaultAsync(cancellationToken);
+        var exitGuideSerie = await dbContext.MovementCertificateAnimals
+            .AsNoTracking()
+            .Where(entity =>
+                entity.AnimalId == animal.Id &&
+                entity.MovementCertificate.OriginLivestockId == animal.LivestockFarmId &&
+                !string.IsNullOrWhiteSpace(entity.MovementCertificate.Serie))
+            .OrderByDescending(entity => entity.MovementCertificate.DepartureDate)
+            .Select(entity => entity.MovementCertificate.Serie)
+            .FirstOrDefaultAsync(cancellationToken);
 
         return new AnimalDetailResponse(
             animal.Id,
@@ -697,8 +703,8 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             FormatRegistrationCause(animal.RegistrationCause),
             animal.RegistrationCause?.ToString(),
             EmptyToNull(animal.OriginCode),
-            EmptyToNull(animal.HealthDocumentNumber),
             EmptyToNull(entryGuideSerie),
+            EmptyToNull(exitGuideSerie),
             animal.DischargeDate,
             FormatDischargeCause(animal.DischargeCause),
             animal.DischargeCause?.ToString(),
@@ -854,7 +860,6 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
         animal.RegistrationDate = request.RegistrationDate;
         animal.RegistrationCause = request.RegistrationCause;
         animal.OriginCode = NormalizeRegaOriginCode(request.OriginCode);
-        animal.HealthDocumentNumber = Normalize(request.HealthDocumentNumber);
         return animal;
     }
 
@@ -870,7 +875,6 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
         animal.RegistrationDate = request.RegistrationDate;
         animal.RegistrationCause = request.RegistrationCause;
         animal.OriginCode = NormalizeRegaOriginCode(request.OriginCode);
-        animal.HealthDocumentNumber = Normalize(request.HealthDocumentNumber);
         return animal;
     }
 

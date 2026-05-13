@@ -18,8 +18,6 @@ public class Animal
 
     public AnimalDischargeCause? DischargeCause { get; set; }
 
-    public string? HealthDocumentNumber { get; set; }
-
     public string Identification { get; set; } = string.Empty;
 
     public string? OriginCode { get; set; }

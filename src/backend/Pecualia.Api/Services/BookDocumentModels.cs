@@ -40,7 +40,7 @@ internal sealed record OvineAnimalRow(
     string? DischargeCause,
     string? DischargeDate,
     string? DestinationCode,
-    string? HealthDocumentNumber,
+    string? GuideSerie,
     string? IncidentPage,
     string? IncidentOrder)
 {
@@ -66,7 +66,7 @@ internal sealed record PorcineAnimalRow(
     string? DischargeCause,
     string? DischargeDate,
     string? DestinationCode,
-    string? HealthDocumentNumber,
+    string? GuideSerie,
     string? IncidentPage,
     string? IncidentOrder)
 {
@@ -80,7 +80,7 @@ internal sealed record OvineBalanceRow(
     string? CauseCode,
     string? OriginCode,
     string? DestinationCode,
-    string? HealthDocumentNumber,
+    string? GuideSerie,
     string? TransporterName,
     string? TransportTicketNumber,
     string? Under4,
@@ -107,7 +107,7 @@ internal sealed record PorcineBalanceRow(
     string? Piglets,
     string? Rears,
     string? Baits,
-    string? HealthDocumentNumber)
+    string? GuideSerie)
 {
     public static PorcineBalanceRow Empty => new(0, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 }

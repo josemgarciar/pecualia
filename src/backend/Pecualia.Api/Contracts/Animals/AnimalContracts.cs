@@ -11,7 +11,6 @@ public sealed record CreateAnimalRequest(
     DateOnly? RegistrationDate,
     AnimalRegistrationCause? RegistrationCause,
     string? OriginCode,
-    string? HealthDocumentNumber,
     OvinoCaprinoAnimalRequest? OvinoCaprino,
     PorcinoAnimalRequest? Porcino);
 
@@ -54,7 +53,6 @@ public sealed record UpdateAnimalRequest(
     DateOnly? RegistrationDate,
     AnimalRegistrationCause? RegistrationCause,
     string? OriginCode,
-    string? HealthDocumentNumber,
     OvinoCaprinoAnimalRequest? OvinoCaprino,
     PorcinoAnimalRequest? Porcino);
 
@@ -78,7 +76,6 @@ public sealed record AnimalListItemResponse(
     string? DischargeCause,
     string? DischargeCauseCode,
     string? DestinationCode,
-    string? HealthDocumentNumber,
     string? EntryGuideSerie,
     string? ExitGuideSerie,
     string Status);
@@ -104,8 +101,8 @@ public sealed record AnimalDetailResponse(
     string? RegistrationCause,
     string? RegistrationCauseValue,
     string? OriginCode,
-    string? HealthDocumentNumber,
     string? EntryGuideSerie,
+    string? ExitGuideSerie,
     DateOnly? DischargeDate,
     string? DischargeCause,
     string? DischargeCauseValue,
