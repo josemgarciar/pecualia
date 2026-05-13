@@ -159,6 +159,13 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             throw new DomainException("Ya existe un animal con esa identificación.");
         }
 
+        if (farm.LivestockSpecies == LivestockSpecies.Porcine)
+        {
+            var snapshotDate = request.RegistrationDate ?? DateOnly.FromDateTime(clock.UtcNow.Date);
+            var censusSnapshot = await censusProjectionService.BuildSnapshotAsync(farm, snapshotDate, cancellationToken);
+            PorcineCapacitySupport.EnsureWithinCapacity(farm, censusSnapshot, request.Porcino?.AnimalType, 1);
+        }
+
         var animal = BuildBaseAnimal(farm, identification, request);
 
         dbContext.Animals.Add(animal);
@@ -222,6 +229,11 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
         if (request.Quantity > censusSnapshot.NonReproductiveBetween4And12Months)
         {
             throw new DomainException("No puedes autoreponer más animales que los no reproductores de 4 a 12 meses disponibles en el censo actual.");
+        }
+
+        if (farm.LivestockSpecies == LivestockSpecies.Porcine)
+        {
+            PorcineCapacitySupport.EnsureWithinCapacity(farm, censusSnapshot, request.Porcino?.AnimalType, request.Quantity);
         }
 
         var eligibleBirths = await dbContext.AnimalBirths
