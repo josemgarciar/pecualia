@@ -17,6 +17,7 @@ export function FarmBirthsSection({ farm, token }) {
   const [births, setBirths] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -46,12 +47,13 @@ export function FarmBirthsSection({ farm, token }) {
   async function handleSubmit(event) {
     event.preventDefault();
     setError('');
+    setFormError('');
     setSuccess('');
 
     const offspringNumber = Number(form.offspringNumber);
     const birthWeight = parsePositiveNumber(form.birthWeight);
     if (!form.birthDate || !Number.isInteger(offspringNumber) || offspringNumber <= 0 || (birthWeight !== null && birthWeight < 0)) {
-      setError('Revisa fecha, número de crías y peso. El número de crías debe ser positivo.');
+      setFormError('Revisa fecha, número de crías y peso. El número de crías debe ser positivo.');
       return;
     }
 
@@ -71,9 +73,10 @@ export function FarmBirthsSection({ farm, token }) {
       setModalOpen(false);
       setEditingBirth(null);
       setForm(createBirthFormState());
+      setFormError('');
       await loadBirths();
     } catch (requestError) {
-      setError(requestError.message);
+      setFormError(requestError.message);
     } finally {
       setSubmitting(false);
     }
@@ -83,6 +86,7 @@ export function FarmBirthsSection({ farm, token }) {
     setEditingBirth(null);
     setDetailBirth(null);
     setForm(createBirthFormState());
+    setFormError('');
     setModalOpen(true);
   }
 
@@ -95,6 +99,7 @@ export function FarmBirthsSection({ farm, token }) {
       birthWeight: birth.birthWeight == null ? '' : String(birth.birthWeight),
       observations: birth.observations ?? ''
     });
+    setFormError('');
     setModalOpen(true);
   }
 
@@ -189,9 +194,11 @@ export function FarmBirthsSection({ farm, token }) {
               onClose={() => {
                 setModalOpen(false);
                 setEditingBirth(null);
+                setFormError('');
               }}
             />
             <ModalBody className="operation-modal-body">
+              {formError && <div className="error-banner">{formError}</div>}
               <label>
                 <span>Fecha de parto *</span>
                 <input type="date" value={form.birthDate} onChange={(event) => setForm({ ...form, birthDate: event.target.value })} />
@@ -213,6 +220,7 @@ export function FarmBirthsSection({ farm, token }) {
               <button className="secondary-button" type="button" onClick={() => {
                 setModalOpen(false);
                 setEditingBirth(null);
+                setFormError('');
               }}>Cancelar</button>
               <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : editingBirth ? 'Guardar cambios' : 'Guardar nacimiento'}</button>
             </ModalFooter>
