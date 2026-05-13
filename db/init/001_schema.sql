@@ -73,8 +73,9 @@ CREATE TABLE livestock_farm (
     livestock_species VARCHAR(40) NOT NULL,
     livestock_type VARCHAR(80),
     name VARCHAR(160) NOT NULL,
+    porcine_fattening_capacity INTEGER,
+    porcine_mothers_capacity INTEGER,
     porcine_registry_number VARCHAR(32),
-    production_capacity INTEGER,
     province VARCHAR(120),
     rega_code VARCHAR(32) NOT NULL UNIQUE,
     regime VARCHAR(80),
@@ -87,7 +88,8 @@ CREATE TABLE livestock_farm (
     zootechnic_classification VARCHAR(120),
     CONSTRAINT livestock_species_chk CHECK (livestock_species IN ('ovine', 'caprine', 'porcine')),
     CONSTRAINT authorised_capacity_non_negative_chk CHECK (authorised_capacity IS NULL OR authorised_capacity >= 0),
-    CONSTRAINT production_capacity_non_negative_chk CHECK (production_capacity IS NULL OR production_capacity >= 0)
+    CONSTRAINT porcine_fattening_capacity_non_negative_chk CHECK (porcine_fattening_capacity IS NULL OR porcine_fattening_capacity >= 0),
+    CONSTRAINT porcine_mothers_capacity_non_negative_chk CHECK (porcine_mothers_capacity IS NULL OR porcine_mothers_capacity >= 0)
 );
 
 CREATE TABLE animal (

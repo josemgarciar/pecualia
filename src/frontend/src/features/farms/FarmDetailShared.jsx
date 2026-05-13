@@ -344,10 +344,10 @@ export function createFarmSettingsForm(farm) {
     province: farm?.province ?? '',
     address: farm?.address ?? '',
     zipCode: farm?.zipCode ?? '',
-    authorisedCapacity: farm?.authorisedCapacity != null ? String(farm.authorisedCapacity) : '',
     porcineRegistryNumber: farm?.porcineRegistryNumber ?? '',
     livestockType: farm?.livestockType ?? '',
-    productionCapacity: farm?.productionCapacity != null ? String(farm.productionCapacity) : '',
+    porcineMothersCapacity: farm?.porcineMothersCapacity != null ? String(farm.porcineMothersCapacity) : '',
+    porcineFatteningCapacity: farm?.porcineFatteningCapacity != null ? String(farm.porcineFatteningCapacity) : '',
     responsible: farm?.responsible ?? '',
     zootechnicClassification: farm?.zootechnicClassification ?? '',
     spindle: farm?.spindle != null ? String(farm.spindle) : '',
@@ -379,13 +379,16 @@ export function validateFarmSettingsForm(form, species) {
   if (species === 'Porcine' && !form.porcineRegistryNumber.trim()) {
     errors.porcineRegistryNumber = 'Campo obligatorio para porcino';
   }
-  if (form.authorisedCapacity !== '' && Number(form.authorisedCapacity) < 0) {
-    errors.authorisedCapacity = 'Debe ser igual o mayor que cero';
+  if (species === 'Porcine' && form.porcineMothersCapacity !== '') {
+    const porcineMothersCapacity = Number(form.porcineMothersCapacity);
+    if (!Number.isInteger(porcineMothersCapacity) || porcineMothersCapacity < 0) {
+      errors.porcineMothersCapacity = 'Debe ser un número entero válido';
+    }
   }
-  if (form.productionCapacity !== '') {
-    const productionCapacity = Number(form.productionCapacity);
-    if (!Number.isInteger(productionCapacity) || productionCapacity < 0) {
-      errors.productionCapacity = 'Debe ser un número entero válido';
+  if (species === 'Porcine' && form.porcineFatteningCapacity !== '') {
+    const porcineFatteningCapacity = Number(form.porcineFatteningCapacity);
+    if (!Number.isInteger(porcineFatteningCapacity) || porcineFatteningCapacity < 0) {
+      errors.porcineFatteningCapacity = 'Debe ser un número entero válido';
     }
   }
   if (form.spindle !== '') {
@@ -527,11 +530,16 @@ export function FarmSettingsModal({ farm, form, errors, requestError, submitting
                 <input className={errors.porcineRegistryNumber ? 'farm-input farm-input-error' : 'farm-input'} value={form.porcineRegistryNumber} onChange={(event) => onChange('porcineRegistryNumber', event.target.value)} />
                 {errors.porcineRegistryNumber && <p className="farm-field-error">{errors.porcineRegistryNumber}</p>}
               </div>
+              <div className="farm-form-field">
+                <span className="farm-field-label">CAPACIDAD MÁXIMA MADRES</span>
+                <input type="number" min="0" className={errors.porcineMothersCapacity ? 'farm-input farm-input-error' : 'farm-input'} value={form.porcineMothersCapacity} onChange={(event) => onChange('porcineMothersCapacity', event.target.value)} />
+                {errors.porcineMothersCapacity && <p className="farm-field-error">{errors.porcineMothersCapacity}</p>}
+              </div>
 
               <div className="farm-form-field">
-                <span className="farm-field-label">CAPACIDAD AUTORIZADA</span>
-                <input type="number" min="0" className={errors.authorisedCapacity ? 'farm-input farm-input-error' : 'farm-input'} value={form.authorisedCapacity} onChange={(event) => onChange('authorisedCapacity', event.target.value)} />
-                {errors.authorisedCapacity && <p className="farm-field-error">{errors.authorisedCapacity}</p>}
+                <span className="farm-field-label">CAPACIDAD MÁXIMA CEBO</span>
+                <input type="number" min="0" className={errors.porcineFatteningCapacity ? 'farm-input farm-input-error' : 'farm-input'} value={form.porcineFatteningCapacity} onChange={(event) => onChange('porcineFatteningCapacity', event.target.value)} />
+                {errors.porcineFatteningCapacity && <p className="farm-field-error">{errors.porcineFatteningCapacity}</p>}
               </div>
             </>
           )}
@@ -544,12 +552,6 @@ export function FarmSettingsModal({ farm, form, errors, requestError, submitting
           <div className="farm-form-field">
             <span className="farm-field-label">TIPO DE EXPLOTACIÓN</span>
             <input className="farm-input" value={form.livestockType} onChange={(event) => onChange('livestockType', event.target.value)} />
-          </div>
-
-          <div className="farm-form-field">
-            <span className="farm-field-label">CAPACIDAD PRODUCTIVA</span>
-            <input type="number" min="0" className={errors.productionCapacity ? 'farm-input farm-input-error' : 'farm-input'} value={form.productionCapacity} onChange={(event) => onChange('productionCapacity', event.target.value)} />
-            {errors.productionCapacity && <p className="farm-field-error">{errors.productionCapacity}</p>}
           </div>
 
           <div className="farm-form-field">

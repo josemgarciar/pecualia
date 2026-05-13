@@ -10,6 +10,7 @@ import { FarmBirthsSection } from './FarmBirthsSection';
 import { FarmBookSection } from './FarmBookSection';
 import { FarmCensusBalancesSection } from './FarmCensusBalancesSection';
 import {
+  currentYear,
   createFarmSettingsForm,
   detailTabs,
   emptyToNull,
@@ -31,6 +32,7 @@ export function FarmDetailPage() {
   const navigate = useNavigate();
   const { token } = useAuth();
   const [farm, setFarm] = useState(null);
+  const [summaryCensus, setSummaryCensus] = useState(null);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [settingsForm, setSettingsForm] = useState(createFarmSettingsForm(null));
   const [settingsErrors, setSettingsErrors] = useState({});
@@ -58,11 +60,21 @@ export function FarmDetailPage() {
     setError('');
 
     try {
-      const response = await apiRequest(`/api/farms/${targetFarmId}`, { token });
-      setFarm(response);
+      const [farmResult, censusResult] = await Promise.allSettled([
+        apiRequest(`/api/farms/${targetFarmId}`, { token }),
+        apiRequest(`/api/farms/${targetFarmId}/census?year=${currentYear}`, { token })
+      ]);
+
+      if (farmResult.status !== 'fulfilled') {
+        throw farmResult.reason;
+      }
+
+      setFarm(farmResult.value);
+      setSummaryCensus(censusResult.status === 'fulfilled' ? censusResult.value : null);
     } catch (requestError) {
       setError(requestError.message);
       setFarm(null);
+      setSummaryCensus(null);
     } finally {
       setLoading(false);
     }
@@ -114,6 +126,13 @@ export function FarmDetailPage() {
     setSettingsSubmitting(true);
     setSettingsRequestError('');
 
+    const porcineMothersCapacity = farm.livestockSpecies === 'Porcine' && settingsForm.porcineMothersCapacity !== ''
+      ? Number(settingsForm.porcineMothersCapacity)
+      : null;
+    const porcineFatteningCapacity = farm.livestockSpecies === 'Porcine' && settingsForm.porcineFatteningCapacity !== ''
+      ? Number(settingsForm.porcineFatteningCapacity)
+      : null;
+
     try {
       const updatedFarm = await apiRequest(`/api/farms/${farm.id}`, {
         method: 'PUT',
@@ -126,10 +145,13 @@ export function FarmDetailPage() {
           province: emptyToNull(settingsForm.province),
           address: emptyToNull(settingsForm.address),
           zipCode: emptyToNull(settingsForm.zipCode),
-          authorisedCapacity: settingsForm.authorisedCapacity === '' ? null : Number(settingsForm.authorisedCapacity),
+          authorisedCapacity: farm.livestockSpecies === 'Porcine' && (porcineMothersCapacity != null || porcineFatteningCapacity != null)
+            ? (porcineMothersCapacity ?? 0) + (porcineFatteningCapacity ?? 0)
+            : null,
           porcineRegistryNumber: emptyToNull(settingsForm.porcineRegistryNumber),
           livestockType: emptyToNull(settingsForm.livestockType),
-          productionCapacity: settingsForm.productionCapacity === '' ? null : Number(settingsForm.productionCapacity),
+          porcineMothersCapacity,
+          porcineFatteningCapacity,
           responsible: emptyToNull(settingsForm.responsible),
           zootechnicClassification: emptyToNull(settingsForm.zootechnicClassification),
           spindle: settingsForm.spindle === '' ? null : Number(settingsForm.spindle),
@@ -177,7 +199,7 @@ export function FarmDetailPage() {
   const speciesTone = speciesToneMap[farm.livestockSpecies] ?? { bg: '#F3F4F6', color: '#6B7280', label: farm.livestockSpecies };
   const activeTabConfig = detailTabs.find((tab) => tab.key === activeTab) ?? detailTabs[0];
   const sectionContent = {
-    summary: <FarmSummarySection farm={farm} />,
+    summary: <FarmSummarySection farm={farm} summaryCensus={summaryCensus} />,
     animals: (
       <FarmAnimalsSection
         farm={farm}
@@ -247,7 +269,10 @@ export function FarmDetailPage() {
             <SummaryMetric label="Registro porcino" value={farm.porcineRegistryNumber} />
           )}
           {farm.livestockSpecies === 'Porcine' && (
-            <SummaryMetric label="Capacidad autorizada" value={farm.authorisedCapacity ?? 'No informada'} />
+            <SummaryMetric label="Capacidad máxima madres" value={farm.porcineMothersCapacity ?? 'No informada'} />
+          )}
+          {farm.livestockSpecies === 'Porcine' && (
+            <SummaryMetric label="Capacidad máxima cebo" value={farm.porcineFatteningCapacity ?? 'No informada'} />
           )}
           <SummaryMetric label="Titular" value={farm.farmerName} />
           <SummaryMetric label="Régimen" value={formatRegime(farm.regime)} />

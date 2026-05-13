@@ -64,9 +64,9 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             throw new DomainException("El número de registro porcino es obligatorio para explotaciones porcinas.");
         }
 
-        if (request.ProductionCapacity < 0)
+        if (request.PorcineMothersCapacity < 0 || request.PorcineFatteningCapacity < 0)
         {
-            throw new DomainException("La capacidad productiva debe ser un número entero igual o mayor que cero.");
+            throw new DomainException("Las capacidades máximas porcinas deben ser números enteros iguales o mayores que cero.");
         }
 
         if (request.Spindle is <= 0)
@@ -89,6 +89,10 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
 
         await EnsureFarmPlanCapacityAsync(userId, role, cancellationToken);
 
+        var porcineAuthorisedCapacity = request.LivestockSpecies == LivestockSpecies.Porcine
+            ? (request.PorcineMothersCapacity ?? 0) + (request.PorcineFatteningCapacity ?? 0)
+            : (int?)null;
+
         var farm = new LivestockFarm
         {
             FarmerId = request.FarmerId,
@@ -100,10 +104,11 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             Province = Normalize(request.Province),
             Address = Normalize(request.Address),
             ZipCode = Normalize(request.ZipCode),
-            AuthorisedCapacity = request.LivestockSpecies == LivestockSpecies.Porcine ? request.AuthorisedCapacity : null,
+            AuthorisedCapacity = porcineAuthorisedCapacity,
             PorcineRegistryNumber = request.LivestockSpecies == LivestockSpecies.Porcine ? Normalize(request.PorcineRegistryNumber).ToUpperInvariant() : string.Empty,
             LivestockType = Normalize(request.LivestockType),
-            ProductionCapacity = request.ProductionCapacity,
+            PorcineMothersCapacity = request.LivestockSpecies == LivestockSpecies.Porcine ? request.PorcineMothersCapacity : null,
+            PorcineFatteningCapacity = request.LivestockSpecies == LivestockSpecies.Porcine ? request.PorcineFatteningCapacity : null,
             Responsible = Normalize(request.Responsible),
             ZootechnicClassification = Normalize(request.ZootechnicClassification),
             Spindle = request.Spindle,
@@ -164,9 +169,9 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             throw new DomainException("El número de registro porcino es obligatorio para explotaciones porcinas.");
         }
 
-        if (request.ProductionCapacity < 0)
+        if (request.PorcineMothersCapacity < 0 || request.PorcineFatteningCapacity < 0)
         {
-            throw new DomainException("La capacidad productiva debe ser un número entero igual o mayor que cero.");
+            throw new DomainException("Las capacidades máximas porcinas deben ser números enteros iguales o mayores que cero.");
         }
 
         if (request.Spindle is <= 0)
@@ -184,6 +189,10 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             throw new DomainException("La provincia es obligatoria.");
         }
 
+        var porcineAuthorisedCapacity = farm.LivestockSpecies == LivestockSpecies.Porcine
+            ? (request.PorcineMothersCapacity ?? 0) + (request.PorcineFatteningCapacity ?? 0)
+            : (int?)null;
+
         farm.Name = request.Name.Trim();
         farm.RegaCode = normalizedRegaCode;
         farm.Regime = request.Regime;
@@ -191,10 +200,11 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
         farm.Province = Normalize(request.Province);
         farm.Address = Normalize(request.Address);
         farm.ZipCode = Normalize(request.ZipCode);
-        farm.AuthorisedCapacity = farm.LivestockSpecies == LivestockSpecies.Porcine ? request.AuthorisedCapacity : null;
+        farm.AuthorisedCapacity = porcineAuthorisedCapacity;
         farm.PorcineRegistryNumber = farm.LivestockSpecies == LivestockSpecies.Porcine ? Normalize(request.PorcineRegistryNumber).ToUpperInvariant() : string.Empty;
         farm.LivestockType = Normalize(request.LivestockType);
-        farm.ProductionCapacity = request.ProductionCapacity;
+        farm.PorcineMothersCapacity = farm.LivestockSpecies == LivestockSpecies.Porcine ? request.PorcineMothersCapacity : null;
+        farm.PorcineFatteningCapacity = farm.LivestockSpecies == LivestockSpecies.Porcine ? request.PorcineFatteningCapacity : null;
         farm.Responsible = Normalize(request.Responsible);
         farm.ZootechnicClassification = Normalize(request.ZootechnicClassification);
         farm.Spindle = request.Spindle;
@@ -261,7 +271,8 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             EmptyToNull(farm.PorcineRegistryNumber),
             farm.Regime?.ToString(),
             EmptyToNull(farm.LivestockType),
-            farm.ProductionCapacity,
+            farm.PorcineMothersCapacity,
+            farm.PorcineFatteningCapacity,
             EmptyToNull(farm.Town),
             EmptyToNull(farm.Province),
             EmptyToNull(farm.Address),

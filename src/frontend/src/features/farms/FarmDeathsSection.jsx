@@ -116,7 +116,7 @@ export function FarmDeathsSection({ farm, token }) {
       <div className="farm-detail-metrics">
         <SummaryMetric label="Total bajas por muerte" value={deaths.length} />
         {!isPorcineFarm && <SummaryMetric label="SANDACH" value={sandachCount} />}
-        <SummaryMetric label="MER" value={merCount} />
+        {!isPorcineFarm && <SummaryMetric label="MER" value={merCount} />}
         <SummaryMetric label="Explotación" value={farm.name} />
       </div>
 

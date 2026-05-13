@@ -146,8 +146,9 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
             .IsRequired();
         farm.Property(entity => entity.LivestockType).HasColumnName("livestock_type").HasMaxLength(80);
         farm.Property(entity => entity.Name).HasColumnName("name").HasMaxLength(160).IsRequired();
+        farm.Property(entity => entity.PorcineFatteningCapacity).HasColumnName("porcine_fattening_capacity");
+        farm.Property(entity => entity.PorcineMothersCapacity).HasColumnName("porcine_mothers_capacity");
         farm.Property(entity => entity.PorcineRegistryNumber).HasColumnName("porcine_registry_number").HasMaxLength(32);
-        farm.Property(entity => entity.ProductionCapacity).HasColumnName("production_capacity");
         farm.Property(entity => entity.Province).HasColumnName("province").HasMaxLength(120);
         farm.Property(entity => entity.RegaCode).HasColumnName("rega_code").HasMaxLength(32).IsRequired();
         farm.Property(entity => entity.Regime)

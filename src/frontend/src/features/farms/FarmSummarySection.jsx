@@ -1,6 +1,6 @@
 import { DetailField, formatCoordinate, formatRegime, formatText, speciesToneMap } from './FarmDetailShared';
 
-export function FarmSummarySection({ farm }) {
+export function FarmSummarySection({ farm, summaryCensus }) {
   const speciesTone = speciesToneMap[farm.livestockSpecies] ?? { label: farm.livestockSpecies };
 
   return (
@@ -17,12 +17,14 @@ export function FarmSummarySection({ farm }) {
           <DetailField label="Especie" value={speciesTone.label} />
           <DetailField label="Régimen" value={formatRegime(farm.regime)} />
           <DetailField label="Tipo de explotación" value={formatText(farm.livestockType)} />
-          <DetailField label="Capacidad productiva" value={formatText(farm.productionCapacity)} />
           {farm.livestockSpecies === 'Porcine' && (
             <DetailField label="Registro porcino" value={formatText(farm.porcineRegistryNumber)} />
           )}
           {farm.livestockSpecies === 'Porcine' && (
-            <DetailField label="Capacidad autorizada" value={farm.authorisedCapacity ?? 'No informada'} />
+            <DetailField label="Capacidad máxima madres" value={formatText(farm.porcineMothersCapacity)} />
+          )}
+          {farm.livestockSpecies === 'Porcine' && (
+            <DetailField label="Capacidad máxima cebo" value={formatText(farm.porcineFatteningCapacity)} />
           )}
           <DetailField label="Clasificación zootécnica" value={formatText(farm.zootechnicClassification)} />
         </div>

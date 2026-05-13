@@ -26,10 +26,10 @@ const initialForm = {
   province: '',
   address: '',
   zipCode: '',
-  authorisedCapacity: '',
   porcineRegistryNumber: '',
   livestockType: '',
-  productionCapacity: '',
+  porcineMothersCapacity: '',
+  porcineFatteningCapacity: '',
   responsible: '',
   zootechnicClassification: '',
   spindle: '',
@@ -115,10 +115,16 @@ function buildFarmErrors(form, step, isManager) {
     if (!form.province) {
       errors.province = 'Selecciona una provincia';
     }
-    if (form.productionCapacity !== '') {
-      const productionCapacity = Number(form.productionCapacity);
-      if (!Number.isInteger(productionCapacity) || productionCapacity < 0) {
-        errors.productionCapacity = 'Debe ser un número entero válido';
+    if (form.livestockSpecies === 'Porcine' && form.porcineMothersCapacity !== '') {
+      const porcineMothersCapacity = Number(form.porcineMothersCapacity);
+      if (!Number.isInteger(porcineMothersCapacity) || porcineMothersCapacity < 0) {
+        errors.porcineMothersCapacity = 'Debe ser un número entero válido';
+      }
+    }
+    if (form.livestockSpecies === 'Porcine' && form.porcineFatteningCapacity !== '') {
+      const porcineFatteningCapacity = Number(form.porcineFatteningCapacity);
+      if (!Number.isInteger(porcineFatteningCapacity) || porcineFatteningCapacity < 0) {
+        errors.porcineFatteningCapacity = 'Debe ser un número entero válido';
       }
     }
     if (form.spindle !== '') {
@@ -309,21 +315,12 @@ function FarmModal({
                   placeholder="ej: Reproductora"
                 />
                 <InputField
-                  label="Capacidad productiva"
-                  value={form.productionCapacity}
-                  onChange={(value) => onChange('productionCapacity', value)}
-                  placeholder="ej: 250"
-                  type="number"
-                  min="0"
-                  error={currentStepErrors.productionCapacity}
+                  label="Responsable"
+                  value={form.responsible}
+                  onChange={(value) => onChange('responsible', value)}
+                  placeholder="ej: María Pérez"
                 />
               </div>
-              <InputField
-                label="Responsable"
-                value={form.responsible}
-                onChange={(value) => onChange('responsible', value)}
-                placeholder="ej: María Pérez"
-              />
               {user?.role === 'Manager' && (
                 <SelectField
                   label="Ganader@ titular"
@@ -345,13 +342,27 @@ function FarmModal({
                     required
                     error={currentStepErrors.porcineRegistryNumber}
                   />
+                </div>
+              )}
+              {form.livestockSpecies === 'Porcine' && (
+                <div className="grid-form">
                   <InputField
-                    label="Capacidad autorizada (plazas)"
-                    value={form.authorisedCapacity}
-                    onChange={(value) => onChange('authorisedCapacity', value)}
-                    placeholder="ej: 1200"
+                    label="Capacidad máxima madres"
+                    value={form.porcineMothersCapacity}
+                    onChange={(value) => onChange('porcineMothersCapacity', value)}
+                    placeholder="ej: 180"
                     type="number"
                     min="0"
+                    error={currentStepErrors.porcineMothersCapacity}
+                  />
+                  <InputField
+                    label="Capacidad máxima cebo"
+                    value={form.porcineFatteningCapacity}
+                    onChange={(value) => onChange('porcineFatteningCapacity', value)}
+                    placeholder="ej: 950"
+                    type="number"
+                    min="0"
+                    error={currentStepErrors.porcineFatteningCapacity}
                   />
                 </div>
               )}
@@ -446,13 +457,15 @@ function FarmModal({
                   <SummaryRow label="Régimen" value={formatRegime(form.regime) || '—'} />
                   <SummaryRow label="Ganader@ titular" value={ownerName} />
                   {form.livestockType && <SummaryRow label="Tipo de explotación" value={form.livestockType} />}
-                  {form.productionCapacity && <SummaryRow label="Capacidad productiva" value={form.productionCapacity} />}
                   {form.responsible && <SummaryRow label="Responsable" value={form.responsible} />}
                   {form.livestockSpecies === 'Porcine' && form.porcineRegistryNumber && (
                     <SummaryRow label="Registro porcino" value={form.porcineRegistryNumber} />
                   )}
-                  {form.livestockSpecies === 'Porcine' && form.authorisedCapacity && (
-                    <SummaryRow label="Capacidad" value={`${form.authorisedCapacity} plazas`} />
+                  {form.livestockSpecies === 'Porcine' && form.porcineMothersCapacity && (
+                    <SummaryRow label="Capacidad máxima madres" value={form.porcineMothersCapacity} />
+                  )}
+                  {form.livestockSpecies === 'Porcine' && form.porcineFatteningCapacity && (
+                    <SummaryRow label="Capacidad máxima cebo" value={form.porcineFatteningCapacity} />
                   )}
                 </div>
               </div>
@@ -604,7 +617,13 @@ export function FarmsPage() {
   const handleModalChange = (field, value) => {
     setModalForm((current) => {
       if (field === 'livestockSpecies' && value !== 'Porcine') {
-        return { ...current, [field]: value, authorisedCapacity: '', porcineRegistryNumber: '' };
+        return {
+          ...current,
+          [field]: value,
+          porcineRegistryNumber: '',
+          porcineMothersCapacity: '',
+          porcineFatteningCapacity: ''
+        };
       }
 
       return { ...current, [field]: value };
@@ -634,6 +653,13 @@ export function FarmsPage() {
     setModalSubmitting(true);
     setModalRequestError('');
 
+    const porcineMothersCapacity = modalForm.livestockSpecies === 'Porcine' && modalForm.porcineMothersCapacity !== ''
+      ? Number(modalForm.porcineMothersCapacity)
+      : null;
+    const porcineFatteningCapacity = modalForm.livestockSpecies === 'Porcine' && modalForm.porcineFatteningCapacity !== ''
+      ? Number(modalForm.porcineFatteningCapacity)
+      : null;
+
     try {
       await apiRequest('/api/farms', {
         method: 'POST',
@@ -648,14 +674,15 @@ export function FarmsPage() {
           province: emptyToNull(modalForm.province),
           address: emptyToNull(modalForm.address),
           zipCode: emptyToNull(modalForm.zipCode),
-          authorisedCapacity: modalForm.livestockSpecies === 'Porcine' && modalForm.authorisedCapacity
-            ? Number(modalForm.authorisedCapacity)
+          authorisedCapacity: modalForm.livestockSpecies === 'Porcine' && (porcineMothersCapacity != null || porcineFatteningCapacity != null)
+            ? (porcineMothersCapacity ?? 0) + (porcineFatteningCapacity ?? 0)
             : null,
           porcineRegistryNumber: modalForm.livestockSpecies === 'Porcine'
             ? emptyToNull(modalForm.porcineRegistryNumber)
             : null,
           livestockType: emptyToNull(modalForm.livestockType),
-          productionCapacity: modalForm.productionCapacity === '' ? null : Number(modalForm.productionCapacity),
+          porcineMothersCapacity,
+          porcineFatteningCapacity,
           responsible: emptyToNull(modalForm.responsible),
           zootechnicClassification: emptyToNull(modalForm.zootechnicClassification),
           spindle: modalForm.spindle === '' ? null : Number(modalForm.spindle),
@@ -809,7 +836,6 @@ export function FarmsPage() {
                         {farm.town || 'Sin localidad'}, {farm.province || 'Sin provincia'}
                       </span>
                       <span>Régimen: {formatRegime(farm.regime) || 'No indicado'}</span>
-                      {isPorcine && farm.authorisedCapacity && <span>Cap.: {farm.authorisedCapacity}</span>}
                       <span className="farm-card-highlight">{farm.animalCount} animales</span>
                       <span>{farm.farmerName}</span>
                     </div>

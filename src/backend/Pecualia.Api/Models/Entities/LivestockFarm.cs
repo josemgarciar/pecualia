@@ -18,9 +18,11 @@ public sealed class LivestockFarm
 
     public string Name { get; set; } = string.Empty;
 
-    public string? PorcineRegistryNumber { get; set; }
+    public int? PorcineFatteningCapacity { get; set; }
 
-    public int? ProductionCapacity { get; set; }
+    public int? PorcineMothersCapacity { get; set; }
+
+    public string? PorcineRegistryNumber { get; set; }
 
     public string? Province { get; set; }
 
