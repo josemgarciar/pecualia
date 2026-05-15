@@ -246,8 +246,6 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         animalBirth.HasKey(entity => entity.Id);
         animalBirth.Property(entity => entity.Id).HasColumnName("id").UseIdentityAlwaysColumn();
         animalBirth.Property(entity => entity.LivestockFarmId).HasColumnName("livestock_farm_id");
-        animalBirth.Property(entity => entity.MotherAnimalId).HasColumnName("mother_animal_id");
-        animalBirth.Property(entity => entity.FatherAnimalId).HasColumnName("father_animal_id");
         animalBirth.Property(entity => entity.BirthDate).HasColumnName("birth_date");
         animalBirth.Property(entity => entity.BirthWeight).HasColumnName("birth_weight");
         animalBirth.Property(entity => entity.Observations).HasColumnName("observations");
@@ -260,14 +258,6 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         animalBirth.HasOne(entity => entity.Balance)
             .WithMany()
             .HasForeignKey(entity => entity.BalanceId)
-            .OnDelete(DeleteBehavior.SetNull);
-        animalBirth.HasOne(entity => entity.MotherAnimal)
-            .WithMany()
-            .HasForeignKey(entity => entity.MotherAnimalId)
-            .OnDelete(DeleteBehavior.SetNull);
-        animalBirth.HasOne(entity => entity.FatherAnimal)
-            .WithMany()
-            .HasForeignKey(entity => entity.FatherAnimalId)
             .OnDelete(DeleteBehavior.SetNull);
         animalBirth.HasOne(entity => entity.PorcineTransitionDecision)
             .WithOne(entity => entity.Birth)

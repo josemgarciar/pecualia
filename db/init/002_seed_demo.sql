@@ -331,11 +331,9 @@ WHERE NOT EXISTS (
     WHERE a.identification = animal_data.identification
 );
 
-INSERT INTO animal_birth (livestock_farm_id, mother_animal_id, father_animal_id, birth_date, offspring_number)
+INSERT INTO animal_birth (livestock_farm_id, birth_date, offspring_number)
 SELECT
     mother.livestock_farm_id,
-    mother.id,
-    father.id,
     birth_data.birth_date,
     birth_data.offspring_number
 FROM (
@@ -349,15 +347,10 @@ CROSS JOIN LATERAL (
     FROM animal
     WHERE identification = 'ES100008594601'
 ) mother
-CROSS JOIN LATERAL (
-    SELECT id
-    FROM animal
-    WHERE identification = 'ES100008594602'
-) father
 WHERE NOT EXISTS (
     SELECT 1
     FROM animal_birth ab
-    WHERE ab.mother_animal_id = mother.id
+    WHERE ab.livestock_farm_id = mother.livestock_farm_id
       AND ab.birth_date = birth_data.birth_date
 );
 

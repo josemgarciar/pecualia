@@ -220,6 +220,13 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             request.Cause,
             cancellationToken);
 
+        if (request.UnidentifiedAnimalCount is > 0)
+        {
+            ValidateUnidentifiedAnimalRequest(context, request.UnidentifiedAnimalCount.Value, request.UnidentifiedCategory);
+            var summary = new MovementImportPreviewSummaryResponse(0, 0, 0, 0, 0, 0, 0, 0);
+            return new MovementImportPreviewResponse(context.Species.ToString(), false, [], summary);
+        }
+
         if (context.Species == LivestockSpecies.Porcine)
         {
             ValidatePorcineAggregateMovementRequest(request.NumberOfAnimals, request.Breed, request.AnimalType);
@@ -229,13 +236,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 false,
                 [],
                 new MovementImportPreviewSummaryResponse(0, 0, request.NumberOfAnimals!.Value, 0, 0, 0, 0, 0));
-        }
-
-        if (request.UnidentifiedAnimalCount is > 0)
-        {
-            ValidateUnidentifiedAnimalRequest(context, request.UnidentifiedAnimalCount.Value, request.UnidentifiedCategory);
-            var summary = new MovementImportPreviewSummaryResponse(0, 0, 0, 0, 0, 0, 0, 0);
-            return new MovementImportPreviewResponse(context.Species.ToString(), false, [], summary);
         }
 
         if (string.IsNullOrWhiteSpace(request.RawText))
@@ -265,6 +265,23 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             request.Cause,
             cancellationToken);
 
+        if (request.UnidentifiedAnimalCount is > 0)
+        {
+            ValidateUnidentifiedAnimalRequest(context, request.UnidentifiedAnimalCount.Value, request.UnidentifiedCategory);
+            return await CommitUnidentifiedAnimalMovementAsync(
+                context,
+                request.Serie,
+                request.DepartureDate,
+                request.ArrivalDate,
+                request.SolicitationDate,
+                request.MeansOfTransport,
+                request.TransportName,
+                request.VehicleRegistrationNumber,
+                request.UnidentifiedAnimalCount.Value,
+                request.UnidentifiedCategory!.Value,
+                cancellationToken);
+        }
+
         if (context.Species == LivestockSpecies.Porcine)
         {
             var porcineMovement = await CreateAggregatePorcineMovementAsync(
@@ -289,23 +306,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 0,
                 false,
                 new MovementImportPreviewSummaryResponse(0, 0, processedRows, 0, 0, 0, 0, 0));
-        }
-
-        if (request.UnidentifiedAnimalCount is > 0)
-        {
-            ValidateUnidentifiedAnimalRequest(context, request.UnidentifiedAnimalCount.Value, request.UnidentifiedCategory);
-            return await CommitUnidentifiedAnimalMovementAsync(
-                context,
-                request.Serie,
-                request.DepartureDate,
-                request.ArrivalDate,
-                request.SolicitationDate,
-                request.MeansOfTransport,
-                request.TransportName,
-                request.VehicleRegistrationNumber,
-                request.UnidentifiedAnimalCount.Value,
-                request.UnidentifiedCategory!.Value,
-                cancellationToken);
         }
 
         if (string.IsNullOrWhiteSpace(request.RawText))

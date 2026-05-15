@@ -133,8 +133,6 @@ CREATE TABLE animal_birth (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     livestock_farm_id BIGINT NOT NULL REFERENCES livestock_farm(id) ON DELETE CASCADE,
     balance_id BIGINT,
-    mother_animal_id BIGINT REFERENCES animal(id) ON DELETE SET NULL,
-    father_animal_id BIGINT REFERENCES animal(id) ON DELETE SET NULL,
     birth_date DATE NOT NULL,
     birth_weight NUMERIC(8, 3),
     observations TEXT,
@@ -337,7 +335,6 @@ CREATE TABLE inspection (
 
 CREATE INDEX idx_livestock_farm_farmer_id ON livestock_farm(farmer_id);
 CREATE INDEX idx_animal_livestock_farm_id ON animal(livestock_farm_id);
-CREATE INDEX idx_animal_birth_mother_id ON animal_birth(mother_animal_id);
 CREATE INDEX idx_vaccination_animal_id ON vaccination(animal_id);
 CREATE INDEX idx_movement_origin_livestock_id ON movement_certificate(origin_livestock_id);
 CREATE INDEX idx_movement_destination_livestock_id ON movement_certificate(destination_livestock_id);

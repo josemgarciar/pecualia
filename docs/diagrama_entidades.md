@@ -121,9 +121,6 @@ classDiagram
         +int offspring_number
     }
 
-    Animal "1" --> "0..*" Animal_birth : mother
-    Animal "0..1" --> "0..*" Animal_birth : father
-
     class Vaccination {
         +int id
         +date next_dose
@@ -374,8 +371,7 @@ Registro de nacimientos.
 | Campo | Tipo SQL | Notas |
 |---|---|---|
 | `id` | `BIGINT IDENTITY` | PK |
-| `mother_animal_id` | `BIGINT` | FK a `animal` |
-| `father_animal_id` | `BIGINT` | FK nullable a `animal` |
+| `livestock_farm_id` | `BIGINT` | FK a `livestock_farm` |
 | `birth_date` | `DATE` | Fecha de nacimiento |
 | `birth_weight` | `NUMERIC(8,3)` | Peso al nacimiento |
 | `observations` | `TEXT` | Observaciones |
