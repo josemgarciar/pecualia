@@ -11,10 +11,15 @@ import { apiRequest } from '../../shared/api/client';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader, ModalStepper } from '../../shared/components/modal/Modal';
 import { isValidRegaCode, normalizeRegaCode } from '../../shared/validation/identifiers';
 
-const movementImportSteps = [
+const fullMovementImportSteps = [
   { label: 'Configuración' },
   { label: 'Archivo' },
   { label: 'Validación' },
+  { label: 'Confirmación' }
+];
+
+const shortMovementImportSteps = [
+  { label: 'Configuración' },
   { label: 'Confirmación' }
 ];
 
@@ -36,6 +41,33 @@ const previewStatusToneMap = {
   invalid_format: { bg: '#F3F4F6', color: '#6B7280', label: 'Inválido' },
   conflict: { bg: '#FEE2E2', color: '#DC2626', label: 'Conflicto' }
 };
+
+const porcineAnimalTypeSuggestions = [
+  'Verracos',
+  'Cerdas vida',
+  'Hembras reposición',
+  'Machos reposición',
+  'Lechones',
+  'Recría',
+  'Cebo'
+];
+
+function getMovementWizardState({ isPorcine, unidentifiedAnimals, step }) {
+  const usesShortFlow = isPorcine || unidentifiedAnimals;
+  const steps = usesShortFlow ? shortMovementImportSteps : fullMovementImportSteps;
+
+  if (!usesShortFlow) {
+    return {
+      steps,
+      currentStep: Math.min(step, steps.length)
+    };
+  }
+
+  return {
+    steps,
+    currentStep: step <= 1 ? 1 : 2
+  };
+}
 
 function formatDateTime(value) {
   if (!value) {
@@ -174,6 +206,12 @@ function MovementDetailModal({ farm, movement, loading, confirming, onClose, onV
   const direction = movement
     ? (movement.originFarmId === farm.id ? 'Salida' : 'Entrada')
     : null;
+  const isPorcineAggregateMovement = Boolean(
+    movement &&
+    movement.livestockSpecies === 'Porcine' &&
+    movement.animals.length === 0 &&
+    movement.animalType
+  );
 
   return (
     <ModalDialog size="wide" shellClassName="movement-detail-modal-shell">
@@ -228,6 +266,12 @@ function MovementDetailModal({ farm, movement, loading, confirming, onClose, onV
                   <span>Animales</span>
                   <strong>{movement.numberOfAnimals}</strong>
                 </div>
+                {movement.animalType && (
+                  <div className="movement-detail-group">
+                    <span>Tipo animal</span>
+                    <strong>{movement.animalType}</strong>
+                  </div>
+                )}
               </div>
 
               <div className="movement-detail-body movement-detail-body-modal">
@@ -254,20 +298,30 @@ function MovementDetailModal({ farm, movement, loading, confirming, onClose, onV
 
               <section className="movement-detail-animals-section">
                 <div className="movement-section-copy">
-                  <h3>Animales asociados</h3>
-                  <p>{movement.animals.length} animales vinculados a esta guía. Para volúmenes altos, consulta el listado filtrado de la explotación.</p>
+                  <h3>{isPorcineAggregateMovement ? 'Movimiento agregado porcino' : 'Animales asociados'}</h3>
+                  <p>
+                    {isPorcineAggregateMovement
+                      ? 'Esta guía porcina se ha registrado por número de cabezas y tipo de animal, sin identificaciones individuales.'
+                      : `${movement.animals.length} animales vinculados a esta guía. Para volúmenes altos, consulta el listado filtrado de la explotación.`}
+                  </p>
                 </div>
 
                 <div className="movement-detail-animals-summary">
-                  <strong>{movement.numberOfAnimals} animales asociados</strong>
-                  <span>Abre el tab de animales con el filtro de esta guía para revisarlos de forma óptima.</span>
+                  <strong>{movement.numberOfAnimals} {isPorcineAggregateMovement ? 'animales declarados' : 'animales asociados'}</strong>
+                  <span>
+                    {isPorcineAggregateMovement
+                      ? `Tipo declarado en la guía: ${movement.animalType}.`
+                      : 'Abre el tab de animales con el filtro de esta guía para revisarlos de forma óptima.'}
+                  </span>
                 </div>
 
-                <div className="movement-detail-animals-actions">
-                  <button className="primary-button" type="button" onClick={() => onViewAnimals(movement)}>
-                    Ver animales de esta guía
-                  </button>
-                </div>
+                {!isPorcineAggregateMovement && (
+                  <div className="movement-detail-animals-actions">
+                    <button className="primary-button" type="button" onClick={() => onViewAnimals(movement)}>
+                      Ver animales de esta guía
+                    </button>
+                  </div>
+                )}
               </section>
             </div>
           )}
@@ -298,7 +352,10 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
     solicitationDate: currentDateTimeLocalValue(),
     meansOfTransport: '',
     transportName: '',
-    vehicleRegistrationNumber: ''
+    vehicleRegistrationNumber: '',
+    numberOfAnimals: '',
+    breed: '',
+    animalType: ''
   });
   const [sharedAnimalData, setSharedAnimalData] = useState({
     birthYear: '',
@@ -328,6 +385,11 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
   const [unidentifiedCategory, setUnidentifiedCategory] = useState('Under4Months');
 
   const isOvineOrCaprine = farm.livestockSpecies === 'Ovine' || farm.livestockSpecies === 'Caprine';
+  const isPorcine = farm.livestockSpecies === 'Porcine';
+  const wizardState = useMemo(
+    () => getMovementWizardState({ isPorcine, unidentifiedAnimals, step }),
+    [isPorcine, step, unidentifiedAnimals]
+  );
 
   const filteredPreviewRows = useMemo(() => {
     const rows = preview?.rows ?? [];
@@ -360,7 +422,8 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
     config.arrivalDate &&
     config.serie.trim() &&
     config.counterpartyExternalCode.trim() &&
-    config.counterpartyExternalName.trim()
+    config.counterpartyExternalName.trim() &&
+    (!isPorcine || (config.numberOfAnimals && config.breed && config.animalType.trim()))
   );
 
   function validateStep1() {
@@ -369,6 +432,9 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
       if (!config.serie.trim()) missing.push('la serie');
       if (!config.counterpartyExternalCode.trim()) missing.push('el código REGA de la contraparte');
       if (!config.counterpartyExternalName.trim()) missing.push('el nombre de la explotación');
+      if (isPorcine && !config.numberOfAnimals) missing.push('el número de animales');
+      if (isPorcine && !config.breed) missing.push('la raza');
+      if (isPorcine && !config.animalType.trim()) missing.push('el tipo de animal');
       return missing.length > 0
         ? `Completa ${missing.join(', ')} antes de continuar.`
         : 'Completa todos los campos obligatorios antes de continuar.';
@@ -376,6 +442,13 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
 
     if (!isValidRegaCode(config.counterpartyExternalCode)) {
       return 'El código REGA no es válido.';
+    }
+
+    if (isPorcine) {
+      const count = Number(config.numberOfAnimals);
+      if (!count || count < 1 || count > 10000) {
+        return 'Indica un número de animales entre 1 y 10.000.';
+      }
     }
 
     return '';
@@ -394,6 +467,11 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
     const validationMessage = validateStep1();
     if (validationMessage) {
       setRequestError(validationMessage);
+      return;
+    }
+
+    if (isPorcine) {
+      setStep(4);
       return;
     }
 
@@ -484,6 +562,9 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
           transportName: emptyToNull(config.transportName),
           vehicleRegistrationNumber: emptyToNull(config.vehicleRegistrationNumber),
           cause: derivedCause,
+          numberOfAnimals: isPorcine ? Number(config.numberOfAnimals) : null,
+          breed: isPorcine ? emptyToNull(config.breed) : null,
+          animalType: isPorcine ? emptyToNull(config.animalType) : null,
           rawText,
           sharedAnimalData: null
         }
@@ -523,6 +604,9 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
         transportName: emptyToNull(config.transportName),
         vehicleRegistrationNumber: emptyToNull(config.vehicleRegistrationNumber),
         cause: derivedCause,
+        numberOfAnimals: isPorcine ? Number(config.numberOfAnimals) : null,
+        breed: isPorcine ? emptyToNull(config.breed) : null,
+        animalType: isPorcine ? emptyToNull(config.animalType) : null,
         rawText: unidentifiedAnimals ? null : rawText,
         sharedAnimalData: preview?.requiresSharedAnimalData ? buildSharedAnimalDataPayload(sharedAnimalData, farm.livestockSpecies) : null,
         unidentifiedAnimalCount: unidentifiedAnimals ? Number(unidentifiedAnimalCount) : null,
@@ -552,7 +636,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
         subtitle="Entrada o salida masiva de animales sobre la explotación seleccionada."
         onClose={onClose}
       />
-      <ModalStepper steps={movementImportSteps} currentStep={Math.min(step, movementImportSteps.length + 1)} className="movement-modal-stepper" />
+      <ModalStepper steps={wizardState.steps} currentStep={wizardState.currentStep} className="movement-modal-stepper" />
       <ModalBody>
           {requestError && <div className="error-banner">{requestError}</div>}
 
@@ -630,6 +714,42 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
                     <option value="Exit">Salida</option>
                   </select>
                 </label>
+
+                {isPorcine && (
+                  <>
+                    <label className="farm-form-field">
+                      <span className="farm-field-label">Número de animales <span className="farm-field-label-required">*</span></span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10000"
+                        value={config.numberOfAnimals}
+                        onChange={(event) => updateConfig('numberOfAnimals', event.target.value)}
+                        placeholder="Ej. 25"
+                      />
+                    </label>
+                    <label className="farm-form-field">
+                      <span className="farm-field-label">Raza <span className="farm-field-label-required">*</span></span>
+                      <select value={config.breed} onChange={(event) => updateConfig('breed', event.target.value)} disabled={loadingBreedOptions}>
+                        <option value="">{loadingBreedOptions ? 'Cargando razas...' : 'Selecciona una raza'}</option>
+                        {breedOptions.map((option) => (
+                          <option key={option.name} value={option.name}>
+                            {option.name} ({option.code})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="farm-form-field">
+                      <span className="farm-field-label">Tipo de animal <span className="farm-field-label-required">*</span></span>
+                      <select value={config.animalType} onChange={(event) => updateConfig('animalType', event.target.value)}>
+                        <option value="">Selecciona un tipo</option>
+                        {porcineAnimalTypeSuggestions.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                )}
 
                 <label className="farm-form-field">
                   <span className="farm-field-label">Fecha de salida</span>
@@ -772,7 +892,13 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
               <section className="movement-confirmation-card">
                 <div className="movement-section-copy">
                   <h3>Resumen de importación</h3>
-                  {unidentifiedAnimals ? (
+                  {isPorcine ? (
+                    <p>
+                      Se registrará un movimiento porcino de <strong>{config.numberOfAnimals}</strong> animales como {directionLabel},
+                      clasificados como <strong>{config.animalType}</strong> y de raza <strong>{config.breed}</strong>.
+                      El sistema actualizará automáticamente el balance y el censo
+                    </p>
+                  ) : unidentifiedAnimals ? (
                     <p>
                       Se registrará un movimiento de <strong>{unidentifiedAnimalCount}</strong> animales sin identificar como {directionLabel} en la categoría <strong>{unidentifiedCategory === 'Under4Months' ? 'no reproductores menores de 4 meses' : 'no reproductores de 4 a 12 meses'}</strong>.
                     </p>
@@ -836,7 +962,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
             <button className="secondary-button" type="button" onClick={() => {
               if (step === 1) {
                 onClose();
-              } else if (step === 4 && unidentifiedAnimals) {
+              } else if (step === 4 && (unidentifiedAnimals || isPorcine)) {
                 setStep(1);
               } else {
                 setStep((current) => current - 1);
@@ -853,7 +979,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
                   className="primary-button"
                   type="button"
                   onClick={handleCommit}
-                  disabled={submitting || (!unidentifiedAnimals && (processableRowsCount === 0 || !isSharedAnimalDataReady))}
+                  disabled={submitting || (!isPorcine && !unidentifiedAnimals && (processableRowsCount === 0 || !isSharedAnimalDataReady))}
                 >
                   {submitting ? 'Registrando...' : 'Confirmar importación'}
                 </button>
@@ -994,7 +1120,7 @@ export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) 
             <p>{movements.length} guías de movimiento registradas</p>
           </div>
           <div className="movement-toolbar-actions">
-            <button className="secondary-button movement-import-button" type="button" onClick={() => setImportOpen(true)}>
+            <button className="primary-button" type="button" onClick={() => setImportOpen(true)}>
               <Upload size={16} />
               Nuevo Movimiento
             </button>

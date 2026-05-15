@@ -52,9 +52,27 @@ export function FarmBirthsSection({ farm, token }) {
 
     const offspringNumber = Number(form.offspringNumber);
     const birthWeight = parsePositiveNumber(form.birthWeight);
+    const today = new Date().toISOString().slice(0, 10);
     if (!form.birthDate || !Number.isInteger(offspringNumber) || offspringNumber <= 0 || (birthWeight !== null && birthWeight < 0)) {
       setFormError('Revisa fecha, número de crías y peso. El número de crías debe ser positivo.');
       return;
+    }
+
+    if (form.birthDate > today) {
+      setFormError('La fecha de nacimiento no puede estar en el futuro.');
+      return;
+    }
+
+    if (farm.livestockSpecies === 'Porcine') {
+      const birthDate = new Date(`${form.birthDate}T00:00:00`);
+      const maxBirthDate = new Date();
+      maxBirthDate.setHours(0, 0, 0, 0);
+      maxBirthDate.setMonth(maxBirthDate.getMonth() - 3);
+
+      if (birthDate < maxBirthDate) {
+        setFormError('En porcino no puedes registrar nacimientos con más de 3 meses de antigüedad.');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -201,7 +219,7 @@ export function FarmBirthsSection({ farm, token }) {
               {formError && <div className="error-banner">{formError}</div>}
               <label>
                 <span>Fecha de parto *</span>
-                <input type="date" value={form.birthDate} onChange={(event) => setForm({ ...form, birthDate: event.target.value })} />
+                <input type="date" max={new Date().toISOString().slice(0, 10)} value={form.birthDate} onChange={(event) => setForm({ ...form, birthDate: event.target.value })} />
               </label>
               <label>
                 <span>Número de crías *</span>

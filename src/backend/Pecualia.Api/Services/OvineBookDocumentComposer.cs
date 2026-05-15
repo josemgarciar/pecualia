@@ -316,7 +316,7 @@ internal static class OvineBookDocumentComposer
                 BookDocumentSupport.FormatDate(balance.BalanceDate),
                 balance.NumberOfAnimals.ToString(),
                 BookDocumentSupport.MapOvineBalanceCause(balance.ModificationCause),
-                BookBalanceSupport.ResolveOvineCounterpartyCode(
+                BookBalanceSupport.ResolveBalanceCounterpartyCode(
                     balance,
                     balanceMovementLookup.GetValueOrDefault(balance.Id)),
                 null,

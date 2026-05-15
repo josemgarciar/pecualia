@@ -52,7 +52,7 @@ internal static class BookBalanceSupport
         return lookup;
     }
 
-    internal static string? ResolveOvineCounterpartyCode(Balance balance, BookBalanceMovementInfo? movementInfo)
+    internal static string? ResolveBalanceCounterpartyCode(Balance balance, BookBalanceMovementInfo? movementInfo)
     {
         if (!string.IsNullOrWhiteSpace(movementInfo?.CounterpartyCode))
         {

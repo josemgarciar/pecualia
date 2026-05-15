@@ -55,7 +55,8 @@ export function FarmCensusBalancesSection({ farm, token }) {
         { label: 'Machos reposición', value: census?.malesReposition ?? 0, color: '#2563eb', bg: '#dbeafe' },
         { label: 'Lechones', value: census?.piglets ?? 0, color: '#7c3aed', bg: '#ede9fe' },
         { label: 'Recría', value: census?.rears ?? 0, color: '#0f766e', bg: '#ccfbf1' },
-        { label: 'Cebo', value: census?.baits ?? 0, color: '#9d174d', bg: '#fce7f3' }
+        { label: 'Cebo', value: census?.baits ?? 0, color: '#9d174d', bg: '#fce7f3' },
+        { label: 'Pendientes reclasificación', value: census?.pendingPorcineTransitions ?? 0, color: '#b45309', bg: '#ffedd5' }
       ]
     : [
         { label: 'Reproductores macho', value: census?.reproductiveMales ?? 0, color: '#1d4ed8', bg: '#dbeafe' },
@@ -73,13 +74,15 @@ export function FarmCensusBalancesSection({ farm, token }) {
   const balanceBirths = balance?.births ?? 0;
   const balanceDeaths = balance?.deaths ?? 0;
   const balanceDepartures = balance?.departures ?? 0;
+  const balanceMovementEntries = balance?.movementEntries ?? 0;
+  const balanceMovementDepartures = balance?.movementDepartures ?? 0;
   const balanceNet = balance?.balance ?? 0;
   const balanceMetrics = [
     { label: 'Altas', value: `+${balanceRegistrations}`, color: '#2F6B4F', bg: '#DDEBDF' },
     { label: 'Bajas', value: `-${balanceDeaths}`, color: '#dc2626', bg: '#fee2e2' },
     { label: 'Nacimientos', value: `+${balanceBirths}`, color: '#d97706', bg: '#fef3c7' },
-    { label: 'Mov. entrada', value: `+${balanceRegistrations}`, color: '#1d4ed8', bg: '#dbeafe' },
-    { label: 'Mov. salida', value: `-${balanceDepartures}`, color: '#f97316', bg: '#ffedd5' },
+    { label: 'Mov. entrada', value: `+${balanceMovementEntries}`, color: '#1d4ed8', bg: '#dbeafe' },
+    { label: 'Mov. salida', value: `-${balanceMovementDepartures}`, color: '#f97316', bg: '#ffedd5' },
     { label: 'Balance', value: balanceNet >= 0 ? `+${balanceNet}` : `${balanceNet}`, color: balanceNet >= 0 ? '#2F6B4F' : '#dc2626', bg: balanceNet >= 0 ? '#DDEBDF' : '#fee2e2' }
   ];
   const chartData = (balance?.months ?? []).map((month) => ({

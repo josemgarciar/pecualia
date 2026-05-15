@@ -41,6 +41,7 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
 
         var births = await dbContext.AnimalBirths
             .AsNoTracking()
+            .Include(entity => entity.PorcineTransitionDecision)
             .Where(entity => accessibleFarmIds.Contains(entity.LivestockFarmId))
             .ToListAsync(cancellationToken);
 
@@ -94,14 +95,36 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
         }
 
         var farmNamesById = farms.ToDictionary(entity => entity.Id, entity => entity.Name);
+        var farmSpeciesById = farms.ToDictionary(entity => entity.Id, entity => entity.LivestockSpecies);
         var animalFarmNames = animals.ToDictionary(
             entity => entity.Id,
             entity => farmNamesById.GetValueOrDefault(entity.LivestockFarmId, "Explotación"));
+        var pendingPorcineTransitionBirths = births
+            .Where(entity =>
+                entity.PorcineTransitionDecision is null &&
+                farmSpeciesById.GetValueOrDefault(entity.LivestockFarmId) == LivestockSpecies.Porcine &&
+                PorcineTransitionSupport.GetDecisionDate(entity.BirthDate) <= today)
+            .ToList();
+        var pendingPorcineTransitionBirthIds = pendingPorcineTransitionBirths.Select(entity => entity.Id).ToArray();
+        var consumedPendingBirthCounts = pendingPorcineTransitionBirths.Count == 0
+            ? new Dictionary<long, int>()
+            : await dbContext.Animals
+                .AsNoTracking()
+                .Where(entity =>
+                    entity.SourceBirthId != null &&
+                    pendingPorcineTransitionBirthIds.Contains(entity.SourceBirthId.Value) &&
+                    entity.RegistrationDate != null &&
+                    entity.RegistrationDate <= today)
+                .GroupBy(entity => entity.SourceBirthId!.Value)
+                .Select(entity => new { BirthId = entity.Key, Count = entity.Count() })
+                .ToDictionaryAsync(entity => entity.BirthId, entity => entity.Count, cancellationToken);
 
         var pendingTasks = BuildPendingTasks(
             vaccinations,
             inspections,
             pendingMovementConfirmations,
+            pendingPorcineTransitionBirths,
+            consumedPendingBirthCounts,
             animalFarmNames,
             farmNamesById,
             today);
@@ -162,6 +185,8 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
         IReadOnlyCollection<Vaccination> vaccinations,
         IReadOnlyCollection<Inspection> inspections,
         IReadOnlyCollection<MovementCertificate> pendingMovementConfirmations,
+        IReadOnlyCollection<AnimalBirth> pendingPorcineTransitionBirths,
+        IReadOnlyDictionary<long, int> consumedPendingBirthCounts,
         IReadOnlyDictionary<long, string> animalFarmNames,
         IReadOnlyDictionary<long, string> farmNamesById,
         DateOnly today)
@@ -192,6 +217,7 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
                 entity.InspectionDate)));
 
         tasks.AddRange(BuildPendingMovementConfirmationTasks(pendingMovementConfirmations, farmNamesById, today));
+        tasks.AddRange(BuildPendingPorcineTransitionTasks(pendingPorcineTransitionBirths, consumedPendingBirthCounts, farmNamesById, today));
 
         return tasks
             .OrderBy(entity => entity.DueDate)
@@ -222,6 +248,34 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
                     $"{farmName} · {movementCode} · {FormatDueText(confirmationDeadline, today)}",
                     confirmationDeadline <= today ? "danger" : "warning",
                     confirmationDeadline);
+            })
+            .ToList();
+    }
+
+    internal static IReadOnlyList<DashboardTaskResponse> BuildPendingPorcineTransitionTasks(
+        IReadOnlyCollection<AnimalBirth> pendingPorcineTransitionBirths,
+        IReadOnlyDictionary<long, int> consumedPendingBirthCounts,
+        IReadOnlyDictionary<long, string> farmNamesById,
+        DateOnly today)
+    {
+        return pendingPorcineTransitionBirths
+            .Select(entity => new
+            {
+                Birth = entity,
+                Pending = Math.Max(0, entity.OffspringNumber - consumedPendingBirthCounts.GetValueOrDefault(entity.Id))
+            })
+            .Where(entity => entity.Pending > 0)
+            .OrderBy(entity => entity.Birth.BirthDate)
+            .Take(5)
+            .Select(entity =>
+            {
+                var finalDate = PorcineTransitionSupport.GetFinalTransitionDate(entity.Birth.BirthDate);
+                return new DashboardTaskResponse(
+                    "PorcineTransition",
+                    "Reclasificación porcina pendiente",
+                    $"{farmNamesById.GetValueOrDefault(entity.Birth.LivestockFarmId, "Explotación")} · {entity.Pending} animales · {FormatDueText(finalDate, today)}",
+                    finalDate <= today ? "danger" : "warning",
+                    PorcineTransitionSupport.GetDecisionDate(entity.Birth.BirthDate));
             })
             .ToList();
     }

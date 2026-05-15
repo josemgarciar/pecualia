@@ -395,6 +395,66 @@ internal static class BookDocumentSupport
         return "I";
     }
 
+    internal static string? MapPorcineTypeCode(string? animalType, BalancePorcino? detail = null)
+    {
+        var normalizedType = EmptyToNull(animalType);
+        if (!string.IsNullOrWhiteSpace(normalizedType))
+        {
+            return PorcineMovementSupport.ResolveBucket(normalizedType) switch
+            {
+                PorcineMovementBucket.Boars => "V",
+                PorcineMovementBucket.Sows => "CV",
+                PorcineMovementBucket.SowsReposition => "HR",
+                PorcineMovementBucket.PigsReposition => "MR",
+                PorcineMovementBucket.Piglets => "L",
+                PorcineMovementBucket.Baits => "C",
+                _ => "Rec"
+            };
+        }
+
+        if (detail is null)
+        {
+            return null;
+        }
+
+        if (detail.Piglets > 0)
+        {
+            return "L";
+        }
+
+        if (detail.Rear > 0)
+        {
+            return "Rec";
+        }
+
+        if (detail.Baits > 0)
+        {
+            return "C";
+        }
+
+        if (detail.SowsReposition > 0)
+        {
+            return "HR";
+        }
+
+        if (detail.PigsReposition > 0)
+        {
+            return "MR";
+        }
+
+        if (detail.SowsForLive > 0)
+        {
+            return "CV";
+        }
+
+        if (detail.Boars > 0)
+        {
+            return "V";
+        }
+
+        return null;
+    }
+
     internal static string MapOvineBalanceCause(string cause)
     {
         if (cause.Equals("Nacimiento", StringComparison.OrdinalIgnoreCase))

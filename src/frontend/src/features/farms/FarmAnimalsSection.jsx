@@ -10,13 +10,18 @@ import {
   FARM_ANIMALS_SEARCH_DEBOUNCE_MS,
   createAnimalDetailForm,
   createAutorrepositionForm,
+  createManualPorcineAnimalForm,
   emptyToNull,
   formatAnimalSex,
+  ManualPorcineAnimalModal,
   validateAnimalDetailForm,
-  validateAutorrepositionForm
+  validateAutorrepositionForm,
+  validateManualPorcineAnimalForm
 } from './FarmDetailShared';
 
 export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter }) {
+  const canUseAutorreposition = farm.livestockSpecies !== 'Porcine';
+  const canCreateManualPorcineAnimal = farm.livestockSpecies === 'Porcine';
   const [animals, setAnimals] = useState([]);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -36,6 +41,11 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
   const [detailDeleting, setDetailDeleting] = useState(false);
   const [detailError, setDetailError] = useState('');
   const [success, setSuccess] = useState('');
+  const [manualPorcineOpen, setManualPorcineOpen] = useState(false);
+  const [manualPorcineSubmitting, setManualPorcineSubmitting] = useState(false);
+  const [manualPorcineError, setManualPorcineError] = useState('');
+  const [manualPorcineFormErrors, setManualPorcineFormErrors] = useState({});
+  const [manualPorcineForm, setManualPorcineForm] = useState(() => createManualPorcineAnimalForm());
   const [autorrepositionOpen, setAutorrepositionOpen] = useState(false);
   const [autorrepositionSubmitting, setAutorrepositionSubmitting] = useState(false);
   const [autorrepositionError, setAutorrepositionError] = useState('');
@@ -77,7 +87,11 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
   }, [farm.id, farm.livestockSpecies]);
 
   useEffect(() => {
-    if (!autorrepositionOpen) {
+    setManualPorcineForm(createManualPorcineAnimalForm());
+  }, [farm.id]);
+
+  useEffect(() => {
+    if (!autorrepositionOpen && !manualPorcineOpen) {
       return undefined;
     }
 
@@ -129,7 +143,7 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
     return () => {
       cancelled = true;
     };
-  }, [autorrepositionOpen, farm.id, farm.livestockSpecies, token]);
+  }, [autorrepositionOpen, manualPorcineOpen, farm.id, farm.livestockSpecies, token]);
 
   useEffect(() => {
     loadAnimals();
@@ -178,7 +192,43 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
     });
   }
 
+  function openManualPorcineModal() {
+    if (!canCreateManualPorcineAnimal) {
+      return;
+    }
+
+    setManualPorcineForm(createManualPorcineAnimalForm());
+    setManualPorcineFormErrors({});
+    setManualPorcineError('');
+    setManualPorcineOpen(true);
+  }
+
+  function closeManualPorcineModal() {
+    setManualPorcineOpen(false);
+    setManualPorcineSubmitting(false);
+    setManualPorcineFormErrors({});
+    setManualPorcineError('');
+  }
+
+  function updateManualPorcineField(field, value) {
+    setManualPorcineForm((current) => ({ ...current, [field]: value }));
+    setManualPorcineFormErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setManualPorcineError('');
+  }
+
   function openAutorrepositionModal() {
+    if (!canUseAutorreposition) {
+      return;
+    }
+
     setAutorrepositionForm(createAutorrepositionForm(farm));
     setAutorrepositionFormErrors({});
     setAutorrepositionError('');
@@ -372,18 +422,75 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
     }
   }
 
+  async function submitManualPorcineAnimal(event) {
+    event.preventDefault();
+
+    const validationErrors = validateManualPorcineAnimalForm(manualPorcineForm);
+    if (Object.keys(validationErrors).length > 0) {
+      setManualPorcineFormErrors(validationErrors);
+      return;
+    }
+
+    setManualPorcineSubmitting(true);
+    setManualPorcineError('');
+    setSuccess('');
+
+    try {
+      await apiRequest('/api/animals/', {
+        method: 'POST',
+        token,
+        body: {
+          farmId: farm.id,
+          identification: normalizeAnimalIdentification(manualPorcineForm.identification),
+          birthYear: manualPorcineForm.birthYear === '' ? null : Number(manualPorcineForm.birthYear),
+          breed: emptyToNull(manualPorcineForm.breed),
+          sex: emptyToNull(manualPorcineForm.sex),
+          registrationDate: manualPorcineForm.registrationDate || null,
+          registrationCause: manualPorcineForm.registrationCause || null,
+          originCode: manualPorcineForm.originCode.trim() ? normalizeRegaCode(manualPorcineForm.originCode) : null,
+          ovinoCaprino: null,
+          porcino: {
+            animalType: manualPorcineForm.animalType.trim(),
+            identificationDate: manualPorcineForm.identificationDate || null,
+            pigRegistrationNumber: emptyToNull(manualPorcineForm.pigRegistrationNumber),
+            tag: emptyToNull(manualPorcineForm.tag)
+          }
+        }
+      });
+
+      setSuccess(`Animal porcino ${normalizeAnimalIdentification(manualPorcineForm.identification)} registrado correctamente.`);
+      closeManualPorcineModal();
+      setPage(1);
+      setReloadKey((current) => current + 1);
+    } catch (requestError) {
+      setManualPorcineError(requestError.message);
+    } finally {
+      setManualPorcineSubmitting(false);
+    }
+  }
+
   return (
     <section className="panel-card stack">
       <div className="farm-animals-header">
         <div>
           <p>{loading && !isInitialLoading ? 'Actualizando animales...' : `${activeCount} activos · ${totalCount} en total`}</p>
         </div>
-        <div className="movement-toolbar-actions">
-          <button className="primary-button" type="button" onClick={openAutorrepositionModal}>
-            <Plus size={16} />
-            Autorreposición
-          </button>
-        </div>
+        {(canUseAutorreposition || canCreateManualPorcineAnimal) && (
+          <div className="movement-toolbar-actions">
+            {canCreateManualPorcineAnimal && (
+              <button className="primary-button" type="button" onClick={openManualPorcineModal}>
+                <Plus size={16} />
+                Registrar porcino
+              </button>
+            )}
+            {canUseAutorreposition && (
+            <button className="primary-button" type="button" onClick={openAutorrepositionModal}>
+              <Plus size={16} />
+              Autorreposición
+            </button>
+            )}
+          </div>
+        )}
       </div>
 
       {movementFilter && (
@@ -508,7 +615,22 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
         />
       )}
 
-      {autorrepositionOpen && (
+      {canCreateManualPorcineAnimal && manualPorcineOpen && (
+        <ManualPorcineAnimalModal
+          farm={farm}
+          form={manualPorcineForm}
+          errors={manualPorcineFormErrors}
+          requestError={manualPorcineError}
+          submitting={manualPorcineSubmitting}
+          breedOptions={breedOptions}
+          loadingBreedOptions={loadingBreedOptions}
+          onChange={updateManualPorcineField}
+          onClose={closeManualPorcineModal}
+          onSubmit={submitManualPorcineAnimal}
+        />
+      )}
+
+      {canUseAutorreposition && autorrepositionOpen && (
         <AnimalAutorrepositionModal
           farm={farm}
           form={autorrepositionForm}

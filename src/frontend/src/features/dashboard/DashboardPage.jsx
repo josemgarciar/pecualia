@@ -10,6 +10,7 @@ import {
   YAxis
 } from 'recharts';
 import {
+  AlertTriangle,
   ArrowLeftRight,
   Building2,
   ChevronRight,
@@ -230,6 +231,8 @@ export function DashboardPage() {
           {pendingTasks.map((task) => {
             const Icon = task.kind === 'MovementConfirmation'
               ? FileCheck2
+              : task.kind === 'PorcineTransition'
+                ? AlertTriangle
               : task.kind === 'Inspection'
                 ? ClipboardCheck
                 : Syringe;

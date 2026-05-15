@@ -27,4 +27,6 @@ public sealed class AnimalBirth
     public Animal? MotherAnimal { get; set; }
 
     public Animal? FatherAnimal { get; set; }
+
+    public PorcineBirthTransitionDecision? PorcineTransitionDecision { get; set; }
 }

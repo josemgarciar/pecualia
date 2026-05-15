@@ -16,11 +16,12 @@ import {
   formatDate,
   formatDeathDestination,
   getDeathDestinationOptions,
-  getDeathDestinationType
+  getDeathDestinationType,
+  isMerOnlyDeathSpecies
 } from './FarmDetailShared';
 
 export function FarmDeathsSection({ farm, token }) {
-  const isPorcineFarm = farm.livestockSpecies === 'Porcine';
+  const isMerOnlyFarm = isMerOnlyDeathSpecies(farm.livestockSpecies);
   const [deaths, setDeaths] = useState([]);
   const [search, setSearch] = useState('');
   const [destination, setDestination] = useState('');
@@ -115,8 +116,8 @@ export function FarmDeathsSection({ farm, token }) {
     <section className="panel-card stack">
       <div className="farm-detail-metrics">
         <SummaryMetric label="Total bajas por muerte" value={deaths.length} />
-        {!isPorcineFarm && <SummaryMetric label="SANDACH" value={sandachCount} />}
-        {!isPorcineFarm && <SummaryMetric label="MER" value={merCount} />}
+        {!isMerOnlyFarm && <SummaryMetric label="SANDACH" value={sandachCount} />}
+        {!isMerOnlyFarm && <SummaryMetric label="MER" value={merCount} />}
         <SummaryMetric label="Explotación" value={farm.name} />
       </div>
 
@@ -190,8 +191,11 @@ export function FarmDeathsSection({ farm, token }) {
             </label>
             <label>
               <span>Destino *</span>
-              <select value={form.destinationCode} onChange={(event) => setForm({ ...form, destinationCode: event.target.value, merCode: event.target.value === 'MER' ? form.merCode : '' })}>
-                <option value="">Seleccionar...</option>
+              <select
+                value={form.destinationCode}
+                disabled={isMerOnlyFarm}
+                onChange={(event) => setForm({ ...form, destinationCode: event.target.value, merCode: event.target.value === 'MER' ? form.merCode : '' })}>
+                {!isMerOnlyFarm && <option value="">Seleccionar...</option>}
                 {destinationOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
@@ -210,14 +214,6 @@ export function FarmDeathsSection({ farm, token }) {
                 <small>Formato obligatorio: {merCodeExample}</small>
               </label>
             )}
-            <div className="info-callout">
-              <Skull size={18} />
-              <p>
-                {farm.livestockSpecies === 'Porcine'
-                  ? `En porcino, la baja por muerte solo puede registrarse con un número MER válido (${merCodeExample}).`
-                  : `La causa oficial guardada será Baja - Causa Muerte. Si el destino es MER, debes indicar un número válido con formato ${merCodeExample}.`}
-              </p>
-            </div>
           </ModalBody>
           <ModalFooter align="end">
             <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>

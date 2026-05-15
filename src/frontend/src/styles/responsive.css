@@ -133,7 +133,8 @@
   .summary-grid,
   .detail-grid,
   .farm-settings-grid,
-  .quick-actions-grid {
+  .quick-actions-grid,
+  .porcine-transition-layout {
     grid-template-columns: 1fr;
   }
 

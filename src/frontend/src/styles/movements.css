@@ -184,16 +184,6 @@
   font-size: 0.8rem;
 }
 
-.movement-import-button {
-  background: #f6edd2;
-  border-color: #e7b84c;
-  color: #7a5a12;
-}
-
-.movement-import-button:hover {
-  background: #f2e2af;
-}
-
 .movement-direction-field {
   width: 100%;
   min-width: 0;

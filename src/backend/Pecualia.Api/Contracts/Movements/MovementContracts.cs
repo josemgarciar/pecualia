@@ -37,6 +37,7 @@ public sealed record MovementDetailResponse(
     string? DestinationCode,
     int NumberOfAnimals,
     string Status,
+    string? AnimalType,
     IReadOnlyList<MovementAnimalItemResponse> Animals);
 
 public sealed record MovementAnimalItemResponse(
@@ -67,6 +68,9 @@ public sealed record CreateManualMovementRequest(
     string? TransportName,
     string? VehicleRegistrationNumber,
     string Cause,
+    int? NumberOfAnimals,
+    string? Breed,
+    string? AnimalType,
     IReadOnlyList<long>? AnimalIds,
     IReadOnlyList<string>? Identifications,
     SharedAnimalDataRequest? SharedAnimalData);
@@ -85,6 +89,9 @@ public sealed record PreviewMovementImportRequest(
     string? TransportName,
     string? VehicleRegistrationNumber,
     MovementImportCause Cause,
+    int? NumberOfAnimals,
+    string? Breed,
+    string? AnimalType,
     string? RawText,
     SharedAnimalDataRequest? SharedAnimalData,
     int? UnidentifiedAnimalCount,
@@ -110,6 +117,9 @@ public sealed record CommitMovementImportRequest(
     string? TransportName,
     string? VehicleRegistrationNumber,
     MovementImportCause Cause,
+    int? NumberOfAnimals,
+    string? Breed,
+    string? AnimalType,
     string? RawText,
     SharedAnimalDataRequest? SharedAnimalData,
     int? UnidentifiedAnimalCount,

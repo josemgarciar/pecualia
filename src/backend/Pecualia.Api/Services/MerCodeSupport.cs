@@ -19,9 +19,11 @@ internal static partial class MerCodeSupport
 
         if (normalizedDestinationCode == "SANDACH")
         {
-            if (species == LivestockSpecies.Porcine)
+            if (species is LivestockSpecies.Porcine or LivestockSpecies.Caprine)
             {
-                throw new DomainException("En ganado porcino, una baja por muerte solo puede registrarse con un número MER válido.");
+                throw new DomainException(species == LivestockSpecies.Porcine
+                    ? "En ganado porcino, una baja por muerte solo puede registrarse con un número MER válido."
+                    : "En ganado caprino, una baja por muerte solo puede registrarse con un número MER válido.");
             }
 
             return normalizedDestinationCode;
@@ -33,7 +35,7 @@ internal static partial class MerCodeSupport
         }
 
         var currentYearSuffix = GetYearSuffix(currentYear);
-        throw species == LivestockSpecies.Porcine
+        throw species is LivestockSpecies.Porcine or LivestockSpecies.Caprine
             ? new DomainException($"Debes indicar un número MER válido con formato AR{currentYearSuffix}-1234567.")
             : new DomainException($"El destino de una baja por muerte debe ser SANDACH o un número MER válido con formato AR{currentYearSuffix}-1234567.");
     }

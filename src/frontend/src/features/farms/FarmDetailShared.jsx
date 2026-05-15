@@ -69,6 +69,15 @@ export const BOOK_PREVIEW_TARGET_WIDTH = 760;
 export const FARM_ANIMALS_SEARCH_DEBOUNCE_MS = 300;
 export const FARM_ANIMALS_DEFAULT_PAGE_SIZE = 25;
 export const FARM_ANIMALS_PAGE_SIZE_OPTIONS = [10, 25, 50];
+export const porcineAnimalTypeOptions = [
+  'Verracos',
+  'Cerdas vida',
+  'Hembras reposición',
+  'Machos reposición',
+  'Lechones',
+  'Recría',
+  'Cebo'
+];
 export const regimeOptions = [
   { value: 'Extensive', label: 'Extensivo' },
   { value: 'SemiExtensive', label: 'Semiextensivo' },
@@ -118,8 +127,12 @@ export function formatAnimalCause(value) {
   return animalRegistrationCauseLabelMap[value] ?? animalDischargeCauseLabelMap[value] ?? value ?? 'No informada';
 }
 
+export function isMerOnlyDeathSpecies(species) {
+  return species === 'Porcine' || species === 'Caprine';
+}
+
 export function getDeathDestinationOptions(species) {
-  return species === 'Porcine'
+  return isMerOnlyDeathSpecies(species)
     ? [{ value: 'MER', label: 'MER' }]
     : [
         { value: 'SANDACH', label: 'SANDACH' },
@@ -162,7 +175,7 @@ export function createDeathFormState(species) {
   return {
     identification: '',
     dischargeDate: new Date().toISOString().slice(0, 10),
-    destinationCode: species === 'Porcine' ? 'MER' : '',
+    destinationCode: isMerOnlyDeathSpecies(species) ? 'MER' : '',
     merCode: ''
   };
 }
@@ -291,6 +304,51 @@ export function createAnimalDetailForm(animal) {
     pigRegistrationNumber: animal?.porcino?.pigRegistrationNumber ?? '',
     tag: animal?.porcino?.tag ?? ''
   };
+}
+
+export function createManualPorcineAnimalForm() {
+  const today = new Date().toISOString().slice(0, 10);
+
+  return {
+    identification: '',
+    birthYear: '',
+    breed: '',
+    sex: '',
+    registrationDate: today,
+    registrationCause: 'Entrada',
+    originCode: '',
+    animalType: '',
+    identificationDate: today,
+    pigRegistrationNumber: '',
+    tag: ''
+  };
+}
+
+export function validateManualPorcineAnimalForm(form) {
+  const errors = {};
+
+  if (!form.identification.trim()) {
+    errors.identification = 'Campo obligatorio';
+  } else if (!isValidAnimalIdentification('Porcine', form.identification)) {
+    errors.identification = getAnimalIdentificationFormatMessage('Porcine');
+  }
+
+  if (!form.animalType.trim()) {
+    errors.animalType = 'Campo obligatorio para porcino';
+  }
+
+  if (form.originCode.trim() && !isValidRegaCode(form.originCode)) {
+    errors.originCode = 'Código REGA inválido';
+  }
+
+  if (form.birthYear !== '') {
+    const birthYear = Number(form.birthYear);
+    if (!Number.isInteger(birthYear) || birthYear < 1900 || birthYear > 2100) {
+      errors.birthYear = 'Debe ser un año válido';
+    }
+  }
+
+  return errors;
 }
 
 export function formatAnimalGuideSeries(entryGuideSerie, exitGuideSerie) {
@@ -940,6 +998,122 @@ export function AnimalAutorrepositionModal({
         <button className="secondary-button" type="button" onClick={onClose}>Cancelar</button>
         <button className="primary-button" type="submit" disabled={submitting}>
           {submitting ? 'Registrando...' : 'Crear animales'}
+        </button>
+      </ModalFooter>
+    </ModalDialog>
+  );
+}
+
+export function ManualPorcineAnimalModal({
+  farm,
+  form,
+  errors,
+  requestError,
+  submitting,
+  breedOptions,
+  loadingBreedOptions,
+  onChange,
+  onClose,
+  onSubmit
+}) {
+  return (
+    <ModalDialog cardAs="form" size="wide" onSubmit={onSubmit}>
+      <ModalHeader
+        icon={<Tag size={18} />}
+        title="Registrar porcino individual"
+        subtitle={`Alta manual excepcional de un animal porcino identificado dentro de ${farm.name}.`}
+        onClose={onClose}
+      />
+      <ModalBody className="operation-modal-body">
+        {requestError && <div className="error-banner">{requestError}</div>}
+
+        <div className="grid-form">
+          <label className="farm-form-field">
+            <span className="farm-field-label">Identificación individual <span className="farm-field-label-required">*</span></span>
+            <input value={form.identification} onChange={(event) => onChange('identification', event.target.value)} placeholder="GT1800001004" required />
+            {errors.identification && <span className="farm-inline-error">{errors.identification}</span>}
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Tipo de animal <span className="farm-field-label-required">*</span></span>
+            <div className="select-wrapper">
+              <select value={form.animalType} onChange={(event) => onChange('animalType', event.target.value)} required>
+                <option value="">Selecciona un tipo</option>
+                {porcineAnimalTypeOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+              <ChevronDown size={16} />
+            </div>
+            {errors.animalType && <span className="farm-inline-error">{errors.animalType}</span>}
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Raza</span>
+            <div className="select-wrapper">
+              <select value={form.breed} onChange={(event) => onChange('breed', event.target.value)} disabled={loadingBreedOptions}>
+                <option value="">{loadingBreedOptions ? 'Cargando razas...' : 'Selecciona una raza'}</option>
+                {breedOptions.map((option) => (
+                  <option key={option.name} value={option.name}>
+                    {option.name} ({option.code})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={16} />
+            </div>
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Sexo</span>
+            <div className="select-wrapper">
+              <select value={form.sex} onChange={(event) => onChange('sex', event.target.value)}>
+                <option value="">No informado</option>
+                <option value="Female">Hembra</option>
+                <option value="Male">Macho</option>
+              </select>
+              <ChevronDown size={16} />
+            </div>
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Año de nacimiento</span>
+            <input type="number" min="1900" max="2100" value={form.birthYear} onChange={(event) => onChange('birthYear', event.target.value)} placeholder="2026" />
+            {errors.birthYear && <span className="farm-inline-error">{errors.birthYear}</span>}
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Fecha de alta</span>
+            <input type="date" value={form.registrationDate} onChange={(event) => onChange('registrationDate', event.target.value)} />
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Causa de alta</span>
+            <div className="select-wrapper">
+              <select value={form.registrationCause} onChange={(event) => onChange('registrationCause', event.target.value)}>
+                <option value="Entrada">Entrada (E)</option>
+                <option value="Autorreposicion">Autorreposición (A)</option>
+              </select>
+              <ChevronDown size={16} />
+            </div>
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Código REGA de origen</span>
+            <input value={form.originCode} onChange={(event) => onChange('originCode', event.target.value)} placeholder="ES061230000145" />
+            {errors.originCode && <span className="farm-inline-error">{errors.originCode}</span>}
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Fecha de identificación</span>
+            <input type="date" value={form.identificationDate} onChange={(event) => onChange('identificationDate', event.target.value)} />
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Nº registro porcino</span>
+            <input value={form.pigRegistrationNumber} onChange={(event) => onChange('pigRegistrationNumber', event.target.value)} />
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Marca / crotal</span>
+            <input value={form.tag} onChange={(event) => onChange('tag', event.target.value)} />
+          </label>
+        </div>
+      </ModalBody>
+
+      <ModalFooter align="end">
+        <button className="secondary-button" type="button" onClick={onClose}>Cancelar</button>
+        <button className="primary-button" type="submit" disabled={submitting}>
+          {submitting ? 'Guardando...' : 'Registrar animal'}
         </button>
       </ModalFooter>
     </ModalDialog>

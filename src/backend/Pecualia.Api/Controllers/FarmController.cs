@@ -70,6 +70,12 @@ public static class FarmController
         group.MapGet("/{farmId:long}/births/autorreposition-availability", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetAutorrepositionAvailabilityAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
 
+        group.MapGet("/{farmId:long}/porcine-transitions/pending", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.GetPendingPorcineTransitionsAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
+
+        group.MapPut("/{farmId:long}/porcine-transitions/{birthId:long}", async (ClaimsPrincipal user, long farmId, long birthId, ResolvePorcineTransitionRequest request, IFarmOperationService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.ResolvePorcineTransitionAsync(user.GetUserId(), user.GetRole(), farmId, birthId, request, cancellationToken)));
+
         group.MapPost("/{farmId:long}/births", async (ClaimsPrincipal user, long farmId, CreateFarmBirthRequest request, IFarmOperationService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.CreateBirthAsync(user.GetUserId(), user.GetRole(), farmId, request, cancellationToken)));
 

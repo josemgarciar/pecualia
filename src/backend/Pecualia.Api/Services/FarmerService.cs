@@ -21,7 +21,7 @@ public interface IFarmerService
     Task UnlinkManagedFarmerAsync(long managerUserId, long farmerUserId, CancellationToken cancellationToken);
 }
 
-public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService authService, IClock clock) : IFarmerService
+public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService authService, IClock clock, IFarmCensusProjectionService censusProjectionService) : IFarmerService
 {
     public async Task<IReadOnlyList<FarmerListItemResponse>> GetManagedFarmersAsync(long managerUserId, string? search, string? province, string? status, CancellationToken cancellationToken)
     {
@@ -74,12 +74,11 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             .AsSplitQuery()
             .Include(entity => entity.User)
             .Include(entity => entity.Farms)
-            .ThenInclude(entity => entity.Animals)
             .SingleOrDefaultAsync(entity => entity.UserId == farmerUserId && entity.ManagerId == managerUserId, cancellationToken);
 
         return farmer is null
             ? throw new DomainException("Ganadero no encontrado.")
-            : MapDetail(farmer);
+            : await MapDetailAsync(farmer, cancellationToken);
     }
 
     public async Task<FarmerListItemResponse> CreateManagedFarmerAsync(long managerUserId, CreateFarmerRequest request, CancellationToken cancellationToken)
@@ -225,7 +224,6 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             .AsSplitQuery()
             .Include(entity => entity.User)
             .Include(entity => entity.Farms)
-            .ThenInclude(entity => entity.Animals)
             .SingleOrDefaultAsync(entity => entity.UserId == farmerUserId && entity.ManagerId == managerUserId, cancellationToken);
 
         return farmer ?? throw new DomainException("Ganadero no encontrado.");
@@ -274,8 +272,22 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             farmer.Farms.Count);
     }
 
-    private static FarmerDetailResponse MapDetail(Farmer farmer)
+    private async Task<FarmerDetailResponse> MapDetailAsync(Farmer farmer, CancellationToken cancellationToken)
     {
+        var today = DateOnly.FromDateTime(clock.UtcNow.UtcDateTime);
+        var farms = new List<FarmerFarmItemResponse>(farmer.Farms.Count);
+
+        foreach (var farm in farmer.Farms.OrderBy(entity => entity.Name))
+        {
+            var snapshot = await censusProjectionService.BuildSnapshotAsync(farm, today, cancellationToken);
+            farms.Add(new FarmerFarmItemResponse(
+                farm.Id,
+                farm.Name,
+                farm.RegaCode,
+                farm.LivestockSpecies.ToString(),
+                snapshot.Total));
+        }
+
         return new FarmerDetailResponse(
             farmer.UserId,
             farmer.PersonType.ToString(),
@@ -295,15 +307,7 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             EmptyToNull(farmer.ZipCode),
             MapStatusForResponse(farmer),
             !farmer.User.IsActive && !string.IsNullOrWhiteSpace(farmer.User.Email),
-            farmer.Farms
-                .OrderBy(entity => entity.Name)
-                .Select(entity => new FarmerFarmItemResponse(
-                    entity.Id,
-                    entity.Name,
-                    entity.RegaCode,
-                    entity.LivestockSpecies.ToString(),
-                    entity.Animals.Count))
-                .ToList());
+            farms);
     }
 
     private static void ValidateFarmerRequest(

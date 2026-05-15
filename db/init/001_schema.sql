@@ -143,6 +143,27 @@ CREATE TABLE animal_birth (
     CONSTRAINT animal_birth_weight_non_negative_chk CHECK (birth_weight IS NULL OR birth_weight >= 0)
 );
 
+CREATE TABLE porcine_birth_transition_decision (
+    birth_id BIGINT PRIMARY KEY REFERENCES animal_birth(id) ON DELETE CASCADE,
+    effective_date DATE NOT NULL,
+    to_rears INTEGER NOT NULL DEFAULT 0,
+    to_sows_reposition INTEGER NOT NULL DEFAULT 0,
+    to_males_reposition INTEGER NOT NULL DEFAULT 0,
+    baseline_rears_consumed INTEGER NOT NULL DEFAULT 0,
+    baseline_sows_reposition_consumed INTEGER NOT NULL DEFAULT 0,
+    baseline_males_reposition_consumed INTEGER NOT NULL DEFAULT 0,
+    resolved_at TIMESTAMPTZ NOT NULL,
+    balance_id BIGINT,
+    CONSTRAINT porcine_birth_transition_decision_non_negative_chk CHECK (
+        to_rears >= 0
+        AND to_sows_reposition >= 0
+        AND to_males_reposition >= 0
+        AND baseline_rears_consumed >= 0
+        AND baseline_sows_reposition_consumed >= 0
+        AND baseline_males_reposition_consumed >= 0
+    )
+);
+
 ALTER TABLE animal
     ADD CONSTRAINT animal_source_birth_id_fkey
     FOREIGN KEY (source_birth_id) REFERENCES animal_birth(id) ON DELETE SET NULL;
@@ -177,6 +198,7 @@ CREATE TABLE movement_certificate (
     status VARCHAR(32) NOT NULL DEFAULT 'Pending',
     transport_name VARCHAR(180),
     vehicle_registration_number VARCHAR(40),
+    animal_type VARCHAR(80),
     unidentified_category VARCHAR(40),
     CONSTRAINT movement_number_of_animals_positive_chk CHECK (number_of_animals > 0),
     CONSTRAINT movement_dates_chk CHECK (arrival_date IS NULL OR arrival_date >= departure_date),
@@ -262,6 +284,10 @@ CREATE TABLE balance_ovino_caprino (
 
 ALTER TABLE animal_birth
     ADD CONSTRAINT animal_birth_balance_id_fkey
+    FOREIGN KEY (balance_id) REFERENCES balance(id) ON DELETE SET NULL;
+
+ALTER TABLE porcine_birth_transition_decision
+    ADD CONSTRAINT porcine_birth_transition_decision_balance_id_fkey
     FOREIGN KEY (balance_id) REFERENCES balance(id) ON DELETE SET NULL;
 
 CREATE TABLE balance_porcino (

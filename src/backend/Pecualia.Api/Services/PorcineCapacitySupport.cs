@@ -54,7 +54,11 @@ internal static class PorcineCapacitySupport
             return PorcineCapacityBucket.Fattening;
         }
 
-        if (normalizedType.Contains("reposition", StringComparison.Ordinal) && (normalizedType.Contains("sow", StringComparison.Ordinal) || normalizedType.Contains("cerda", StringComparison.Ordinal)))
+        if ((normalizedType.Contains("reposition", StringComparison.Ordinal) || normalizedType.Contains("repos", StringComparison.Ordinal)) &&
+            (normalizedType.Contains("sow", StringComparison.Ordinal) ||
+             normalizedType.Contains("cerda", StringComparison.Ordinal) ||
+             normalizedType.Contains("madre", StringComparison.Ordinal) ||
+             normalizedType.Contains("hembra", StringComparison.Ordinal)))
         {
             return PorcineCapacityBucket.Fattening;
         }

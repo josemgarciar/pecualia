@@ -200,6 +200,8 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             throw new DomainException("Explotación no encontrada.");
         }
 
+        EnsureAutorrepositionSupportedSpecies(farm.LivestockSpecies);
+
         if (string.IsNullOrWhiteSpace(request.StartIdentification))
         {
             throw new DomainException("La identificación inicial es obligatoria.");
@@ -879,6 +881,14 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
     }
 
     private static string BuildStatus(Animal animal) => animal.DischargeDate is null ? "Active" : "Discharged";
+
+    internal static void EnsureAutorrepositionSupportedSpecies(LivestockSpecies species)
+    {
+        if (species == LivestockSpecies.Porcine)
+        {
+            throw new DomainException("La autoreposición no está disponible para explotaciones porcinas.");
+        }
+    }
 
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 

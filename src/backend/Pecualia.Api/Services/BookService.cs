@@ -364,6 +364,18 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
 
         if (IsAutorrepositionCause(balance.ModificationCause))
         {
+            if (useStoredDelta && deltaPiglets > 0)
+            {
+                state.Boars -= deltaBoars;
+                state.SowsForLive -= deltaSowsForLive;
+                state.SowsReposition -= deltaSowsReposition;
+                state.PigsReposition -= deltaPigsReposition;
+                state.Piglets += deltaPiglets;
+                state.Rears -= deltaRears;
+                state.Baits -= deltaBaits;
+                return;
+            }
+
             state.Boars -= deltaBoars;
             state.SowsForLive -= deltaSowsForLive;
             state.SowsReposition -= deltaSowsReposition;

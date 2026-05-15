@@ -139,6 +139,23 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             request.Cause,
             cancellationToken);
 
+        if (context.Species == LivestockSpecies.Porcine)
+        {
+            return await CreateAggregatePorcineMovementAsync(
+                context,
+                request.Serie,
+                request.DepartureDate,
+                request.ArrivalDate,
+                request.SolicitationDate,
+                request.MeansOfTransport,
+                request.TransportName,
+                request.VehicleRegistrationNumber,
+                request.NumberOfAnimals,
+                request.Breed,
+                request.AnimalType,
+                cancellationToken);
+        }
+
         if (context.Direction == MovementDirection.Entry && context.CounterpartyType == MovementCounterpartyType.External)
         {
             var parsedRows = ParseLines(request.Identifications);
@@ -203,6 +220,17 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             request.Cause,
             cancellationToken);
 
+        if (context.Species == LivestockSpecies.Porcine)
+        {
+            ValidatePorcineAggregateMovementRequest(request.NumberOfAnimals, request.Breed, request.AnimalType);
+
+            return new MovementImportPreviewResponse(
+                context.Species.ToString(),
+                false,
+                [],
+                new MovementImportPreviewSummaryResponse(0, 0, request.NumberOfAnimals!.Value, 0, 0, 0, 0, 0));
+        }
+
         if (request.UnidentifiedAnimalCount is > 0)
         {
             ValidateUnidentifiedAnimalRequest(context, request.UnidentifiedAnimalCount.Value, request.UnidentifiedCategory);
@@ -236,6 +264,32 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             request.CodRemo,
             request.Cause,
             cancellationToken);
+
+        if (context.Species == LivestockSpecies.Porcine)
+        {
+            var porcineMovement = await CreateAggregatePorcineMovementAsync(
+                context,
+                request.Serie,
+                request.DepartureDate,
+                request.ArrivalDate,
+                request.SolicitationDate,
+                request.MeansOfTransport,
+                request.TransportName,
+                request.VehicleRegistrationNumber,
+                request.NumberOfAnimals,
+                request.Breed,
+                request.AnimalType,
+                cancellationToken);
+
+            var processedRows = request.NumberOfAnimals ?? 0;
+            return new MovementImportCommitResponse(
+                porcineMovement.Id,
+                porcineMovement.CodRemo,
+                processedRows,
+                0,
+                false,
+                new MovementImportPreviewSummaryResponse(0, 0, processedRows, 0, 0, 0, 0, 0));
+        }
 
         if (request.UnidentifiedAnimalCount is > 0)
         {
@@ -347,7 +401,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             transportName,
             vehicleRegistrationNumber,
             unidentifiedAnimalCount,
-            unidentifiedCategory);
+            unidentifiedCategory: unidentifiedCategory);
 
         dbContext.MovementCertificates.Add(movement);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -372,6 +426,71 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             summary);
     }
 
+    private async Task<MovementDetailResponse> CreateAggregatePorcineMovementAsync(
+        MovementContext context,
+        string? serie,
+        DateTime departureDate,
+        DateTime? arrivalDate,
+        DateTime? solicitationDate,
+        string? meansOfTransport,
+        string? transportName,
+        string? vehicleRegistrationNumber,
+        int? numberOfAnimals,
+        string? breed,
+        string? animalType,
+        CancellationToken cancellationToken)
+    {
+        if (context.Species != LivestockSpecies.Porcine)
+        {
+            throw new DomainException("Este flujo agregado solo está disponible para movimientos porcinos.");
+        }
+
+        ValidatePorcineAggregateMovementRequest(numberOfAnimals, breed, animalType);
+
+        var normalizedBreed = NormalizeOfficialBreed(LivestockSpecies.Porcine, breed);
+        var normalizedType = NormalizeRequiredAnimalType(animalType);
+        var departureDay = ToDateOnly(departureDate);
+        DateOnly? arrivalDay = arrivalDate is null ? null : ToDateOnly(arrivalDate.Value);
+
+        await ValidatePorcineAggregateAvailabilityAsync(
+            context,
+            normalizedType,
+            numberOfAnimals!.Value,
+            departureDay,
+            arrivalDay,
+            cancellationToken);
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var movement = BuildMovementCertificate(
+            context,
+            serie,
+            departureDate,
+            arrivalDate,
+            solicitationDate,
+            meansOfTransport,
+            transportName,
+            vehicleRegistrationNumber,
+            numberOfAnimals.Value,
+            animalType: normalizedType);
+
+        dbContext.MovementCertificates.Add(movement);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await RecordAggregatePorcineMovementSnapshotsAsync(
+            context,
+            numberOfAnimals.Value,
+            normalizedBreed,
+            normalizedType,
+            departureDay,
+            arrivalDay,
+            cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+
+        return await GetMovementAsyncForCommittedTransaction(movement.Id, cancellationToken);
+    }
+
     private static void ValidateUnidentifiedAnimalRequest(MovementContext context, int count, MovementUnidentifiedCategory? category)
     {
         if (context.Species is not (LivestockSpecies.Ovine or LivestockSpecies.Caprine))
@@ -387,6 +506,27 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         if (category is null)
         {
             throw new DomainException("Debes indicar si los animales sin identificar son menores de 4 meses o de 4 a 12 meses.");
+        }
+    }
+
+    private static void ValidatePorcineAggregateMovementRequest(
+        int? numberOfAnimals,
+        string? breed,
+        string? animalType)
+    {
+        if (numberOfAnimals is null or <= 0)
+        {
+            throw new DomainException("Debes indicar el número de animales porcinos de la guía.");
+        }
+
+        if (string.IsNullOrWhiteSpace(breed))
+        {
+            throw new DomainException("La raza es obligatoria en los movimientos porcinos.");
+        }
+
+        if (string.IsNullOrWhiteSpace(animalType))
+        {
+            throw new DomainException("El tipo de animal es obligatorio en los movimientos porcinos.");
         }
     }
 
@@ -768,6 +908,109 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             await BalanceSnapshotSupport.UpsertCensusSnapshotAsync(dbContext, census, snapshot.Farm, balanceSnapshot, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    private async Task RecordAggregatePorcineMovementSnapshotsAsync(
+        MovementContext context,
+        int numberOfAnimals,
+        string breed,
+        string animalType,
+        DateOnly departureDate,
+        DateOnly? arrivalDate,
+        CancellationToken cancellationToken)
+    {
+        var movementDate = arrivalDate ?? departureDate;
+        var snapshots = BuildSnapshotRequests(context, movementDate);
+
+        foreach (var snapshot in snapshots)
+        {
+            var balance = new Balance
+            {
+                LivestockFarmId = snapshot.Farm.Id,
+                BalanceDate = snapshot.Date,
+                DestinationLivestockCode = snapshot.DestinationCode,
+                ModificationCause = snapshot.Cause,
+                NumberOfAnimals = numberOfAnimals,
+                OriginLivestockCode = snapshot.OriginCode
+            };
+
+            dbContext.Balances.Add(balance);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            dbContext.BalancePorcino.Add(BuildPorcineBalance(balance.Id, numberOfAnimals, breed, animalType));
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            var census = new Census
+            {
+                LivestockFarmId = snapshot.Farm.Id,
+                CensusDate = snapshot.Date
+            };
+
+            dbContext.Census.Add(census);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            var balanceSnapshot = await censusProjectionService.BuildSnapshotAsync(snapshot.Farm, snapshot.Date, cancellationToken);
+            await BalanceSnapshotSupport.UpsertCensusSnapshotAsync(dbContext, census, snapshot.Farm, balanceSnapshot, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private async Task ValidatePorcineAggregateAvailabilityAsync(
+        MovementContext context,
+        string animalType,
+        int numberOfAnimals,
+        DateOnly departureDate,
+        DateOnly? arrivalDate,
+        CancellationToken cancellationToken)
+    {
+        var sourceFarm = context.Direction == MovementDirection.Exit
+            ? context.CurrentFarm
+            : context.CounterpartyType == MovementCounterpartyType.Internal
+                ? context.CounterpartyFarm
+                : null;
+        var destinationFarm = context.Direction == MovementDirection.Entry
+            ? context.CurrentFarm
+            : context.CounterpartyType == MovementCounterpartyType.Internal
+                ? context.CounterpartyFarm
+                : null;
+
+        if (sourceFarm is not null)
+        {
+            await EnsurePorcineStockAvailabilityAsync(sourceFarm, animalType, numberOfAnimals, departureDate, cancellationToken);
+        }
+
+        if (destinationFarm is not null)
+        {
+            var snapshotDate = arrivalDate ?? departureDate;
+            await EnsurePorcineEntryCapacityAsync(destinationFarm, animalType, numberOfAnimals, snapshotDate, cancellationToken);
+        }
+    }
+
+    private async Task EnsurePorcineStockAvailabilityAsync(
+        LivestockFarm farm,
+        string animalType,
+        int numberOfAnimals,
+        DateOnly snapshotDate,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = await censusProjectionService.BuildSnapshotAsync(farm, snapshotDate, cancellationToken);
+        var availableAnimals = PorcineMovementSupport.GetAvailableAnimals(snapshot, animalType);
+        if (numberOfAnimals > availableAnimals)
+        {
+            throw new DomainException(
+                $"No puedes registrar {numberOfAnimals} animales de tipo {animalType} porque el censo disponible en la explotación es {availableAnimals}.");
+        }
+    }
+
+    private async Task EnsurePorcineEntryCapacityAsync(
+        LivestockFarm farm,
+        string animalType,
+        int numberOfAnimals,
+        DateOnly snapshotDate,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = await censusProjectionService.BuildSnapshotAsync(farm, snapshotDate, cancellationToken);
+        PorcineCapacitySupport.EnsureWithinCapacity(farm, snapshot, animalType, numberOfAnimals);
     }
 
     private static IReadOnlyList<SnapshotRequest> BuildSnapshotRequests(
@@ -1380,6 +1623,17 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         }
     }
 
+    private static string NormalizeRequiredAnimalType(string? animalType)
+    {
+        var normalizedType = NormalizeNullable(animalType);
+        if (normalizedType is null)
+        {
+            throw new DomainException("El tipo de animal es obligatorio en los movimientos porcinos.");
+        }
+
+        return normalizedType;
+    }
+
     private static void ValidateImportCause(MovementImportOperation operation, MovementImportCause cause)
     {
         if (operation == MovementImportOperation.Alta &&
@@ -1481,6 +1735,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         string? transportName,
         string? vehicleRegistrationNumber,
         int numberOfAnimals,
+        string? animalType = null,
         MovementUnidentifiedCategory? unidentifiedCategory = null)
     {
         var isEntry = context.Direction == MovementDirection.Entry;
@@ -1503,6 +1758,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             SolicitationDate = solicitationDate,
             TransportName = NormalizeNullable(transportName),
             VehicleRegistrationNumber = NormalizeNullable(vehicleRegistrationNumber),
+            AnimalType = NormalizeNullable(animalType),
             OriginExternalCode = isEntry && context.CounterpartyType == MovementCounterpartyType.External ? context.CounterpartyCode : null,
             OriginExternalName = isEntry && context.CounterpartyType == MovementCounterpartyType.External ? context.CounterpartyName : null,
             DestinationExternalCode = !isEntry && context.CounterpartyType == MovementCounterpartyType.External ? context.CounterpartyCode : null,
@@ -1609,6 +1865,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             movement.DestinationFarm?.RegaCode ?? movement.DestinationExternalCode,
             movement.NumberOfAnimals,
             BuildMovementStatus(movement),
+            movement.AnimalType,
             movement.Animals
                 .OrderBy(entity => entity.Animal.Identification)
                 .Select(entity => new MovementAnimalItemResponse(
@@ -1904,6 +2161,29 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         };
     }
 
+    private static BalancePorcino BuildPorcineBalance(
+        long balanceId,
+        int numberOfAnimals,
+        string breed,
+        string animalType)
+    {
+        var classification = PorcineMovementSupport.BuildBreakdown(animalType, numberOfAnimals);
+
+        return new BalancePorcino
+        {
+            BalanceId = balanceId,
+            Baits = classification.Baits,
+            Boars = classification.Boars,
+            Breed = NormalizeNullable(breed),
+            Piglets = classification.Piglets,
+            PigsReposition = classification.PigsReposition,
+            Rear = classification.Rears,
+            SowsForLive = classification.Sows,
+            SowsReposition = classification.SowsReposition,
+            Type = NormalizeNullable(animalType)
+        };
+    }
+
     private static CensusPorcino BuildPorcineCensus(long censusId, IReadOnlyCollection<Animal> animals, DateOnly asOfDate)
     {
         var classification = ClassifyPorcineAnimals(animals, asOfDate);
@@ -1930,45 +2210,22 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             if (string.IsNullOrWhiteSpace(type))
             {
                 var birthDate = FarmCensusProjectionSupport.ResolveBirthDate(animal);
-                if (birthDate is not null && FarmCensusProjectionSupport.IsYoungerThanMonths(birthDate.Value, asOfDate, 4))
+                if (birthDate is not null && PorcineTransitionSupport.IsPigletStage(birthDate.Value, asOfDate))
                 {
                     breakdown.Piglets++;
                 }
-                else
+                else if (birthDate is not null && PorcineTransitionSupport.IsIntermediateStage(birthDate.Value, asOfDate))
                 {
                     breakdown.Rears++;
+                }
+                else
+                {
+                    breakdown.Baits++;
                 }
                 continue;
             }
 
-            if (type.Contains("bait", StringComparison.Ordinal) || type.Contains("cebo", StringComparison.Ordinal))
-            {
-                breakdown.Baits++;
-            }
-            else if (type.Contains("boar", StringComparison.Ordinal) || type.Contains("verraco", StringComparison.Ordinal))
-            {
-                breakdown.Boars++;
-            }
-            else if (type.Contains("piglet", StringComparison.Ordinal) || type.Contains("lech", StringComparison.Ordinal))
-            {
-                breakdown.Piglets++;
-            }
-            else if (type.Contains("reposition", StringComparison.Ordinal) && (type.Contains("sow", StringComparison.Ordinal) || type.Contains("cerda", StringComparison.Ordinal)))
-            {
-                breakdown.SowsReposition++;
-            }
-            else if (type.Contains("reposition", StringComparison.Ordinal) || type.Contains("repos", StringComparison.Ordinal))
-            {
-                breakdown.PigsReposition++;
-            }
-            else if (type.Contains("sow", StringComparison.Ordinal) || type.Contains("cerda", StringComparison.Ordinal))
-            {
-                breakdown.Sows++;
-            }
-            else
-            {
-                breakdown.Rears++;
-            }
+            breakdown.Accumulate(PorcineMovementSupport.BuildBreakdown(type, 1));
         }
 
         return breakdown;
@@ -2018,6 +2275,17 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         public int Sows { get; set; }
 
         public int SowsReposition { get; set; }
+
+        public void Accumulate(PorcineMovementBreakdown breakdown)
+        {
+            Baits += breakdown.Baits;
+            Boars += breakdown.Boars;
+            Piglets += breakdown.Piglets;
+            PigsReposition += breakdown.PigsReposition;
+            Rears += breakdown.Rears;
+            Sows += breakdown.Sows;
+            SowsReposition += breakdown.SowsReposition;
+        }
     }
 
     private static PorcineBalanceMetadata BuildPorcineBalanceMetadata(IReadOnlyCollection<Animal> animals)

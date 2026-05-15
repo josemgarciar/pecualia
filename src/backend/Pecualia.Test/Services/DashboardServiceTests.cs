@@ -123,4 +123,66 @@ public sealed class DashboardServiceTests
         tasks[1].Detail.Should().Contain("Serie SER-77");
         tasks.Should().OnlyContain(task => task.Tone == "danger");
     }
+
+    [Fact]
+    public void BuildPendingPorcineTransitionTasks_CreatesWarningTask_WithPendingAnimals()
+    {
+        var today = new DateOnly(2026, 05, 15);
+        var tasks = DashboardService.BuildPendingPorcineTransitionTasks(
+            new[]
+            {
+                new AnimalBirth
+                {
+                    Id = 41,
+                    LivestockFarmId = 8,
+                    BirthDate = new DateOnly(2026, 03, 01),
+                    OffspringNumber = 12
+                }
+            },
+            new Dictionary<long, int>
+            {
+                [41] = 4
+            },
+            new Dictionary<long, string>
+            {
+                [8] = "Sierra del Este"
+            },
+            today);
+
+        tasks.Should().ContainSingle();
+        tasks[0].Kind.Should().Be("PorcineTransition");
+        tasks[0].Title.Should().Be("Reclasificación porcina pendiente");
+        tasks[0].Detail.Should().Contain("Sierra del Este");
+        tasks[0].Detail.Should().Contain("8 animales");
+        tasks[0].Tone.Should().Be("warning");
+        tasks[0].DueDate.Should().Be(new DateOnly(2026, 06, 01));
+    }
+
+    [Fact]
+    public void BuildPendingPorcineTransitionTasks_CreatesDangerTask_WhenFinalWindowIsReached()
+    {
+        var today = new DateOnly(2026, 08, 15);
+        var tasks = DashboardService.BuildPendingPorcineTransitionTasks(
+            new[]
+            {
+                new AnimalBirth
+                {
+                    Id = 55,
+                    LivestockFarmId = 11,
+                    BirthDate = new DateOnly(2026, 02, 10),
+                    OffspringNumber = 5
+                }
+            },
+            new Dictionary<long, int>(),
+            new Dictionary<long, string>
+            {
+                [11] = "Monte de las Encinas"
+            },
+            today);
+
+        tasks.Should().ContainSingle();
+        tasks[0].Tone.Should().Be("danger");
+        tasks[0].DueDate.Should().Be(new DateOnly(2026, 05, 10));
+        tasks[0].Detail.Should().Contain("Atrasada");
+    }
 }

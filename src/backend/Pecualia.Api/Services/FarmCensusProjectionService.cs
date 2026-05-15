@@ -113,6 +113,7 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
 
         var births = await dbContext.AnimalBirths
             .AsNoTracking()
+            .Include(entity => entity.PorcineTransitionDecision)
             .Where(entity => entity.LivestockFarmId == farm.Id && entity.BirthDate <= asOfDate)
             .OrderBy(entity => entity.BirthDate)
             .ThenBy(entity => entity.Id)
@@ -129,6 +130,19 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
                 ))
             .ToListAsync(cancellationToken);
 
+        List<MovementCertificate> porcineAggregateMovements = farm.LivestockSpecies != LivestockSpecies.Porcine
+            ? []
+            : await dbContext.MovementCertificates
+                .AsNoTracking()
+                .Where(entity =>
+                    entity.AnimalType != null &&
+                    entity.Specie == LivestockSpecies.Porcine.ToString() &&
+                    (
+                        (entity.OriginLivestockId == farm.Id && entity.DepartureDate < asOfExclusiveUtc) ||
+                        (entity.DestinationLivestockId == farm.Id && (entity.ArrivalDate ?? entity.DepartureDate) < asOfExclusiveUtc)
+                    ))
+                .ToListAsync(cancellationToken);
+
         var consumedUnidentifiedMovementsByAutorreposition = farm.LivestockSpecies == LivestockSpecies.Porcine
             ? 0
             : await dbContext.Animals
@@ -142,17 +156,20 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
                 .CountAsync(cancellationToken);
 
         var birthIds = births.Select(entity => entity.Id).ToArray();
-        var consumedByBirthId = birthIds.Length == 0
-            ? new Dictionary<long, int>()
+        var consumedAnimalsByBirth = birthIds.Length == 0
+            ? []
             : await dbContext.Animals
                 .AsNoTracking()
+                .Include(entity => entity.Porcino)
                 .Where(entity =>
                     entity.SourceBirthId != null &&
                     birthIds.Contains(entity.SourceBirthId.Value) &&
-                    (entity.RegistrationDate == null || entity.RegistrationDate <= asOfDate))
-                .GroupBy(entity => entity.SourceBirthId!.Value)
-                .Select(entity => new { BirthId = entity.Key, Count = entity.Count() })
-                .ToDictionaryAsync(entity => entity.BirthId, entity => entity.Count, cancellationToken);
+                    entity.RegistrationDate != null &&
+                    entity.RegistrationDate <= asOfDate)
+                .ToListAsync(cancellationToken);
+        var consumedByBirthId = consumedAnimalsByBirth
+            .GroupBy(entity => entity.SourceBirthId!.Value)
+            .ToDictionary(entity => entity.Key, entity => entity.Count());
 
         var projection = new FarmCensusProjection();
 
@@ -180,14 +197,12 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
 
             if (farm.LivestockSpecies == LivestockSpecies.Porcine)
             {
-                if (FarmCensusProjectionSupport.IsYoungerThanMonths(birth.BirthDate, asOfDate, 4))
-                {
-                    projection.Piglets += available;
-                }
-                else
-                {
-                    projection.Rears += available;
-                }
+                AccumulatePorcineBirth(
+                    projection,
+                    birth,
+                    consumedAnimalsByBirth.Where(entity => entity.SourceBirthId == birth.Id).ToList(),
+                    available,
+                    asOfDate);
             }
             else
             {
@@ -212,6 +227,13 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
             projection.NonReproductiveBetween4And12Months = Math.Max(
                 0,
                 projection.NonReproductiveBetween4And12Months - consumedUnidentifiedMovementsByAutorreposition);
+        }
+        else
+        {
+            foreach (var movement in porcineAggregateMovements)
+            {
+                AccumulateAggregatePorcineMovement(projection, farm.Id, movement);
+            }
         }
 
         return projection;
@@ -273,7 +295,7 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
         if (string.IsNullOrWhiteSpace(type))
         {
             var birthDate = FarmCensusProjectionSupport.ResolveBirthDate(animal);
-            if (birthDate is not null && FarmCensusProjectionSupport.IsYoungerThanMonths(birthDate.Value, asOfDate, 4))
+            if (birthDate is not null && PorcineTransitionSupport.IsPigletStage(birthDate.Value, asOfDate))
             {
                 projection.Piglets++;
             }
@@ -285,34 +307,53 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
             return;
         }
 
-        if (type.Contains("bait", StringComparison.Ordinal) || type.Contains("cebo", StringComparison.Ordinal))
+        ApplyPorcineBreakdown(projection, PorcineMovementSupport.BuildBreakdown(type, 1), 1);
+    }
+
+    private static void AccumulatePorcineBirth(
+        FarmCensusProjection projection,
+        AnimalBirth birth,
+        IReadOnlyCollection<Animal> consumedAnimals,
+        int available,
+        DateOnly asOfDate)
+    {
+        if (available <= 0)
         {
-            projection.Baits++;
+            return;
         }
-        else if (type.Contains("boar", StringComparison.Ordinal) || type.Contains("verraco", StringComparison.Ordinal))
+
+        if (PorcineTransitionSupport.IsPigletStage(birth.BirthDate, asOfDate))
         {
-            projection.Boars++;
+            projection.Piglets += available;
+            return;
         }
-        else if (type.Contains("piglet", StringComparison.Ordinal) || type.Contains("lech", StringComparison.Ordinal))
+
+        if (birth.PorcineTransitionDecision is null)
         {
-            projection.Piglets++;
+            projection.PendingPorcineTransitions += available;
+            return;
         }
-        else if (type.Contains("reposition", StringComparison.Ordinal) && (type.Contains("sow", StringComparison.Ordinal) || type.Contains("cerda", StringComparison.Ordinal)))
+
+        var remaining = PorcineTransitionSupport.CalculateRemainingQuantities(
+            birth.PorcineTransitionDecision,
+            BuildPorcineDecisionConsumption(consumedAnimals));
+
+        if (remaining.Total == 0)
         {
-            projection.SowsReposition++;
+            return;
         }
-        else if (type.Contains("reposition", StringComparison.Ordinal) || type.Contains("repos", StringComparison.Ordinal))
+
+        if (PorcineTransitionSupport.IsIntermediateStage(birth.BirthDate, asOfDate))
         {
-            projection.MalesReposition++;
+            projection.Rears += remaining.Rears;
+            projection.SowsReposition += remaining.Sows;
+            projection.MalesReposition += remaining.Males;
+            return;
         }
-        else if (type.Contains("sow", StringComparison.Ordinal) || type.Contains("cerda", StringComparison.Ordinal))
-        {
-            projection.SowsForLive++;
-        }
-        else
-        {
-            projection.Rears++;
-        }
+
+        projection.Baits += remaining.Rears;
+        projection.SowsForLive += remaining.Sows;
+        projection.Boars += remaining.Males;
     }
 
     private static void AccumulateUnidentifiedMovement(FarmCensusProjection projection, long farmId, MovementCertificate movement)
@@ -333,6 +374,49 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
         {
             projection.NonReproductiveBetween4And12Months += count;
         }
+    }
+
+    private static void AccumulateAggregatePorcineMovement(FarmCensusProjection projection, long farmId, MovementCertificate movement)
+    {
+        var sign = movement.DestinationLivestockId == farmId ? 1 : -1;
+        var breakdown = PorcineMovementSupport.BuildBreakdown(movement.AnimalType, movement.NumberOfAnimals);
+        ApplyPorcineBreakdown(projection, breakdown, sign);
+    }
+
+    private static void ApplyPorcineBreakdown(FarmCensusProjection projection, PorcineMovementBreakdown breakdown, int sign)
+    {
+        projection.Baits += breakdown.Baits * sign;
+        projection.Boars += breakdown.Boars * sign;
+        projection.Piglets += breakdown.Piglets * sign;
+        projection.MalesReposition += breakdown.PigsReposition * sign;
+        projection.Rears += breakdown.Rears * sign;
+        projection.SowsForLive += breakdown.Sows * sign;
+        projection.SowsReposition += breakdown.SowsReposition * sign;
+    }
+
+    private static PorcineDecisionConsumption BuildPorcineDecisionConsumption(IEnumerable<Animal> animals)
+    {
+        var rears = 0;
+        var sows = 0;
+        var males = 0;
+
+        foreach (var animal in animals)
+        {
+            switch (PorcineTransitionSupport.ResolveBranch(animal.Porcino?.AnimalType))
+            {
+                case PorcineTransitionBranch.Sows:
+                    sows++;
+                    break;
+                case PorcineTransitionBranch.Males:
+                    males++;
+                    break;
+                default:
+                    rears++;
+                    break;
+            }
+        }
+
+        return new PorcineDecisionConsumption(rears, sows, males);
     }
 
     private static Census CreateSyntheticCensus(LivestockFarm farm, DateOnly censusDate, FarmCensusProjection projection)
@@ -387,6 +471,7 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
             projection.Piglets,
             projection.Rears,
             projection.Baits,
+            projection.PendingPorcineTransitions,
             projection.Total,
             availableYears);
     }
@@ -415,6 +500,8 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
 
         public int Baits { get; set; }
 
+        public int PendingPorcineTransitions { get; set; }
+
         public int Total =>
             NonReproductiveUnder4Months +
             NonReproductiveBetween4And12Months +
@@ -426,7 +513,8 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
             MalesReposition +
             Piglets +
             Rears +
-            Baits;
+            Baits +
+            PendingPorcineTransitions;
     }
 }
 

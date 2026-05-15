@@ -18,7 +18,7 @@ public sealed class PorcineCapacitySupportTests
         };
         var snapshot = BuildSnapshot(sowsForLive: 10, sowsReposition: 2, malesReposition: 3, baits: 4);
 
-        var action = () => PorcineCapacitySupport.EnsureWithinCapacity(farm, snapshot, "Cerda", 1);
+        var action = () => PorcineCapacitySupport.EnsureWithinCapacity(farm, snapshot, "Cerdas vida", 1);
 
         action.Should().Throw<DomainException>()
             .WithMessage("No puedes agregar más madres que la capacidad máxima autorizada de madres.");
@@ -35,18 +35,18 @@ public sealed class PorcineCapacitySupportTests
         };
         var snapshot = BuildSnapshot(sowsForLive: 6, sowsReposition: 4, malesReposition: 3, baits: 5);
 
-        var action = () => PorcineCapacitySupport.EnsureWithinCapacity(farm, snapshot, "Macho reposición", 1);
+        var action = () => PorcineCapacitySupport.EnsureWithinCapacity(farm, snapshot, "Machos reposición", 1);
 
         action.Should().Throw<DomainException>()
             .WithMessage("No puedes superar la capacidad máxima autorizada de cebo (machos autoreposición + hembras autoreposición + cebo).");
     }
 
     [Theory]
-    [InlineData("Cerda", 1)]
-    [InlineData("Cerda reposición", 2)]
-    [InlineData("Macho reposición", 2)]
+    [InlineData("Cerdas vida", 1)]
+    [InlineData("Hembras reposición", 2)]
+    [InlineData("Machos reposición", 2)]
     [InlineData("Cebo", 2)]
-    [InlineData("Verraco", 0)]
+    [InlineData("Verracos", 0)]
     public void ResolveBucket_ClassifiesPorcineTypes(string animalType, int expectedBucket)
     {
         var bucket = PorcineCapacitySupport.ResolveBucket(animalType);
@@ -72,6 +72,7 @@ public sealed class PorcineCapacitySupportTests
             0,
             0,
             baits,
+            0,
             sowsForLive + sowsReposition + malesReposition + baits,
             []);
     }

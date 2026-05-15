@@ -98,11 +98,6 @@
   position: relative;
 }
 
-.select-wrapper select {
-  appearance: none;
-  padding-right: 42px;
-}
-
 .select-wrapper svg,
 .search-input-wrapper svg {
   position: absolute;
@@ -113,7 +108,7 @@
 }
 
 .select-wrapper svg {
-  right: 14px;
+  display: none;
 }
 
 .search-input-wrapper svg {

@@ -12,6 +12,10 @@ public interface IFarmOperationService
 
     Task<FarmAutorrepositionAvailabilityResponse> GetAutorrepositionAvailabilityAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<FarmPendingPorcineTransitionResponse>> GetPendingPorcineTransitionsAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<FarmPendingPorcineTransitionResponse>> ResolvePorcineTransitionAsync(long userId, UserRole role, long farmId, long birthId, ResolvePorcineTransitionRequest request, CancellationToken cancellationToken);
+
     Task<FarmBirthResponse> CreateBirthAsync(long userId, UserRole role, long farmId, CreateFarmBirthRequest request, CancellationToken cancellationToken);
 
     Task<FarmBirthResponse> UpdateBirthAsync(long userId, UserRole role, long farmId, long birthId, UpdateFarmBirthRequest request, CancellationToken cancellationToken);
@@ -66,14 +70,139 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
     public async Task<FarmAutorrepositionAvailabilityResponse> GetAutorrepositionAvailabilityAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken)
     {
         var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+        EnsureOvineOrCaprineFarm(farm);
         var today = DateOnly.FromDateTime(clock.UtcNow.Date);
         return await CalculateAutorrepositionAvailabilityAsync(farm, today, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<FarmPendingPorcineTransitionResponse>> GetPendingPorcineTransitionsAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken)
+    {
+        var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+        EnsurePorcineFarm(farm);
+
+        var today = DateOnly.FromDateTime(clock.UtcNow.Date);
+        return await BuildPendingPorcineTransitionsAsync(farm, today, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<FarmPendingPorcineTransitionResponse>> ResolvePorcineTransitionAsync(long userId, UserRole role, long farmId, long birthId, ResolvePorcineTransitionRequest request, CancellationToken cancellationToken)
+    {
+        var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+        EnsurePorcineFarm(farm);
+
+        var today = DateOnly.FromDateTime(clock.UtcNow.Date);
+        var birth = await dbContext.AnimalBirths
+            .Include(entity => entity.PorcineTransitionDecision)
+            .SingleOrDefaultAsync(entity => entity.Id == birthId && entity.LivestockFarmId == farmId, cancellationToken);
+
+        if (birth is null)
+        {
+            throw new DomainException("Nacimiento no encontrado.");
+        }
+
+        var effectiveDate = PorcineTransitionSupport.GetDecisionDate(birth.BirthDate);
+        if (effectiveDate > today)
+        {
+            throw new DomainException("La reclasificación porcina no se puede resolver antes de que el lote cumpla 3 meses.");
+        }
+
+        var consumedAnimals = await dbContext.Animals
+            .AsNoTracking()
+            .Include(entity => entity.Porcino)
+            .Where(entity =>
+                entity.SourceBirthId == birth.Id &&
+                entity.RegistrationDate != null &&
+                entity.RegistrationDate <= today)
+            .ToListAsync(cancellationToken);
+
+        var currentConsumption = BuildPorcineDecisionConsumption(consumedAnimals);
+        var remainingQuantities = birth.PorcineTransitionDecision is null
+            ? new PorcineDecisionRemainingQuantities(
+                Math.Max(0, birth.OffspringNumber - consumedAnimals.Count),
+                0,
+                0)
+            : PorcineTransitionSupport.CalculateRemainingQuantities(birth.PorcineTransitionDecision, currentConsumption);
+        var expectedTotal = birth.PorcineTransitionDecision is null
+            ? Math.Max(0, birth.OffspringNumber - consumedAnimals.Count)
+            : remainingQuantities.Total;
+
+        if (request.ToRears < 0 || request.ToSowsReposition < 0 || request.ToMalesReposition < 0)
+        {
+            throw new DomainException("Las cantidades de reclasificación no pueden ser negativas.");
+        }
+
+        if (request.ToRears + request.ToSowsReposition + request.ToMalesReposition != expectedTotal)
+        {
+            throw new DomainException("La suma del reparto debe coincidir exactamente con los animales pendientes de reclasificación.");
+        }
+
+        Balance balance;
+        if (birth.PorcineTransitionDecision?.BalanceId is long existingBalanceId)
+        {
+            balance = await dbContext.Balances.SingleAsync(entity => entity.Id == existingBalanceId, cancellationToken);
+            balance.BalanceDate = effectiveDate;
+            balance.ModificationCause = AnimalRegistrationCause.Autorreposicion.ToString();
+            balance.NumberOfAnimals = expectedTotal;
+        }
+        else
+        {
+            balance = new Balance
+            {
+                LivestockFarmId = farm.Id,
+                BalanceDate = effectiveDate,
+                ModificationCause = AnimalRegistrationCause.Autorreposicion.ToString(),
+                NumberOfAnimals = expectedTotal
+            };
+            dbContext.Balances.Add(balance);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var balanceDetail = await dbContext.BalancePorcino.SingleOrDefaultAsync(entity => entity.BalanceId == balance.Id, cancellationToken);
+        if (balanceDetail is null)
+        {
+            balanceDetail = new BalancePorcino { BalanceId = balance.Id };
+            dbContext.BalancePorcino.Add(balanceDetail);
+        }
+
+        balanceDetail.Baits = 0;
+        balanceDetail.Boars = 0;
+        balanceDetail.Breed = null;
+        balanceDetail.Piglets = expectedTotal;
+        balanceDetail.PigsReposition = request.ToMalesReposition;
+        balanceDetail.Rear = request.ToRears;
+        balanceDetail.SowsForLive = 0;
+        balanceDetail.SowsReposition = request.ToSowsReposition;
+        balanceDetail.Tag = null;
+        balanceDetail.Type = "Reclasificación porcina";
+
+        if (birth.PorcineTransitionDecision is null)
+        {
+            birth.PorcineTransitionDecision = new PorcineBirthTransitionDecision
+            {
+                BirthId = birth.Id
+            };
+            dbContext.PorcineBirthTransitionDecisions.Add(birth.PorcineTransitionDecision);
+        }
+
+        birth.PorcineTransitionDecision.EffectiveDate = effectiveDate;
+        birth.PorcineTransitionDecision.ToRears = request.ToRears;
+        birth.PorcineTransitionDecision.ToSowsReposition = request.ToSowsReposition;
+        birth.PorcineTransitionDecision.ToMalesReposition = request.ToMalesReposition;
+        birth.PorcineTransitionDecision.BaselineRearsConsumed = currentConsumption.Rears;
+        birth.PorcineTransitionDecision.BaselineSowsRepositionConsumed = currentConsumption.Sows;
+        birth.PorcineTransitionDecision.BaselineMalesRepositionConsumed = currentConsumption.Males;
+        birth.PorcineTransitionDecision.ResolvedAt = clock.UtcNow.UtcDateTime;
+        birth.PorcineTransitionDecision.BalanceId = balance.Id;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return await BuildPendingPorcineTransitionsAsync(farm, today, cancellationToken);
     }
 
     public async Task<FarmBirthResponse> CreateBirthAsync(long userId, UserRole role, long farmId, CreateFarmBirthRequest request, CancellationToken cancellationToken)
     {
         var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
-        ValidateBirthRequest(request.BirthDate, request.OffspringNumber, request.BirthWeight);
+        ValidateBirthRequest(farm, request.BirthDate, request.OffspringNumber, request.BirthWeight, DateOnly.FromDateTime(clock.UtcNow.Date));
 
         var balance = new Balance
         {
@@ -124,11 +253,12 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
 
     public async Task<FarmBirthResponse> UpdateBirthAsync(long userId, UserRole role, long farmId, long birthId, UpdateFarmBirthRequest request, CancellationToken cancellationToken)
     {
-        await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
-        ValidateBirthRequest(request.BirthDate, request.OffspringNumber, request.BirthWeight);
+        var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+        ValidateBirthRequest(farm, request.BirthDate, request.OffspringNumber, request.BirthWeight, DateOnly.FromDateTime(clock.UtcNow.Date));
 
         var birth = await dbContext.AnimalBirths
             .Include(entity => entity.Balance)
+            .Include(entity => entity.PorcineTransitionDecision)
             .SingleOrDefaultAsync(entity => entity.Id == birthId && entity.LivestockFarmId == farmId, cancellationToken);
 
         if (birth is null)
@@ -161,10 +291,6 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             {
                 birth.Balance.LivestockFarmId = farmId;
             }
-
-            var farm = await dbContext.Farms
-                .AsNoTracking()
-                .SingleAsync(entity => entity.Id == farmId, cancellationToken);
 
             if (farm.LivestockSpecies == LivestockSpecies.Porcine)
             {
@@ -212,6 +338,44 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
+        if (birth.PorcineTransitionDecision is not null)
+        {
+            if (PorcineTransitionSupport.GetDecisionDate(request.BirthDate) > DateOnly.FromDateTime(clock.UtcNow.Date))
+            {
+                if (birth.PorcineTransitionDecision.BalanceId is long transitionBalanceId)
+                {
+                    var transitionBalance = await dbContext.Balances.SingleOrDefaultAsync(entity => entity.Id == transitionBalanceId, cancellationToken);
+                    if (transitionBalance is not null)
+                    {
+                        var transitionDetail = await dbContext.BalancePorcino.SingleOrDefaultAsync(entity => entity.BalanceId == transitionBalance.Id, cancellationToken);
+                        if (transitionDetail is not null)
+                        {
+                            dbContext.BalancePorcino.Remove(transitionDetail);
+                        }
+
+                        dbContext.Balances.Remove(transitionBalance);
+                    }
+                }
+
+                dbContext.PorcineBirthTransitionDecisions.Remove(birth.PorcineTransitionDecision);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            else
+            {
+                birth.PorcineTransitionDecision.EffectiveDate = PorcineTransitionSupport.GetDecisionDate(request.BirthDate);
+                if (birth.PorcineTransitionDecision.BalanceId is long transitionBalanceId)
+                {
+                    var transitionBalance = await dbContext.Balances.SingleOrDefaultAsync(entity => entity.Id == transitionBalanceId, cancellationToken);
+                    if (transitionBalance is not null)
+                    {
+                        transitionBalance.BalanceDate = birth.PorcineTransitionDecision.EffectiveDate;
+                    }
+                }
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+        }
+
         return MapBirth(birth);
     }
 
@@ -221,6 +385,7 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
 
         var birth = await dbContext.AnimalBirths
             .Include(entity => entity.Balance)
+            .Include(entity => entity.PorcineTransitionDecision)
             .SingleOrDefaultAsync(entity => entity.Id == birthId && entity.LivestockFarmId == farmId, cancellationToken);
 
         if (birth is null)
@@ -239,6 +404,21 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         if (birth.Balance is not null)
         {
             dbContext.Balances.Remove(birth.Balance);
+        }
+
+        if (birth.PorcineTransitionDecision?.BalanceId is long transitionBalanceId)
+        {
+            var transitionBalance = await dbContext.Balances.SingleOrDefaultAsync(entity => entity.Id == transitionBalanceId, cancellationToken);
+            if (transitionBalance is not null)
+            {
+                var transitionDetail = await dbContext.BalancePorcino.SingleOrDefaultAsync(entity => entity.BalanceId == transitionBalance.Id, cancellationToken);
+                if (transitionDetail is not null)
+                {
+                    dbContext.BalancePorcino.Remove(transitionDetail);
+                }
+
+                dbContext.Balances.Remove(transitionBalance);
+            }
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -595,6 +775,14 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         }
     }
 
+    private static void EnsurePorcineFarm(LivestockFarm farm)
+    {
+        if (farm.LivestockSpecies != LivestockSpecies.Porcine)
+        {
+            throw new DomainException("Esta operación está disponible solo para explotaciones porcinas.");
+        }
+    }
+
     private static void ValidateCensus(LivestockFarm farm, UpdateFarmCensusRequest request)
     {
         var values = IsOvineOrCaprine(farm)
@@ -759,7 +947,7 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         if (string.IsNullOrWhiteSpace(type))
         {
             var birthDate = FarmCensusProjectionSupport.ResolveBirthDate(animal);
-            if (birthDate is not null && FarmCensusProjectionSupport.IsYoungerThanMonths(birthDate.Value, asOfDate, 4))
+            if (birthDate is not null && PorcineTransitionSupport.IsPigletStage(birthDate.Value, asOfDate))
             {
                 return "piglets";
             }
@@ -803,15 +991,17 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
     private async Task<FarmAutorrepositionAvailabilityResponse> CalculateAutorrepositionAvailabilityAsync(LivestockFarm farm, DateOnly asOfDate, CancellationToken cancellationToken)
     {
         var snapshot = await censusProjectionService.BuildSnapshotAsync(farm, asOfDate, cancellationToken);
-        var availableAnimals = snapshot.NonReproductiveUnder4Months + snapshot.NonReproductiveBetween4And12Months;
-        var eligibleAnimals = snapshot.NonReproductiveBetween4And12Months;
+        var availableAnimals = farm.LivestockSpecies == LivestockSpecies.Porcine
+            ? snapshot.Piglets + snapshot.Rears + snapshot.SowsReposition + snapshot.MalesReposition + snapshot.PendingPorcineTransitions
+            : snapshot.NonReproductiveUnder4Months + snapshot.NonReproductiveBetween4And12Months;
+        var eligibleAnimals = farm.LivestockSpecies == LivestockSpecies.Porcine
+            ? snapshot.Rears + snapshot.SowsReposition + snapshot.MalesReposition
+            : snapshot.NonReproductiveBetween4And12Months;
         return new FarmAutorrepositionAvailabilityResponse(availableAnimals, eligibleAnimals);
     }
 
-    private static void ValidateBirthRequest(DateOnly birthDate, int offspringNumber, decimal? birthWeight)
+    private static void ValidateBirthRequest(LivestockFarm farm, DateOnly birthDate, int offspringNumber, decimal? birthWeight, DateOnly today)
     {
-        _ = birthDate;
-
         if (offspringNumber <= 0)
         {
             throw new DomainException("El número de crías debe ser mayor que cero.");
@@ -821,6 +1011,95 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         {
             throw new DomainException("El peso de nacimiento no puede ser negativo.");
         }
+
+        if (birthDate > today)
+        {
+            throw new DomainException("La fecha de nacimiento no puede estar en el futuro.");
+        }
+
+        if (farm.LivestockSpecies == LivestockSpecies.Porcine && birthDate.AddMonths(3) < today)
+        {
+            throw new DomainException("En porcino no puedes registrar nacimientos con más de 3 meses de antigüedad.");
+        }
+    }
+
+    private async Task<IReadOnlyList<FarmPendingPorcineTransitionResponse>> BuildPendingPorcineTransitionsAsync(LivestockFarm farm, DateOnly asOfDate, CancellationToken cancellationToken)
+    {
+        var births = await dbContext.AnimalBirths
+            .AsNoTracking()
+            .Include(entity => entity.PorcineTransitionDecision)
+            .Where(entity => entity.LivestockFarmId == farm.Id && entity.BirthDate.AddMonths(PorcineTransitionSupport.DecisionAgeMonths) <= asOfDate)
+            .OrderBy(entity => entity.BirthDate)
+            .ThenBy(entity => entity.Id)
+            .ToListAsync(cancellationToken);
+
+        var pendingBirths = births
+            .Where(entity => entity.PorcineTransitionDecision is null)
+            .ToList();
+        if (pendingBirths.Count == 0)
+        {
+            return [];
+        }
+
+        var birthIds = pendingBirths.Select(entity => entity.Id).ToArray();
+        var consumedByBirthId = await dbContext.Animals
+            .AsNoTracking()
+            .Where(entity =>
+                entity.SourceBirthId != null &&
+                birthIds.Contains(entity.SourceBirthId.Value) &&
+                entity.RegistrationDate != null &&
+                entity.RegistrationDate <= asOfDate)
+            .GroupBy(entity => entity.SourceBirthId!.Value)
+            .Select(entity => new { BirthId = entity.Key, Count = entity.Count() })
+            .ToDictionaryAsync(entity => entity.BirthId, entity => entity.Count, cancellationToken);
+
+        return pendingBirths
+            .Select(entity => MapPendingPorcineTransition(
+                entity,
+                Math.Max(0, entity.OffspringNumber - consumedByBirthId.GetValueOrDefault(entity.Id)),
+                asOfDate))
+            .Where(entity => entity.PendingQuantity > 0)
+            .ToList();
+    }
+
+    private static PorcineDecisionConsumption BuildPorcineDecisionConsumption(IEnumerable<Animal> animals)
+    {
+        var rears = 0;
+        var sows = 0;
+        var males = 0;
+
+        foreach (var animal in animals)
+        {
+            switch (PorcineTransitionSupport.ResolveBranch(animal.Porcino?.AnimalType))
+            {
+                case PorcineTransitionBranch.Sows:
+                    sows++;
+                    break;
+                case PorcineTransitionBranch.Males:
+                    males++;
+                    break;
+                default:
+                    rears++;
+                    break;
+            }
+        }
+
+        return new PorcineDecisionConsumption(rears, sows, males);
+    }
+
+    private static FarmPendingPorcineTransitionResponse MapPendingPorcineTransition(AnimalBirth birth, int pendingQuantity, DateOnly asOfDate)
+    {
+        var dueDate = PorcineTransitionSupport.GetDecisionDate(birth.BirthDate);
+        var finalTransitionDate = PorcineTransitionSupport.GetFinalTransitionDate(birth.BirthDate);
+        return new FarmPendingPorcineTransitionResponse(
+            birth.Id,
+            birth.LivestockFarmId,
+            birth.BirthDate,
+            dueDate,
+            finalTransitionDate,
+            pendingQuantity,
+            finalTransitionDate <= asOfDate,
+            birth.Observations);
     }
 
     private static FarmMonthlyBalanceResponse BuildMonthlyBalance(int month, IEnumerable<Balance> balances)
@@ -932,6 +1211,7 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             0,
             0,
             0,
+            0,
             availableYears);
     }
 
@@ -968,6 +1248,7 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             piglets,
             rears,
             baits,
+            0,
             total,
             availableYears);
     }

@@ -19,7 +19,7 @@ public interface IFarmService
     Task<FarmDetailResponse> GetDetailAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
 }
 
-public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFarmService
+public sealed class FarmService(PecualiaDbContext dbContext, IClock clock, IFarmCensusProjectionService censusProjectionService) : IFarmService
 {
     public async Task<IReadOnlyList<FarmListItemResponse>> GetAccessibleFarmsAsync(long userId, UserRole role, CancellationToken cancellationToken)
     {
@@ -29,11 +29,17 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             .AsNoTracking()
             .Include(entity => entity.Farmer)
             .ThenInclude(entity => entity.User)
-            .Include(entity => entity.Animals)
             .OrderBy(entity => entity.Name)
             .ToListAsync(cancellationToken);
 
-        return farms.Select(Map).ToList();
+        var today = DateOnly.FromDateTime(clock.UtcNow.UtcDateTime);
+        var responses = new List<FarmListItemResponse>(farms.Count);
+        foreach (var farm in farms)
+        {
+            responses.Add(await MapAsync(farm, today, cancellationToken));
+        }
+
+        return responses;
     }
 
     public async Task<FarmListItemResponse> CreateFarmAsync(long userId, UserRole role, CreateFarmRequest request, CancellationToken cancellationToken)
@@ -122,10 +128,20 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
         var createdFarm = await dbContext.Farms
             .Include(entity => entity.Farmer)
             .ThenInclude(entity => entity.User)
-            .Include(entity => entity.Animals)
             .SingleAsync(entity => entity.Id == farm.Id, cancellationToken);
 
-        return Map(createdFarm);
+        return new FarmListItemResponse(
+            createdFarm.Id,
+            createdFarm.FarmerId,
+            createdFarm.Name,
+            createdFarm.RegaCode,
+            createdFarm.LivestockSpecies.ToString(),
+            EmptyToNull(createdFarm.Town),
+            EmptyToNull(createdFarm.Province),
+            BuildFarmerName(createdFarm.Farmer),
+            0,
+            createdFarm.AuthorisedCapacity,
+            EmptyToNull(createdFarm.PorcineRegistryNumber));
     }
 
     public async Task<FarmDetailResponse> UpdateFarmAsync(long userId, UserRole role, long farmId, UpdateFarmRequest request, CancellationToken cancellationToken)
@@ -222,7 +238,6 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             .AsNoTracking()
             .Include(entity => entity.Farmer)
             .ThenInclude(entity => entity.User)
-            .Include(entity => entity.Animals)
             .SingleOrDefaultAsync(entity => entity.Id == farmId, cancellationToken);
 
         if (farm is null)
@@ -230,13 +245,15 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             throw new DomainException("Explotación no encontrada.");
         }
 
+        var animalCount = await GetCurrentAnimalCountAsync(farm, cancellationToken);
+
         return new FarmSummaryResponse(
             farm.Id,
             farm.Name,
             farm.RegaCode,
             farm.LivestockSpecies.ToString(),
             $"{farm.Farmer.User.Name} {farm.Farmer.User.Surname}".Trim(),
-            farm.Animals.Count,
+            animalCount,
             farm.AuthorisedCapacity,
             EmptyToNull(farm.PorcineRegistryNumber),
             farm.Regime?.ToString(),
@@ -251,13 +268,14 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             .AsNoTracking()
             .Include(entity => entity.Farmer)
             .ThenInclude(entity => entity.User)
-            .Include(entity => entity.Animals)
             .SingleOrDefaultAsync(entity => entity.Id == farmId, cancellationToken);
 
         if (farm is null)
         {
             throw new DomainException("Explotación no encontrada.");
         }
+
+        var animalCount = await GetCurrentAnimalCountAsync(farm, cancellationToken);
 
         return new FarmDetailResponse(
             farm.Id,
@@ -266,7 +284,7 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             farm.RegaCode,
             farm.LivestockSpecies.ToString(),
             BuildFarmerName(farm.Farmer),
-            farm.Animals.Count,
+            animalCount,
             farm.AuthorisedCapacity,
             EmptyToNull(farm.PorcineRegistryNumber),
             farm.Regime?.ToString(),
@@ -315,8 +333,10 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
         }
     }
 
-    private static FarmListItemResponse Map(LivestockFarm farm)
+    private async Task<FarmListItemResponse> MapAsync(LivestockFarm farm, DateOnly asOfDate, CancellationToken cancellationToken)
     {
+        var animalCount = await GetCurrentAnimalCountAsync(farm, asOfDate, cancellationToken);
+
         return new FarmListItemResponse(
             farm.Id,
             farm.FarmerId,
@@ -326,9 +346,21 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock) : IFa
             EmptyToNull(farm.Town),
             EmptyToNull(farm.Province),
             BuildFarmerName(farm.Farmer),
-            farm.Animals.Count,
+            animalCount,
             farm.AuthorisedCapacity,
             EmptyToNull(farm.PorcineRegistryNumber));
+    }
+
+    private Task<int> GetCurrentAnimalCountAsync(LivestockFarm farm, CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(clock.UtcNow.UtcDateTime);
+        return GetCurrentAnimalCountAsync(farm, today, cancellationToken);
+    }
+
+    private async Task<int> GetCurrentAnimalCountAsync(LivestockFarm farm, DateOnly asOfDate, CancellationToken cancellationToken)
+    {
+        var snapshot = await censusProjectionService.BuildSnapshotAsync(farm, asOfDate, cancellationToken);
+        return snapshot.Total;
     }
 
     private static string Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();

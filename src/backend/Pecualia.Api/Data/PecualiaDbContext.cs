@@ -24,6 +24,8 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
 
     public DbSet<AnimalBirth> AnimalBirths => Set<AnimalBirth>();
 
+    public DbSet<PorcineBirthTransitionDecision> PorcineBirthTransitionDecisions => Set<PorcineBirthTransitionDecision>();
+
     public DbSet<Vaccination> Vaccinations => Set<Vaccination>();
 
     public DbSet<MovementCertificate> MovementCertificates => Set<MovementCertificate>();
@@ -267,6 +269,28 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
             .WithMany()
             .HasForeignKey(entity => entity.FatherAnimalId)
             .OnDelete(DeleteBehavior.SetNull);
+        animalBirth.HasOne(entity => entity.PorcineTransitionDecision)
+            .WithOne(entity => entity.Birth)
+            .HasForeignKey<PorcineBirthTransitionDecision>(entity => entity.BirthId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var porcineBirthTransitionDecision = modelBuilder.Entity<PorcineBirthTransitionDecision>();
+        porcineBirthTransitionDecision.ToTable("porcine_birth_transition_decision");
+        porcineBirthTransitionDecision.HasKey(entity => entity.BirthId);
+        porcineBirthTransitionDecision.Property(entity => entity.BirthId).HasColumnName("birth_id");
+        porcineBirthTransitionDecision.Property(entity => entity.EffectiveDate).HasColumnName("effective_date");
+        porcineBirthTransitionDecision.Property(entity => entity.ToRears).HasColumnName("to_rears");
+        porcineBirthTransitionDecision.Property(entity => entity.ToSowsReposition).HasColumnName("to_sows_reposition");
+        porcineBirthTransitionDecision.Property(entity => entity.ToMalesReposition).HasColumnName("to_males_reposition");
+        porcineBirthTransitionDecision.Property(entity => entity.BaselineRearsConsumed).HasColumnName("baseline_rears_consumed");
+        porcineBirthTransitionDecision.Property(entity => entity.BaselineSowsRepositionConsumed).HasColumnName("baseline_sows_reposition_consumed");
+        porcineBirthTransitionDecision.Property(entity => entity.BaselineMalesRepositionConsumed).HasColumnName("baseline_males_reposition_consumed");
+        porcineBirthTransitionDecision.Property(entity => entity.ResolvedAt).HasColumnName("resolved_at");
+        porcineBirthTransitionDecision.Property(entity => entity.BalanceId).HasColumnName("balance_id");
+        porcineBirthTransitionDecision.HasOne(entity => entity.Balance)
+            .WithMany()
+            .HasForeignKey(entity => entity.BalanceId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         var vaccination = modelBuilder.Entity<Vaccination>();
         vaccination.ToTable("vaccination");
@@ -303,6 +327,7 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         movementCertificate.Property(entity => entity.SolicitationDate).HasColumnName("solicitation_date");
         movementCertificate.Property(entity => entity.TransportName).HasColumnName("transport_name").HasMaxLength(180);
         movementCertificate.Property(entity => entity.VehicleRegistrationNumber).HasColumnName("vehicle_registration_number").HasMaxLength(40);
+        movementCertificate.Property(entity => entity.AnimalType).HasColumnName("animal_type").HasMaxLength(80);
         movementCertificate.Property(entity => entity.UnidentifiedCategory)
             .HasColumnName("unidentified_category")
             .HasConversion(

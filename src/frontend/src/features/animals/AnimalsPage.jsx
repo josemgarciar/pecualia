@@ -86,7 +86,7 @@ function createDischargeFormState(species) {
   return {
     dischargeDate: new Date().toISOString().slice(0, 10),
     dischargeCause: 'Salida',
-    destinationCode: species === 'Porcine' ? 'MER' : '',
+    destinationCode: species === 'Porcine' || species === 'Caprine' ? 'MER' : '',
     merCode: ''
   };
 }
@@ -304,6 +304,7 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
 
   const speciesTone = speciesToneMap[animal.livestockSpecies] ?? speciesToneMap.Ovine;
   const merCodeExample = buildMerCodeExample();
+  const isMerOnlySpecies = animal.livestockSpecies === 'Porcine' || animal.livestockSpecies === 'Caprine';
 
   function openDischargeModal() {
     setDischargeError('');
@@ -322,7 +323,7 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
 
     let destinationCode = null;
     if (normalizedCause === 'Muerte') {
-      if (animal.livestockSpecies === 'Porcine') {
+      if (isMerOnlySpecies) {
         if (!dischargeForm.merCode.trim()) {
           setDischargeError('Debes indicar el número de MER.');
           return;
@@ -473,7 +474,7 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
                   ...dischargeForm,
                   dischargeCause: event.target.value,
                   destinationCode: event.target.value === 'Muerte'
-                    ? animal.livestockSpecies === 'Porcine' ? 'MER' : dischargeForm.destinationCode
+                    ? isMerOnlySpecies ? 'MER' : dischargeForm.destinationCode
                     : '',
                   merCode: event.target.value === 'Muerte' ? dischargeForm.merCode : ''
                 })}>
@@ -481,23 +482,24 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
                 <option value="Muerte">Muerte</option>
               </select>
             </label>
-            {dischargeForm.dischargeCause === 'Muerte' && animal.livestockSpecies !== 'Porcine' && (
+            {dischargeForm.dischargeCause === 'Muerte' && (
               <label>
                 Destino
                 <select
                   value={dischargeForm.destinationCode}
+                  disabled={isMerOnlySpecies}
                   onChange={(event) => setDischargeForm({
                     ...dischargeForm,
                     destinationCode: event.target.value,
                     merCode: event.target.value === 'MER' ? dischargeForm.merCode : ''
                   })}>
-                  <option value="">Seleccionar...</option>
+                  {!isMerOnlySpecies && <option value="">Seleccionar...</option>}
                   <option value="SANDACH">SANDACH</option>
                   <option value="MER">MER</option>
                 </select>
               </label>
             )}
-            {dischargeForm.dischargeCause === 'Muerte' && (animal.livestockSpecies === 'Porcine' || dischargeForm.destinationCode === 'MER') && (
+            {dischargeForm.dischargeCause === 'Muerte' && (isMerOnlySpecies || dischargeForm.destinationCode === 'MER') && (
               <label>
                 Nº MER
                 <div className="animal-discharge-mer-row">

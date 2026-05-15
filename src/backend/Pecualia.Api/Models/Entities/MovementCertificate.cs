@@ -38,6 +38,8 @@ public sealed class MovementCertificate
 
     public string? DestinationExternalName { get; set; }
 
+    public string? AnimalType { get; set; }
+
     public Models.Enums.MovementUnidentifiedCategory? UnidentifiedCategory { get; set; }
 
     public LivestockFarm? OriginFarm { get; set; }

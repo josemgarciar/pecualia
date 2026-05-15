@@ -24,6 +24,7 @@ import {
 import { FarmDeathsSection } from './FarmDeathsSection';
 import { FarmIncidentsSection } from './FarmIncidentsSection';
 import { FarmInspectionsSection } from './FarmInspectionsSection';
+import { FarmPorcineTransitionsModal } from './FarmPorcineTransitionsModal';
 import { FarmSummarySection } from './FarmSummarySection';
 import { FarmVaccinationsSection } from './FarmVaccinationsSection';
 
@@ -40,6 +41,8 @@ export function FarmDetailPage() {
   const [settingsSubmitting, setSettingsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
   const [movementAnimalFilter, setMovementAnimalFilter] = useState(null);
+  const [pendingPorcineTransitions, setPendingPorcineTransitions] = useState([]);
+  const [porcineTransitionsOpen, setPorcineTransitionsOpen] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -48,6 +51,7 @@ export function FarmDetailPage() {
       setActiveTab('summary');
       setMovementAnimalFilter(null);
       setSettingsModalOpen(false);
+      setPorcineTransitionsOpen(false);
       loadFarmDetail(farmId);
     } else {
       setLoading(false);
@@ -71,10 +75,22 @@ export function FarmDetailPage() {
 
       setFarm(farmResult.value);
       setSummaryCensus(censusResult.status === 'fulfilled' ? censusResult.value : null);
+
+      if (farmResult.value.livestockSpecies === 'Porcine') {
+        try {
+          const pendingResponse = await apiRequest(`/api/farms/${targetFarmId}/porcine-transitions/pending`, { token });
+          setPendingPorcineTransitions(pendingResponse);
+        } catch {
+          setPendingPorcineTransitions([]);
+        }
+      } else {
+        setPendingPorcineTransitions([]);
+      }
     } catch (requestError) {
       setError(requestError.message);
       setFarm(null);
       setSummaryCensus(null);
+      setPendingPorcineTransitions([]);
     } finally {
       setLoading(false);
     }
@@ -174,8 +190,9 @@ export function FarmDetailPage() {
       return null;
     }
 
-    return Math.round((farm.animalCount / farm.authorisedCapacity) * 100);
-  }, [farm]);
+    const currentAnimalCount = summaryCensus?.total ?? farm.animalCount;
+    return Math.round((currentAnimalCount / farm.authorisedCapacity) * 100);
+  }, [farm, summaryCensus]);
 
   if (loading) {
     return <div className="screen-center">Cargando explotación...</div>;
@@ -198,6 +215,7 @@ export function FarmDetailPage() {
 
   const speciesTone = speciesToneMap[farm.livestockSpecies] ?? { bg: '#F3F4F6', color: '#6B7280', label: farm.livestockSpecies };
   const activeTabConfig = detailTabs.find((tab) => tab.key === activeTab) ?? detailTabs[0];
+  const currentAnimalCount = summaryCensus?.total ?? farm.animalCount;
   const sectionContent = {
     summary: <FarmSummarySection farm={farm} summaryCensus={summaryCensus} />,
     animals: (
@@ -264,7 +282,7 @@ export function FarmDetailPage() {
         </div>
 
         <div className="farm-detail-metrics">
-          <SummaryMetric label="Animales registrados" value={farm.animalCount} tone="success" />
+          <SummaryMetric label="Censo actual" value={currentAnimalCount} tone="success" />
           {farm.livestockSpecies === 'Porcine' && farm.porcineRegistryNumber && (
             <SummaryMetric label="Registro porcino" value={farm.porcineRegistryNumber} />
           )}
@@ -295,6 +313,20 @@ export function FarmDetailPage() {
             <div className="occupancy-bar">
               <div className="occupancy-bar-fill" style={{ width: `${Math.min(occupancy, 100)}%` }} />
             </div>
+          </div>
+        )}
+
+        {farm.livestockSpecies === 'Porcine' && pendingPorcineTransitions.length > 0 && (
+          <div className="warning-banner porcine-transition-banner">
+            <div>
+              <strong>{pendingPorcineTransitions.length} lotes porcinos pendientes de reclasificación</strong>
+              <span>
+                {pendingPorcineTransitions.reduce((sum, item) => sum + item.pendingQuantity, 0)} animales deben repartirse al cumplir 3 meses.
+              </span>
+            </div>
+            <button className="secondary-button" type="button" onClick={() => setPorcineTransitionsOpen(true)}>
+              Resolver ahora
+            </button>
           </div>
         )}
       </section>
@@ -346,6 +378,19 @@ export function FarmDetailPage() {
           onChange={updateSettingsField}
           onClose={closeSettingsModal}
           onSubmit={submitSettingsForm}
+        />
+      )}
+
+      {porcineTransitionsOpen && pendingPorcineTransitions.length > 0 && (
+        <FarmPorcineTransitionsModal
+          farm={farm}
+          token={token}
+          tasks={pendingPorcineTransitions}
+          onClose={() => setPorcineTransitionsOpen(false)}
+          onResolved={async () => {
+            await loadFarmDetail(farm.id);
+            setPorcineTransitionsOpen(false);
+          }}
         />
       )}
     </div>

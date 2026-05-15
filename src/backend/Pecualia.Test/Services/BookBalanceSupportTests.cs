@@ -45,7 +45,7 @@ public sealed class BookBalanceSupportTests
         lookup.Should().ContainKey(balance.Id);
         lookup[balance.Id].CounterpartyCode.Should().Be("ES020");
         lookup[balance.Id].GuideNumber.Should().Be("GUIA-EXIT-01");
-        BookBalanceSupport.ResolveOvineCounterpartyCode(balance, lookup[balance.Id]).Should().Be("ES020");
+        BookBalanceSupport.ResolveBalanceCounterpartyCode(balance, lookup[balance.Id]).Should().Be("ES020");
         BookBalanceSupport.ResolveGuideSerie(lookup[balance.Id]).Should().Be("GUIA-EXIT-01");
     }
 
@@ -89,12 +89,12 @@ public sealed class BookBalanceSupportTests
         lookup.Should().ContainKey(balance.Id);
         lookup[balance.Id].CounterpartyCode.Should().Be("ES020");
         lookup[balance.Id].GuideNumber.Should().Be("GUIA-ENTRY-01");
-        BookBalanceSupport.ResolveOvineCounterpartyCode(balance, lookup[balance.Id]).Should().Be("ES020");
+        BookBalanceSupport.ResolveBalanceCounterpartyCode(balance, lookup[balance.Id]).Should().Be("ES020");
         BookBalanceSupport.ResolveGuideSerie(lookup[balance.Id]).Should().Be("GUIA-ENTRY-01");
     }
 
     [Fact]
-    public void ResolveOvineBalanceFields_FallBackToStoredBalanceValues_WhenNoMovementIsMatched()
+    public void ResolveBalanceFields_FallBackToStoredBalanceValues_WhenNoMovementIsMatched()
     {
         var exitBalance = new Balance
         {
@@ -107,8 +107,8 @@ public sealed class BookBalanceSupportTests
             OriginLivestockCode = "ES111"
         };
 
-        BookBalanceSupport.ResolveOvineCounterpartyCode(exitBalance, null).Should().Be("ES999");
-        BookBalanceSupport.ResolveOvineCounterpartyCode(entryBalance, null).Should().Be("ES111");
+        BookBalanceSupport.ResolveBalanceCounterpartyCode(exitBalance, null).Should().Be("ES999");
+        BookBalanceSupport.ResolveBalanceCounterpartyCode(entryBalance, null).Should().Be("ES111");
         BookBalanceSupport.ResolveGuideSerie(null).Should().BeNull();
     }
 }

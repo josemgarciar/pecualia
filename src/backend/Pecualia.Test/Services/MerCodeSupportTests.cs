@@ -31,11 +31,20 @@ public sealed class MerCodeSupportTests
     }
 
     [Fact]
-    public void NormalizeDeathDestinationCode_RejectsMerCodeFromAnotherYear()
+    public void NormalizeDeathDestinationCode_RejectsSandach_ForCaprine()
+    {
+        var action = () => MerCodeSupport.NormalizeDeathDestinationCode(LivestockSpecies.Caprine, "SANDACH", 2026);
+
+        action.Should().Throw<DomainException>()
+            .WithMessage("En ganado caprino, una baja por muerte solo puede registrarse con un número MER válido.");
+    }
+
+    [Fact]
+    public void NormalizeDeathDestinationCode_RejectsMerCodeFromAnotherYear_ForCaprine()
     {
         var action = () => MerCodeSupport.NormalizeDeathDestinationCode(LivestockSpecies.Caprine, "AR25-1234567", 2026);
 
         action.Should().Throw<DomainException>()
-            .WithMessage("El destino de una baja por muerte debe ser SANDACH o un número MER válido con formato AR26-1234567.");
+            .WithMessage("Debes indicar un número MER válido con formato AR26-1234567.");
     }
 }

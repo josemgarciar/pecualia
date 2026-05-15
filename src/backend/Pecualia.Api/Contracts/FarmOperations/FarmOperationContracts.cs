@@ -12,6 +12,21 @@ public sealed record FarmAutorrepositionAvailabilityResponse(
     int AvailableAnimals,
     int EligibleAnimals);
 
+public sealed record FarmPendingPorcineTransitionResponse(
+    long BirthId,
+    long FarmId,
+    DateOnly BirthDate,
+    DateOnly DueDate,
+    DateOnly FinalTransitionDate,
+    int PendingQuantity,
+    bool IsOverdue,
+    string? Observations);
+
+public sealed record ResolvePorcineTransitionRequest(
+    int ToRears,
+    int ToSowsReposition,
+    int ToMalesReposition);
+
 public sealed record CreateFarmBirthRequest(
     DateOnly BirthDate,
     int OffspringNumber,
@@ -81,6 +96,7 @@ public sealed record FarmCensusResponse(
     int Piglets,
     int Rears,
     int Baits,
+    int PendingPorcineTransitions,
     int Total,
     IReadOnlyList<int> AvailableYears);
 
