@@ -50,6 +50,7 @@ project.lock.json
 .playwright-mcp/
 **/TestResults/
 coverage/
+*.lscache
 
 # =========================
 # Project-specific

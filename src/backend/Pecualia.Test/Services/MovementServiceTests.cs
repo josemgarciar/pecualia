@@ -147,6 +147,43 @@ public sealed class MovementServiceTests
     }
 
     [Fact]
+    public async Task PreviewImportAsync_NormalizesReaderExportLine_ForOvineImport()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock);
+        var farm = await SeedFarmAsync(dbContext, 1031, LivestockSpecies.Ovine, "ES410010000131");
+
+        var preview = await service.PreviewImportAsync(farm.FarmerId, UserRole.Farmer, new PreviewMovementImportRequest(
+            farm.Id,
+            MovementImportOperation.Alta,
+            "ES410010009991",
+            "Origen externo",
+            "REMO-LECTOR-1",
+            null,
+            new DateTime(2026, 05, 15, 0, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 05, 15, 0, 0, 0, DateTimeKind.Utc),
+            null,
+            null,
+            null,
+            null,
+            MovementImportCause.Entrada,
+            null,
+            null,
+            null,
+            "[A0040000724100007879164|109BA0275|2|016||H|11111999|23022026|02]",
+            null,
+            null,
+            null), CancellationToken.None);
+
+        preview.Rows.Should().ContainSingle();
+        preview.Rows[0].Identification.Should().Be("ES100007879164");
+        preview.Rows[0].Status.Should().Be("not_found");
+        preview.Summary.InvalidFormatRows.Should().Be(0);
+        preview.Summary.NotFoundRows.Should().Be(1);
+    }
+
+    [Fact]
     public async Task CreateManualMovementAsync_RejectsExternalCounterpartyWithoutName()
     {
         await using var dbContext = ServiceTestDbFactory.CreateContext();

@@ -65,4 +65,12 @@ public sealed class DomainValidatorsTests
 
         normalized.Should().Be("ES060000583100");
     }
+
+    [Fact]
+    public void NormalizeAnimalIdentification_ExtractsOfficialIdentification_FromReaderExportLine()
+    {
+        var normalized = DomainValidators.NormalizeAnimalIdentification("[A0040000724100007879164|109BA0275|2|016||H|11111999|23022026|02]");
+
+        normalized.Should().Be("ES100007879164");
+    }
 }

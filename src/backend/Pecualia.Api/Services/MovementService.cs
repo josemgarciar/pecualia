@@ -1924,6 +1924,12 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             return NormalizeIdentifierToken(porcineAlternativeMatch.Value);
         }
 
+        var normalizedWholeLine = DomainValidators.NormalizeAnimalIdentification(normalizedLine);
+        if (!string.Equals(normalizedWholeLine, normalizedLine, StringComparison.Ordinal))
+        {
+            return normalizedWholeLine;
+        }
+
         var firstToken = normalizedLine
             .Split(new[] { ' ', '\t', ',', ';', '|', ':', '#', '(', ')' }, StringSplitOptions.RemoveEmptyEntries)
             .FirstOrDefault() ?? string.Empty;
@@ -1945,25 +1951,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
 
     private static string NormalizeIdentifierToken(string value)
     {
-        var token = value
-            .Trim()
-            .ToUpperInvariant();
-
-        var officialMatch = Regex.Match(token, "^ES[\\s._-]*((?:\\d[\\s._-]*){12})(?:-([A-Z0-9]{3,}))?$");
-        if (officialMatch.Success)
-        {
-            var digits = Regex.Replace(officialMatch.Groups[1].Value, "\\D", string.Empty);
-            var suffix = officialMatch.Groups[2].Success ? $"-{officialMatch.Groups[2].Value}" : string.Empty;
-            return $"ES{digits}{suffix}";
-        }
-
-        var porcineAlternativeMatch = Regex.Match(token, "^GT[\\s._-]*(\\d+)$");
-        if (porcineAlternativeMatch.Success)
-        {
-            return $"GT{porcineAlternativeMatch.Groups[1].Value}";
-        }
-
-        return token
+        return DomainValidators.NormalizeAnimalIdentification(value)
             .Replace(" ", string.Empty)
             .Replace("\t", string.Empty)
             .Replace(".", string.Empty)

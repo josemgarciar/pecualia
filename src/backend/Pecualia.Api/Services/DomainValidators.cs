@@ -7,6 +7,7 @@ internal static class DomainValidators
 {
     private const string DniLetters = "TRWAGMYFPDXBNJZSQVHLCKE";
     private const string CifControlLetters = "JABCDEFGHI";
+    private const int OfficialAnimalIdentificationDigits = 12;
 
     private static readonly Regex RegaCodeRegex = new("^ES\\d{12}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex OfficialAnimalIdentificationRegex = new("^ES\\d{12}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -40,6 +41,11 @@ internal static class DomainValidators
         if (porcineAlternativeMatch.Success)
         {
             return $"GT{porcineAlternativeMatch.Groups[1].Value}";
+        }
+
+        if (TryNormalizeReaderExportIdentification(token, out var readerIdentification))
+        {
+            return readerIdentification;
         }
 
         return token;
@@ -134,5 +140,34 @@ internal static class DomainValidators
     {
         return int.TryParse(numericPart, out var number) &&
             DniLetters[number % DniLetters.Length] == controlLetter;
+    }
+
+    private static bool TryNormalizeReaderExportIdentification(string token, out string identification)
+    {
+        identification = string.Empty;
+
+        if (!token.Contains('|', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var firstField = token
+            .Trim('[', ']')
+            .Split('|', StringSplitOptions.TrimEntries)
+            .FirstOrDefault();
+
+        if (string.IsNullOrWhiteSpace(firstField))
+        {
+            return false;
+        }
+
+        var digits = Regex.Replace(firstField, "\\D", string.Empty);
+        if (digits.Length < OfficialAnimalIdentificationDigits)
+        {
+            return false;
+        }
+
+        identification = $"ES{digits[^OfficialAnimalIdentificationDigits..]}";
+        return true;
     }
 }
