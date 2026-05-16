@@ -174,6 +174,8 @@ export function emptyToNull(value) {
 export function createDeathFormState(species) {
   return {
     identification: '',
+    animalType: '',
+    quantity: '1',
     dischargeDate: new Date().toISOString().slice(0, 10),
     destinationCode: isMerOnlyDeathSpecies(species) ? 'MER' : '',
     merCode: ''

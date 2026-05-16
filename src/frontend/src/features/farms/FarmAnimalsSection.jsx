@@ -55,7 +55,6 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
   const [loadingAutorrepositionBirths, setLoadingAutorrepositionBirths] = useState(false);
   const [breedOptions, setBreedOptions] = useState([]);
   const [loadingBreedOptions, setLoadingBreedOptions] = useState(false);
-  const identificationLabel = farm.livestockSpecies === 'Porcine' ? 'Lote' : 'Crotal';
   const isInitialLoading = loading && animals.length === 0 && !error;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const visiblePageNumbers = useMemo(() => {
@@ -510,7 +509,7 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
       <div className="animal-filters farm-animals-filters">
         <div className="animal-search">
           <Search size={14} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Buscar ${identificationLabel.toLowerCase()} o raza...`} />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Buscar identificación o raza...`} />
         </div>
       </div>
 
@@ -527,7 +526,7 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
             <table className="animal-table">
               <thead>
                 <tr>
-                  {[identificationLabel, 'Año', 'Raza', 'Sexo', 'Causa alta', 'Procedencia', 'Causa baja', 'Destino', 'Guía entrada/salida'].map((header) => (
+                  {['Identificación', 'Año', 'Raza', 'Sexo', 'Causa alta', 'Procedencia', 'Causa baja', 'Destino', 'Guía entrada/salida'].map((header) => (
                     <th key={header}>{header}</th>
                   ))}
                 </tr>

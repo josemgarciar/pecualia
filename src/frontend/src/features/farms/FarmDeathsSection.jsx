@@ -13,11 +13,13 @@ import {
 import {
   SummaryMetric,
   createDeathFormState,
+  emptyToNull,
   formatDate,
   formatDeathDestination,
   getDeathDestinationOptions,
   getDeathDestinationType,
-  isMerOnlyDeathSpecies
+  isMerOnlyDeathSpecies,
+  porcineAnimalTypeOptions
 } from './FarmDetailShared';
 
 export function FarmDeathsSection({ farm, token }) {
@@ -27,6 +29,7 @@ export function FarmDeathsSection({ farm, token }) {
   const [destination, setDestination] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -55,25 +58,54 @@ export function FarmDeathsSection({ farm, token }) {
   async function handleSubmit(event) {
     event.preventDefault();
     setError('');
+    setFormError('');
     setSuccess('');
+    const quantity = Number(form.quantity);
 
-    if (!form.identification.trim() || !form.dischargeDate || !form.destinationCode) {
-      setError('Crotal, fecha y destino son obligatorios.');
+    if (!form.dischargeDate || !form.destinationCode) {
+      setFormError('Fecha y destino son obligatorios.');
       return;
+    }
+
+    if (farm.livestockSpecies === 'Porcine') {
+      if (!form.animalType.trim()) {
+        setFormError('El tipo de animal es obligatorio en porcino.');
+        return;
+      }
+
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        setFormError('El número de animales debe ser un entero mayor que cero.');
+        return;
+      }
+
+      if (form.identification.trim() && quantity !== 1) {
+        setFormError('Si indicas un crotal individual, el número de animales debe ser 1.');
+        return;
+      }
+
+      if (form.identification.trim() && !isValidAnimalIdentification(farm.livestockSpecies, form.identification)) {
+        setFormError(getAnimalIdentificationFormatMessage(farm.livestockSpecies));
+        return;
+      }
+    } else {
+      if (!form.identification.trim()) {
+        setFormError('Crotal, fecha y destino son obligatorios.');
+        return;
+      }
+
+      if (!isValidAnimalIdentification(farm.livestockSpecies, form.identification)) {
+        setFormError(getAnimalIdentificationFormatMessage(farm.livestockSpecies));
+        return;
+      }
     }
 
     if (form.destinationCode === 'MER' && !form.merCode.trim()) {
-      setError('Debes indicar el número de MER.');
-      return;
-    }
-
-    if (!isValidAnimalIdentification(farm.livestockSpecies, form.identification)) {
-      setError(getAnimalIdentificationFormatMessage(farm.livestockSpecies));
+      setFormError('Debes indicar el número de MER.');
       return;
     }
 
     if (form.destinationCode === 'MER' && !isValidMerCode(form.merCode)) {
-      setError(`El número MER debe tener formato ${merCodeExample}.`);
+      setFormError(`El número MER debe tener formato ${merCodeExample}.`);
       return;
     }
 
@@ -83,7 +115,13 @@ export function FarmDeathsSection({ farm, token }) {
         method: 'POST',
         token,
         body: {
-          identification: normalizeAnimalIdentification(form.identification),
+          identification: form.identification.trim()
+            ? normalizeAnimalIdentification(form.identification)
+            : null,
+          animalType: farm.livestockSpecies === 'Porcine'
+            ? emptyToNull(form.animalType)
+            : null,
+          quantity: farm.livestockSpecies === 'Porcine' ? quantity : 1,
           dischargeDate: form.dischargeDate,
           destinationCode: form.destinationCode === 'MER' ? normalizeMerCode(form.merCode) : form.destinationCode
         }
@@ -91,22 +129,28 @@ export function FarmDeathsSection({ farm, token }) {
       setSuccess('Baja por muerte registrada correctamente.');
       setModalOpen(false);
       setForm(createDeathFormState(farm.livestockSpecies));
+      setFormError('');
       await loadDeaths();
     } catch (requestError) {
-      setError(requestError.message);
+      setFormError(requestError.message);
     } finally {
       setSubmitting(false);
     }
   }
 
   const filteredDeaths = deaths.filter((death) => {
-    const matchesSearch = !search.trim() || `${death.identification} ${death.breed ?? ''}`.toLowerCase().includes(search.trim().toLowerCase());
+    const matchesSearch = !search.trim() || `${death.identification ?? ''} ${death.animalType ?? ''} ${death.breed ?? ''}`.toLowerCase().includes(search.trim().toLowerCase());
     const matchesDestination = !destination || getDeathDestinationType(death.destinationCode) === destination;
     return matchesSearch && matchesDestination;
   });
   const destinationOptions = getDeathDestinationOptions(farm.livestockSpecies);
-  const sandachCount = deaths.filter((death) => death.destinationCode === 'SANDACH').length;
-  const merCount = deaths.filter((death) => getDeathDestinationType(death.destinationCode) === 'MER').length;
+  const totalAnimals = deaths.reduce((sum, death) => sum + (death.numberOfAnimals ?? 1), 0);
+  const sandachCount = deaths
+    .filter((death) => death.destinationCode === 'SANDACH')
+    .reduce((sum, death) => sum + (death.numberOfAnimals ?? 1), 0);
+  const merCount = deaths
+    .filter((death) => getDeathDestinationType(death.destinationCode) === 'MER')
+    .reduce((sum, death) => sum + (death.numberOfAnimals ?? 1), 0);
 
   if (loading) {
     return <div className="panel-card empty-state">Cargando bajas por muerte...</div>;
@@ -115,7 +159,7 @@ export function FarmDeathsSection({ farm, token }) {
   return (
     <section className="panel-card stack">
       <div className="farm-detail-metrics">
-        <SummaryMetric label="Total bajas por muerte" value={deaths.length} />
+        <SummaryMetric label="Total animales de baja" value={totalAnimals} />
         {!isMerOnlyFarm && <SummaryMetric label="SANDACH" value={sandachCount} />}
         {!isMerOnlyFarm && <SummaryMetric label="MER" value={merCount} />}
         <SummaryMetric label="Explotación" value={farm.name} />
@@ -125,10 +169,10 @@ export function FarmDeathsSection({ farm, token }) {
       {success && <div className="success-banner">{success}</div>}
 
       <div className="section-heading-row">
-        <div className="animal-filters farm-animals-filters">
+          <div className="animal-filters farm-animals-filters">
           <div className="animal-search">
             <Search size={14} />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por crotal o raza..." />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por crotal, tipo o raza..." />
           </div>
           <select value={destination} onChange={(event) => setDestination(event.target.value)}>
             <option value="">Todos los destinos</option>
@@ -139,6 +183,7 @@ export function FarmDeathsSection({ farm, token }) {
         </div>
         <button className="primary-button" type="button" onClick={() => {
           setError('');
+          setFormError('');
           setSuccess('');
           setForm(createDeathFormState(farm.livestockSpecies));
           setModalOpen(true);
@@ -153,14 +198,23 @@ export function FarmDeathsSection({ farm, token }) {
           <table className="animal-table">
             <thead>
               <tr>
-                {['Crotal', 'Raza / sexo / año', 'Fecha baja', 'Causa baja', 'Destino'].map((header) => <th key={header}>{header}</th>)}
+                {['Crotal / tipo', 'Nº animales', 'Raza / sexo / año', 'Fecha baja', 'Causa baja', 'Destino'].map((header) => <th key={header}>{header}</th>)}
               </tr>
             </thead>
             <tbody>
               {filteredDeaths.map((death) => (
-                <tr key={death.animalId}>
-                  <td><div className="animal-identification-cell"><Tag size={13} /><strong>{death.identification}</strong></div></td>
-                  <td>{death.breed ?? '—'} · {death.sex ?? 'Sexo no informado'} · {death.birthYear ?? 'Año no informado'}</td>
+                <tr key={death.id}>
+                  <td>
+                    <div className="animal-identification-cell">
+                      <Tag size={13} />
+                      <strong>{death.identification ?? 'Sin crotal'}</strong>
+                    </div>
+                    {!death.identification && death.animalType && <small>{death.animalType}</small>}
+                  </td>
+                  <td>{death.numberOfAnimals ?? 1}</td>
+                  <td>
+                    {death.breed ?? death.animalType ?? '—'} · {death.sex ?? 'Sexo no informado'} · {death.birthYear ?? 'Año no informado'}
+                  </td>
                   <td>{formatDate(death.dischargeDate)}</td>
                   <td><span className="animal-chip death-chip">Muerte</span></td>
                   <td>{formatDeathDestination(death.destinationCode)}</td>
@@ -169,7 +223,7 @@ export function FarmDeathsSection({ farm, token }) {
             </tbody>
           </table>
         </div>
-        <div className="animal-table-footer">{filteredDeaths.length} de {deaths.length} bajas por muerte</div>
+        <div className="animal-table-footer">{filteredDeaths.length} de {deaths.length} registros de baja por muerte</div>
       </div>
 
       {modalOpen && (
@@ -178,13 +232,40 @@ export function FarmDeathsSection({ farm, token }) {
             icon={<Skull size={18} />}
             title="Registrar baja por muerte"
             subtitle={farm.name}
-            onClose={() => setModalOpen(false)}
+            onClose={() => {
+              setModalOpen(false);
+              setFormError('');
+            }}
           />
           <ModalBody className="operation-modal-body">
+            {formError && <div className="error-banner">{formError}</div>}
             <label>
-              <span>Crotal / identificación *</span>
-              <input value={form.identification} onChange={(event) => setForm({ ...form, identification: event.target.value })} placeholder={farm.livestockSpecies === 'Porcine' ? 'Ej: GT1800001004' : 'Ej: ES0600005831'} />
+              <span>{farm.livestockSpecies === 'Porcine' ? 'Crotal / identificación' : 'Crotal / identificación *'}</span>
+              <input value={form.identification} onChange={(event) => setForm({ ...form, identification: event.target.value })} placeholder={farm.livestockSpecies === 'Porcine' ? 'Opcional. Ej: GT1800001004' : 'Ej: ES0600005831'} />
             </label>
+            {farm.livestockSpecies === 'Porcine' && (
+              <label>
+                <span>Tipo de animal *</span>
+                <select value={form.animalType} onChange={(event) => setForm({ ...form, animalType: event.target.value })}>
+                  <option value="">Seleccionar...</option>
+                  {porcineAnimalTypeOptions.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {farm.livestockSpecies === 'Porcine' && (
+              <label>
+                <span>Nº animales *</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={form.quantity}
+                  onChange={(event) => setForm({ ...form, quantity: event.target.value })}
+                />
+              </label>
+            )}
             <label>
               <span>Fecha de baja *</span>
               <input type="date" value={form.dischargeDate} onChange={(event) => setForm({ ...form, dischargeDate: event.target.value })} />
@@ -216,7 +297,10 @@ export function FarmDeathsSection({ farm, token }) {
             )}
           </ModalBody>
           <ModalFooter align="end">
-            <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
+            <button className="secondary-button" type="button" onClick={() => {
+              setModalOpen(false);
+              setFormError('');
+            }}>Cancelar</button>
             <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar baja'}</button>
           </ModalFooter>
         </ModalDialog>

@@ -59,7 +59,7 @@ internal static class BookBalanceSupport
             return movementInfo.CounterpartyCode;
         }
 
-        return IsExitCause(balance.ModificationCause)
+        return UsesDestinationCounterpartyCode(balance.ModificationCause)
             ? BookDocumentSupport.EmptyToNull(balance.DestinationLivestockCode)
             : BookDocumentSupport.EmptyToNull(balance.OriginLivestockCode);
     }
@@ -105,6 +105,12 @@ internal static class BookBalanceSupport
     private static bool IsExitCause(string cause)
     {
         return cause.Equals("Salida", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool UsesDestinationCounterpartyCode(string cause)
+    {
+        return cause.Equals("Salida", StringComparison.OrdinalIgnoreCase) ||
+            cause.Equals("Muerte", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record BalanceMovementCandidate(

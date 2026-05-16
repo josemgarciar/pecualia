@@ -143,6 +143,18 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
                     ))
                 .ToListAsync(cancellationToken);
 
+        List<Balance> aggregatePorcineDeaths = farm.LivestockSpecies != LivestockSpecies.Porcine
+            ? []
+            : await dbContext.Balances
+                .AsNoTracking()
+                .Include(entity => entity.Porcino)
+                .Where(entity =>
+                    entity.LivestockFarmId == farm.Id &&
+                    entity.BalanceDate <= asOfDate &&
+                    entity.ModificationCause == AnimalDischargeCause.Muerte.ToString() &&
+                    entity.OriginLivestockCode == BalanceMarkers.PorcineAggregateDeath)
+                .ToListAsync(cancellationToken);
+
         var consumedUnidentifiedMovementsByAutorreposition = farm.LivestockSpecies == LivestockSpecies.Porcine
             ? 0
             : await dbContext.Animals
@@ -233,6 +245,11 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
             foreach (var movement in porcineAggregateMovements)
             {
                 AccumulateAggregatePorcineMovement(projection, farm.Id, movement);
+            }
+
+            foreach (var balance in aggregatePorcineDeaths)
+            {
+                ApplyStoredPorcineBalance(projection, balance.Porcino, -1);
             }
         }
 
@@ -392,6 +409,22 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
         projection.Rears += breakdown.Rears * sign;
         projection.SowsForLive += breakdown.Sows * sign;
         projection.SowsReposition += breakdown.SowsReposition * sign;
+    }
+
+    private static void ApplyStoredPorcineBalance(FarmCensusProjection projection, BalancePorcino? detail, int sign)
+    {
+        if (detail is null)
+        {
+            return;
+        }
+
+        projection.Baits += detail.Baits * sign;
+        projection.Boars += detail.Boars * sign;
+        projection.Piglets += detail.Piglets * sign;
+        projection.MalesReposition += detail.PigsReposition * sign;
+        projection.Rears += detail.Rear * sign;
+        projection.SowsForLive += detail.SowsForLive * sign;
+        projection.SowsReposition += detail.SowsReposition * sign;
     }
 
     private static PorcineDecisionConsumption BuildPorcineDecisionConsumption(IEnumerable<Animal> animals)

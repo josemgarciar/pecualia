@@ -426,22 +426,84 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
 
     public async Task<IReadOnlyList<FarmDeathResponse>> GetDeathsAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken)
     {
-        await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+        var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
 
-        var deaths = await dbContext.Animals
+        var animalDeaths = await dbContext.Animals
             .AsNoTracking()
+            .Include(entity => entity.Porcino)
             .Where(entity => entity.LivestockFarmId == farmId && entity.DischargeCause == AnimalDischargeCause.Muerte && entity.DischargeDate != null)
             .OrderByDescending(entity => entity.DischargeDate)
             .ThenBy(entity => entity.Identification)
             .ToListAsync(cancellationToken);
 
-        return deaths.Select(MapDeath).ToList();
+        var deaths = animalDeaths
+            .Select(MapDeath)
+            .ToList();
+
+        if (farm.LivestockSpecies == LivestockSpecies.Porcine)
+        {
+            var aggregateDeaths = await dbContext.Balances
+                .AsNoTracking()
+                .Include(entity => entity.Porcino)
+                .Where(entity =>
+                    entity.LivestockFarmId == farmId &&
+                    entity.OriginLivestockCode == BalanceMarkers.PorcineAggregateDeath &&
+                    entity.ModificationCause == AnimalDischargeCause.Muerte.ToString())
+                .OrderByDescending(entity => entity.BalanceDate)
+                .ThenByDescending(entity => entity.Id)
+                .ToListAsync(cancellationToken);
+
+            deaths.AddRange(aggregateDeaths.Select(MapAggregateDeath));
+        }
+
+        return deaths
+            .OrderByDescending(entity => entity.DischargeDate)
+            .ThenByDescending(entity => entity.Id)
+            .ToList();
     }
 
     public async Task<FarmDeathResponse> CreateDeathAsync(long userId, UserRole role, long farmId, CreateFarmDeathRequest request, CancellationToken cancellationToken)
     {
         var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
-        var identification = NormalizeIdentifier(farm.LivestockSpecies, request.Identification, "El crotal o lote no es válido.");
+        var quantity = NormalizeDeathQuantity(request.Quantity);
+        var destinationCode = NormalizeDeathDestinationCode(farm.LivestockSpecies, request.DestinationCode);
+        var porcineAnimalType = farm.LivestockSpecies == LivestockSpecies.Porcine
+            ? NormalizePorcineDeathAnimalType(request.AnimalType)
+            : null;
+        var identification = NormalizeIdentifierOrNull(farm.LivestockSpecies, request.Identification, "El crotal o lote no es válido.");
+
+        if (farm.LivestockSpecies == LivestockSpecies.Porcine && identification is null)
+        {
+            var snapshot = await censusProjectionService.BuildSnapshotAsync(farm, request.DischargeDate, cancellationToken);
+            if (PorcineMovementSupport.GetAvailableAnimals(snapshot, porcineAnimalType) < quantity)
+            {
+                throw new DomainException("No hay suficientes animales disponibles en esa categoría para registrar la baja.");
+            }
+
+            var aggregateBalance = await AddBalanceEventAsync(
+                farm,
+                request.DischargeDate,
+                AnimalDischargeCause.Muerte.ToString(),
+                quantity,
+                cancellationToken,
+                destinationCode: destinationCode,
+                originCode: BalanceMarkers.PorcineAggregateDeath,
+                porcineAnimalType: porcineAnimalType);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            return MapAggregateDeath(aggregateBalance);
+        }
+
+        if (identification is null)
+        {
+            throw new DomainException("Debes indicar el crotal o lote del animal.");
+        }
+
+        if (quantity != 1)
+        {
+            throw new DomainException("Si indicas un crotal individual, el número de animales debe ser 1.");
+        }
+
         var animal = await dbContext.Animals
             .Include(entity => entity.Porcino)
             .SingleOrDefaultAsync(entity => entity.LivestockFarmId == farm.Id && entity.Identification == identification, cancellationToken);
@@ -456,7 +518,22 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             throw new DomainException("El animal ya está dado de baja.");
         }
 
-        var destinationCode = NormalizeDeathDestinationCode(farm.LivestockSpecies, request.DestinationCode);
+        if (farm.LivestockSpecies == LivestockSpecies.Porcine)
+        {
+            if (animal.Porcino is null)
+            {
+                animal.Porcino = new PorcinoAnimal
+                {
+                    AnimalId = animal.Id,
+                    AnimalType = porcineAnimalType!
+                };
+                dbContext.PorcinoAnimals.Add(animal.Porcino);
+            }
+            else
+            {
+                animal.Porcino.AnimalType = porcineAnimalType!;
+            }
+        }
 
         animal.DischargeDate = request.DischargeDate;
         animal.DischargeCause = AnimalDischargeCause.Muerte;
@@ -470,7 +547,8 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             1,
             cancellationToken,
             destinationCode: animal.DestinationCode,
-            animal: animal);
+            animal: animal,
+            porcineAnimalType: porcineAnimalType);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return MapDeath(animal);
@@ -858,7 +936,9 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         int numberOfAnimals,
         CancellationToken cancellationToken,
         string? destinationCode = null,
-        Animal? animal = null)
+        Animal? animal = null,
+        string? originCode = null,
+        string? porcineAnimalType = null)
     {
         var balance = new Balance
         {
@@ -866,46 +946,93 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             BalanceDate = date,
             ModificationCause = cause,
             NumberOfAnimals = numberOfAnimals,
-            DestinationLivestockCode = destinationCode
+            DestinationLivestockCode = destinationCode,
+            OriginLivestockCode = originCode
         };
 
         dbContext.Balances.Add(balance);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        if (animal is not null)
+        if (farm.LivestockSpecies == LivestockSpecies.Porcine)
         {
-            if (farm.LivestockSpecies == LivestockSpecies.Porcine)
+            BalancePorcino? porcineDetail = null;
+
+            if (animal is not null)
             {
-                dbContext.BalancePorcino.Add(new BalancePorcino
+                var bucket = ResolvePorcineDeathBucket(animal, date);
+                porcineDetail = new BalancePorcino
                 {
                     BalanceId = balance.Id,
-                    Baits = ResolvePorcineDeathBucket(animal, date) == "baits" ? 1 : 0,
-                    Boars = ResolvePorcineDeathBucket(animal, date) == "boars" ? 1 : 0,
+                    Baits = bucket == "baits" ? 1 : 0,
+                    Boars = bucket == "boars" ? 1 : 0,
                     Breed = animal.Breed,
-                    Piglets = ResolvePorcineDeathBucket(animal, date) == "piglets" ? 1 : 0,
-                    PigsReposition = ResolvePorcineDeathBucket(animal, date) == "pigs_reposition" ? 1 : 0,
-                    Rear = ResolvePorcineDeathBucket(animal, date) == "rears" ? 1 : 0,
-                    SowsForLive = ResolvePorcineDeathBucket(animal, date) == "sows" ? 1 : 0,
-                    SowsReposition = ResolvePorcineDeathBucket(animal, date) == "sows_reposition" ? 1 : 0,
+                    Piglets = bucket == "piglets" ? 1 : 0,
+                    PigsReposition = bucket == "pigs_reposition" ? 1 : 0,
+                    Rear = bucket == "rears" ? 1 : 0,
+                    SowsForLive = bucket == "sows" ? 1 : 0,
+                    SowsReposition = bucket == "sows_reposition" ? 1 : 0,
                     Tag = animal.Porcino?.Tag,
                     Type = animal.Porcino?.AnimalType
-                });
+                };
             }
-            else
+            else if (!string.IsNullOrWhiteSpace(porcineAnimalType))
             {
-                var ovineBucket = ResolveOvineDeathBucket(animal, date);
-                dbContext.BalanceOvinoCaprino.Add(new BalanceOvinoCaprino
+                var breakdown = PorcineMovementSupport.BuildBreakdown(porcineAnimalType, numberOfAnimals);
+                porcineDetail = new BalancePorcino
                 {
                     BalanceId = balance.Id,
-                    NonReproductiveUnder4Months = ovineBucket == "under4" ? 1 : 0,
-                    NonReproductiveBetween4And12Months = ovineBucket == "from4to12" ? 1 : 0,
-                    ReproductiveFemales = ovineBucket == "female" ? 1 : 0,
-                    ReproductiveMales = ovineBucket == "male" ? 1 : 0
-                });
+                    Baits = breakdown.Baits,
+                    Boars = breakdown.Boars,
+                    Piglets = breakdown.Piglets,
+                    PigsReposition = breakdown.PigsReposition,
+                    Rear = breakdown.Rears,
+                    SowsForLive = breakdown.Sows,
+                    SowsReposition = breakdown.SowsReposition,
+                    Type = porcineAnimalType.Trim()
+                };
             }
+
+            if (porcineDetail is not null)
+            {
+                dbContext.BalancePorcino.Add(porcineDetail);
+                balance.Porcino = porcineDetail;
+            }
+        }
+        else if (animal is not null)
+        {
+            var ovineBucket = ResolveOvineDeathBucket(animal, date);
+            dbContext.BalanceOvinoCaprino.Add(new BalanceOvinoCaprino
+            {
+                BalanceId = balance.Id,
+                NonReproductiveUnder4Months = ovineBucket == "under4" ? 1 : 0,
+                NonReproductiveBetween4And12Months = ovineBucket == "from4to12" ? 1 : 0,
+                ReproductiveFemales = ovineBucket == "female" ? 1 : 0,
+                ReproductiveMales = ovineBucket == "male" ? 1 : 0
+            });
         }
 
         return balance;
+    }
+
+    private static string NormalizePorcineDeathAnimalType(string? animalType)
+    {
+        var normalizedAnimalType = NormalizeNullable(animalType);
+        if (normalizedAnimalType is null)
+        {
+            throw new DomainException("Debes indicar el tipo de animal para registrar la baja en porcino.");
+        }
+
+        return normalizedAnimalType;
+    }
+
+    private static int NormalizeDeathQuantity(int quantity)
+    {
+        if (quantity <= 0)
+        {
+            throw new DomainException("El número de animales debe ser mayor que cero.");
+        }
+
+        return quantity;
     }
 
     private static string ResolveOvineDeathBucket(Animal animal, DateOnly asOfDate)
@@ -1168,14 +1295,34 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
     {
         return new FarmDeathResponse(
             animal.Id,
+            animal.Id,
             animal.LivestockFarmId,
+            1,
             animal.Identification,
+            EmptyToNull(animal.Porcino?.AnimalType),
             EmptyToNull(animal.Breed),
             EmptyToNull(animal.Sex),
             FarmCensusProjectionSupport.ResolveBirthYear(animal),
             animal.DischargeDate!.Value,
             animal.DischargeCause!.Value.ToString(),
             EmptyToNull(animal.DestinationCode));
+    }
+
+    private static FarmDeathResponse MapAggregateDeath(Balance balance)
+    {
+        return new FarmDeathResponse(
+            balance.Id,
+            null,
+            balance.LivestockFarmId,
+            balance.NumberOfAnimals,
+            null,
+            EmptyToNull(balance.Porcino?.Type),
+            EmptyToNull(balance.Porcino?.Breed),
+            null,
+            null,
+            balance.BalanceDate,
+            balance.ModificationCause,
+            EmptyToNull(balance.DestinationLivestockCode));
     }
 
     private static FarmVaccinationResponse MapVaccination(Vaccination vaccination)

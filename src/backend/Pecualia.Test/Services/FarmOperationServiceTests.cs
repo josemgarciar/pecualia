@@ -160,6 +160,85 @@ public sealed class FarmOperationServiceTests
         balanceDetail.Type.Should().Be("Reclasificación porcina");
     }
 
+    [Fact]
+    public async Task CreateDeathAsync_AllowsAggregatePorcineDeath_WithoutIdentification_AndUpdatesCensus()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock);
+        var farm = await SeedPorcineFarmAsync(dbContext, 106);
+        var firstAnimal = ServiceTestData.CreateAnimal(5106, farm.Id, "GT1800001006", new DateOnly(2026, 03, 10), birthDate: new DateOnly(2026, 02, 10));
+        var secondAnimal = ServiceTestData.CreateAnimal(5107, farm.Id, "GT1800001007", new DateOnly(2026, 03, 10), birthDate: new DateOnly(2026, 02, 10));
+        var firstPorcineAnimal = ServiceTestData.CreatePorcinoAnimal(firstAnimal.Id, "Cebo");
+        var secondPorcineAnimal = ServiceTestData.CreatePorcinoAnimal(secondAnimal.Id, "Cebo");
+
+        dbContext.Animals.AddRange(firstAnimal, secondAnimal);
+        dbContext.PorcinoAnimals.AddRange(firstPorcineAnimal, secondPorcineAnimal);
+        await dbContext.SaveChangesAsync();
+
+        var death = await service.CreateDeathAsync(106, UserRole.Farmer, farm.Id, new CreateFarmDeathRequest(
+            null,
+            "Cebo",
+            2,
+            new DateOnly(2026, 05, 15),
+            "AR26-1234567"), CancellationToken.None);
+
+        death.Identification.Should().BeNull();
+        death.AnimalType.Should().Be("Cebo");
+        death.NumberOfAnimals.Should().Be(2);
+
+        var census = await service.GetCensusAsync(106, UserRole.Farmer, farm.Id, 2026, CancellationToken.None);
+        census.Baits.Should().Be(0);
+
+        var balance = await dbContext.Balances.SingleAsync(entity => entity.OriginLivestockCode == BalanceMarkers.PorcineAggregateDeath);
+        balance.NumberOfAnimals.Should().Be(2);
+        balance.ModificationCause.Should().Be(AnimalDischargeCause.Muerte.ToString());
+    }
+
+    [Fact]
+    public async Task CreateDeathAsync_RequiresAnimalType_ForPorcineDeaths()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock);
+        var farm = await SeedPorcineFarmAsync(dbContext, 107);
+
+        var action = () => service.CreateDeathAsync(107, UserRole.Farmer, farm.Id, new CreateFarmDeathRequest(
+            null,
+            null,
+            1,
+            new DateOnly(2026, 05, 15),
+            "AR26-1234567"), CancellationToken.None);
+
+        await action.Should().ThrowAsync<DomainException>()
+            .WithMessage("Debes indicar el tipo de animal para registrar la baja en porcino.");
+    }
+
+    [Fact]
+    public async Task CreateDeathAsync_RejectsQuantityGreaterThanOne_WhenIdentificationIsProvided()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock);
+        var farm = await SeedPorcineFarmAsync(dbContext, 108);
+        var animal = ServiceTestData.CreateAnimal(5108, farm.Id, "GT1800001008", new DateOnly(2026, 03, 10), birthDate: new DateOnly(2026, 02, 10));
+        var porcineAnimal = ServiceTestData.CreatePorcinoAnimal(animal.Id, "Cebo");
+
+        dbContext.Animals.Add(animal);
+        dbContext.PorcinoAnimals.Add(porcineAnimal);
+        await dbContext.SaveChangesAsync();
+
+        var action = () => service.CreateDeathAsync(108, UserRole.Farmer, farm.Id, new CreateFarmDeathRequest(
+            "GT1800001008",
+            "Cebo",
+            2,
+            new DateOnly(2026, 05, 15),
+            "AR26-1234567"), CancellationToken.None);
+
+        await action.Should().ThrowAsync<DomainException>()
+            .WithMessage("Si indicas un crotal individual, el número de animales debe ser 1.");
+    }
+
     private static FarmOperationService CreateService(Pecualia.Api.Data.PecualiaDbContext dbContext, TestClock clock)
     {
         var censusProjectionService = new FarmCensusProjectionService(dbContext, clock);

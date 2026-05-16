@@ -40,9 +40,12 @@ public sealed record UpdateFarmBirthRequest(
     string? Observations);
 
 public sealed record FarmDeathResponse(
-    long AnimalId,
+    long Id,
+    long? AnimalId,
     long FarmId,
-    string Identification,
+    int NumberOfAnimals,
+    string? Identification,
+    string? AnimalType,
     string? Breed,
     string? Sex,
     int? BirthYear,
@@ -51,7 +54,9 @@ public sealed record FarmDeathResponse(
     string? DestinationCode);
 
 public sealed record CreateFarmDeathRequest(
-    string Identification,
+    string? Identification,
+    string? AnimalType,
+    int Quantity,
     DateOnly DischargeDate,
     string? DestinationCode);
 

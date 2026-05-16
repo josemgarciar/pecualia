@@ -111,4 +111,17 @@ public sealed class BookBalanceSupportTests
         BookBalanceSupport.ResolveBalanceCounterpartyCode(entryBalance, null).Should().Be("ES111");
         BookBalanceSupport.ResolveGuideSerie(null).Should().BeNull();
     }
+
+    [Fact]
+    public void ResolveBalanceCounterpartyCode_UsesDestinationCode_ForDeathBalances()
+    {
+        var deathBalance = new Balance
+        {
+            ModificationCause = "Muerte",
+            OriginLivestockCode = BalanceMarkers.PorcineAggregateDeath,
+            DestinationLivestockCode = "AR26-1234567"
+        };
+
+        BookBalanceSupport.ResolveBalanceCounterpartyCode(deathBalance, null).Should().Be("AR26-1234567");
+    }
 }
