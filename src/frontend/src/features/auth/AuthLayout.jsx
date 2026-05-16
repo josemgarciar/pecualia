@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 
 const HERO_IMAGE = 'https://images.unsplash.com/photo-1682119416157-f3771fc38f4f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaGVlcCUyMGZsb2NrJTIwZmFybSUyMHNwYWluJTIwcGFzdG9yYWx8ZW58MXx8fHwxNzc2NjE1NDg3fDA&ixlib=rb-4.1.0&q=80&w=1080';
+const APP_ICON = '/pecualia_icon.png';
 
 export function AuthLayout({ title, subtitle, children, footer }) {
   const { pathname } = useLocation();
@@ -13,8 +14,10 @@ export function AuthLayout({ title, subtitle, children, footer }) {
         <div className="auth-hero-overlay" />
         <div className="hero-copy">
           <div className="brand-block">
-            <div className="brand-mark">P</div>
-          <div>
+            <div className="brand-mark">
+              <img className="brand-mark-image" src={APP_ICON} alt="Icono de Pecualia" />
+            </div>
+            <div>
               <div className="brand-title">Pecualia</div>
               <div className="brand-subtitle">Gestión ganadera digital, clara y siempre al día.</div>
             </div>

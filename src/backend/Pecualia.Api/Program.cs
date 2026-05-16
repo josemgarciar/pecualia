@@ -28,6 +28,7 @@ builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailO
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
 builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection(StripeOptions.SectionName));
 builder.Services.Configure<DatabaseBootstrapOptions>(builder.Configuration.GetSection(DatabaseBootstrapOptions.SectionName));
+builder.Services.Configure<TaskReminderWorkerOptions>(builder.Configuration.GetSection(TaskReminderWorkerOptions.SectionName));
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
 ValidateRequiredSetting(jwtOptions.Issuer, "Jwt:Issuer");
@@ -120,6 +121,7 @@ builder.Services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAccountActivationService, AccountActivationService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ITaskReminderSettingsService, TaskReminderSettingsService>();
 builder.Services.AddScoped<IFarmerService, FarmerService>();
 builder.Services.AddScoped<IFarmService, FarmService>();
 builder.Services.AddScoped<IFarmOperationService, FarmOperationService>();
@@ -127,10 +129,13 @@ builder.Services.AddScoped<IFarmCensusProjectionService, FarmCensusProjectionSer
 builder.Services.AddScoped<IAnimalService, AnimalService>();
 builder.Services.AddScoped<IMovementService, MovementService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IPendingTaskQueryService, PendingTaskQueryService>();
+builder.Services.AddScoped<ITaskReminderProcessor, TaskReminderProcessor>();
 builder.Services.AddScoped<IBookService, BookService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddSingleton<IDatabaseBootstrapper, DatabaseBootstrapper>();
 builder.Services.AddSingleton<IClock, SystemClock>();
+builder.Services.AddHostedService<TaskReminderWorker>();
 
 var emailOptions = builder.Configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>() ?? new EmailOptions();
 var normalizedEmailMode = emailOptions.Mode.Trim();

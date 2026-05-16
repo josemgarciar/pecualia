@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pencil, RefreshCw, User, UserMinus } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
+import { formatLivestockSpecies } from '../farms/FarmDetailShared';
 
 function formatStatus(status) {
   if (!status) {
@@ -199,7 +200,7 @@ export function FarmerDetailPage({
                         <article className="list-row" key={farm.id}>
                           <div>
                             <strong>{farm.name}</strong>
-                            <div className="muted-text">{farm.regaCode} · {farm.livestockSpecies}</div>
+                            <div className="muted-text">{farm.regaCode} · {formatLivestockSpecies(farm.livestockSpecies)}</div>
                           </div>
                           <div className="row-actions">
                             <span className="muted-text">{farm.animalCount} animales</span>

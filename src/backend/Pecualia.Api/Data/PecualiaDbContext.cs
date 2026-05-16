@@ -68,6 +68,12 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         appUser.Property(entity => entity.IsActive).HasColumnName("is_active").IsRequired();
         appUser.Property(entity => entity.CreatedAt).HasColumnName("created_at");
         appUser.Property(entity => entity.UpdatedAt).HasColumnName("updated_at");
+        appUser.Property(entity => entity.TaskReminderEnabled).HasColumnName("task_reminder_enabled").IsRequired();
+        appUser.Property(entity => entity.TaskReminderEmail).HasColumnName("task_reminder_email").HasMaxLength(255);
+        appUser.Property(entity => entity.TaskReminderIntervalDays).HasColumnName("task_reminder_interval_days");
+        appUser.Property(entity => entity.TaskReminderAnchorDate).HasColumnName("task_reminder_anchor_date");
+        appUser.Property(entity => entity.TaskReminderLastProcessedOn).HasColumnName("task_reminder_last_processed_on");
+        appUser.Property(entity => entity.TaskReminderLastSentAt).HasColumnName("task_reminder_last_sent_at");
         appUser.HasIndex(entity => entity.Email).IsUnique();
         appUser.HasIndex(entity => entity.Username).IsUnique();
 

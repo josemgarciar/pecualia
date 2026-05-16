@@ -26,6 +26,18 @@ public sealed class AppUser
 
     public DateTimeOffset UpdatedAt { get; set; }
 
+    public bool TaskReminderEnabled { get; set; }
+
+    public string? TaskReminderEmail { get; set; }
+
+    public int? TaskReminderIntervalDays { get; set; }
+
+    public DateOnly? TaskReminderAnchorDate { get; set; }
+
+    public DateOnly? TaskReminderLastProcessedOn { get; set; }
+
+    public DateTimeOffset? TaskReminderLastSentAt { get; set; }
+
     public Manager? Manager { get; set; }
 
     public Farmer? Farmer { get; set; }

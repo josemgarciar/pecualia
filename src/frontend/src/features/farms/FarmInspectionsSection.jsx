@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ClipboardCheck, Plus } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
-import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
+import { ModalBody, ModalDialog, ModalFieldLabel, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 import { emptyToNull, formatDate, parseOptionalInteger } from './FarmDetailShared';
 
 function createInspectionFormState() {
@@ -18,6 +18,7 @@ export function FarmInspectionsSection({ farm, token }) {
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -45,21 +46,22 @@ export function FarmInspectionsSection({ farm, token }) {
   async function handleSubmit(event) {
     event.preventDefault();
     setError('');
+    setFormError('');
     setSuccess('');
 
     if (!form.inspectionDate) {
-      setError('La fecha de inspección es obligatoria.');
+      setFormError('La fecha de inspección es obligatoria.');
       return;
     }
 
     if (!form.reason.trim() && !form.observations.trim()) {
-      setError('Debes indicar al menos el motivo o las observaciones de la inspección.');
+      setFormError('Debes indicar al menos el motivo o las observaciones de la inspección.');
       return;
     }
 
     const taggedAnimals = parseOptionalInteger(form.taggedAnimals);
     if (taggedAnimals != null && (!Number.isInteger(taggedAnimals) || taggedAnimals < 0)) {
-      setError('Los animales revisados deben ser un número entero igual o mayor que cero.');
+      setFormError('Los animales revisados deben ser un número entero igual o mayor que cero.');
       return;
     }
 
@@ -79,9 +81,10 @@ export function FarmInspectionsSection({ farm, token }) {
       setSuccess('Inspección registrada correctamente.');
       setModalOpen(false);
       setForm(createInspectionFormState());
+      setFormError('');
       await loadInspections();
     } catch (requestError) {
-      setError(requestError.message);
+      setFormError(requestError.message);
     } finally {
       setSubmitting(false);
     }
@@ -98,7 +101,11 @@ export function FarmInspectionsSection({ farm, token }) {
           <h2>Inspecciones</h2>
           <p>Control veterinario y observaciones oficiales asociadas a la explotación.</p>
         </div>
-        <button className="primary-button" type="button" onClick={() => setModalOpen(true)}>
+        <button className="primary-button" type="button" onClick={() => {
+          setForm(createInspectionFormState());
+          setFormError('');
+          setModalOpen(true);
+        }}>
           <Plus size={16} />
           Registrar inspección
         </button>
@@ -146,32 +153,39 @@ export function FarmInspectionsSection({ farm, token }) {
             icon={<ClipboardCheck size={18} />}
             title="Nueva inspección"
             subtitle={farm.name}
-            onClose={() => setModalOpen(false)}
+            onClose={() => {
+              setModalOpen(false);
+              setFormError('');
+            }}
           />
           <ModalBody className="operation-modal-body">
+            {formError && <div className="error-banner">{formError}</div>}
             <label>
-              <span>Fecha de inspección *</span>
+              <ModalFieldLabel required>Fecha de inspección</ModalFieldLabel>
               <input type="date" value={form.inspectionDate} onChange={(event) => setForm({ ...form, inspectionDate: event.target.value })} />
             </label>
             <label>
-              <span>Motivo</span>
+              <ModalFieldLabel>Motivo</ModalFieldLabel>
               <input value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="Inspección programada, revisión documental..." />
             </label>
             <label>
-              <span>Veterinario</span>
+              <ModalFieldLabel>Veterinario</ModalFieldLabel>
               <input value={form.veterinary} onChange={(event) => setForm({ ...form, veterinary: event.target.value })} placeholder="Nombre del profesional responsable" />
             </label>
             <label>
-              <span>Animales revisados</span>
+              <ModalFieldLabel>Animales revisados</ModalFieldLabel>
               <input type="number" min="0" step="1" value={form.taggedAnimals} onChange={(event) => setForm({ ...form, taggedAnimals: event.target.value })} placeholder="Ej: 24" />
             </label>
             <label className="operation-form-wide">
-              <span>Observaciones</span>
+              <ModalFieldLabel>Observaciones</ModalFieldLabel>
               <textarea value={form.observations} onChange={(event) => setForm({ ...form, observations: event.target.value })} placeholder="Observaciones veterinarias y seguimiento de la inspección." />
             </label>
           </ModalBody>
           <ModalFooter align="end">
-            <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
+            <button className="secondary-button" type="button" onClick={() => {
+              setModalOpen(false);
+              setFormError('');
+            }}>Cancelar</button>
             <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar inspección'}</button>
           </ModalFooter>
         </ModalDialog>

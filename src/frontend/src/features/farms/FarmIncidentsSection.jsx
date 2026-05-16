@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, TriangleAlert } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
-import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
+import { ModalBody, ModalDialog, ModalFieldLabel, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 import {
   isValidAnimalIdentification,
   normalizeAnimalIdentification
@@ -23,6 +23,7 @@ export function FarmIncidentsSection({ farm, token }) {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -50,10 +51,11 @@ export function FarmIncidentsSection({ farm, token }) {
   async function handleSubmit(event) {
     event.preventDefault();
     setError('');
+    setFormError('');
     setSuccess('');
 
     if (!form.incidentDate) {
-      setError('La fecha de incidencia es obligatoria.');
+      setFormError('La fecha de incidencia es obligatoria.');
       return;
     }
 
@@ -64,22 +66,22 @@ export function FarmIncidentsSection({ farm, token }) {
       !form.lastIdentification.trim() &&
       !form.newIdentification.trim()
     ) {
-      setError('Debes completar al menos un dato descriptivo de la incidencia.');
+      setFormError('Debes completar al menos un dato descriptivo de la incidencia.');
       return;
     }
 
     if (form.animalIdentification.trim() && !isValidAnimalIdentification(farm.livestockSpecies, form.animalIdentification)) {
-      setError('La identificación del animal relacionada con la incidencia no es válida.');
+      setFormError('La identificación del animal relacionada con la incidencia no es válida.');
       return;
     }
 
     if (form.lastIdentification.trim() && !isValidAnimalIdentification(farm.livestockSpecies, form.lastIdentification)) {
-      setError('La identificación anterior no es válida.');
+      setFormError('La identificación anterior no es válida.');
       return;
     }
 
     if (form.newIdentification.trim() && !isValidAnimalIdentification(farm.livestockSpecies, form.newIdentification)) {
-      setError('La nueva identificación no es válida.');
+      setFormError('La nueva identificación no es válida.');
       return;
     }
 
@@ -100,9 +102,10 @@ export function FarmIncidentsSection({ farm, token }) {
       setSuccess('Incidencia registrada correctamente.');
       setModalOpen(false);
       setForm(createIncidentFormState());
+      setFormError('');
       await loadIncidents();
     } catch (requestError) {
-      setError(requestError.message);
+      setFormError(requestError.message);
     } finally {
       setSubmitting(false);
     }
@@ -119,7 +122,11 @@ export function FarmIncidentsSection({ farm, token }) {
           <h2>Incidencias</h2>
           <p>Anotaciones de identificación y regularizaciones del ganado.</p>
         </div>
-        <button className="primary-button" type="button" onClick={() => setModalOpen(true)}>
+        <button className="primary-button" type="button" onClick={() => {
+          setForm(createIncidentFormState());
+          setFormError('');
+          setModalOpen(true);
+        }}>
           <Plus size={16} />
           Registrar incidencia
         </button>
@@ -168,36 +175,43 @@ export function FarmIncidentsSection({ farm, token }) {
             icon={<TriangleAlert size={18} />}
             title="Nueva incidencia"
             subtitle={farm.name}
-            onClose={() => setModalOpen(false)}
+            onClose={() => {
+              setModalOpen(false);
+              setFormError('');
+            }}
           />
           <ModalBody className="operation-modal-body">
+            {formError && <div className="error-banner">{formError}</div>}
             <label>
-              <span>Animal relacionado</span>
+              <ModalFieldLabel>Animal relacionado</ModalFieldLabel>
               <input value={form.animalIdentification} onChange={(event) => setForm({ ...form, animalIdentification: event.target.value })} placeholder="Ej: ES0600005831 / GT1800001004" />
             </label>
             <label>
-              <span>Fecha de incidencia *</span>
+              <ModalFieldLabel required>Fecha de incidencia</ModalFieldLabel>
               <input type="date" value={form.incidentDate} onChange={(event) => setForm({ ...form, incidentDate: event.target.value })} />
             </label>
             <label>
-              <span>Motivo</span>
+              <ModalFieldLabel>Motivo</ModalFieldLabel>
               <input value={form.changeReason} onChange={(event) => setForm({ ...form, changeReason: event.target.value })} placeholder="Reposición de crotal, regularización documental..." />
             </label>
             <label>
-              <span>Identificación anterior</span>
+              <ModalFieldLabel>Identificación anterior</ModalFieldLabel>
               <input value={form.lastIdentification} onChange={(event) => setForm({ ...form, lastIdentification: event.target.value })} placeholder="Ej: GT1800001004" />
             </label>
             <label>
-              <span>Nueva identificación</span>
+              <ModalFieldLabel>Nueva identificación</ModalFieldLabel>
               <input value={form.newIdentification} onChange={(event) => setForm({ ...form, newIdentification: event.target.value })} placeholder="Si aplica" />
             </label>
             <label className="operation-form-wide">
-              <span>Descripción</span>
+              <ModalFieldLabel>Descripción</ModalFieldLabel>
               <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Detalle de la incidencia y actuaciones realizadas." />
             </label>
           </ModalBody>
           <ModalFooter align="end">
-            <button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>
+            <button className="secondary-button" type="button" onClick={() => {
+              setModalOpen(false);
+              setFormError('');
+            }}>Cancelar</button>
             <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar incidencia'}</button>
           </ModalFooter>
         </ModalDialog>

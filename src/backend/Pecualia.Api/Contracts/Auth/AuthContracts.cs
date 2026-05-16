@@ -59,6 +59,16 @@ public sealed record UpdateUserSettingsRequest(
     string? CurrentPassword,
     string? NewPassword);
 
+public sealed record UpdateTaskReminderSettingsRequest(
+    bool Enabled,
+    string? Email,
+    int? IntervalDays);
+
+public sealed record TaskReminderSettingsResponse(
+    bool Enabled,
+    string? Email,
+    int? IntervalDays);
+
 public sealed record UserProfileResponse(
     long Id,
     string? Email,

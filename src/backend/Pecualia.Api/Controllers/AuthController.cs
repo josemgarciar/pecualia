@@ -43,6 +43,14 @@ public static class AuthController
             await ControllerResults.ExecuteAsync(() => service.UpdateCurrentUserSettingsAsync(user.GetUserId(), request, cancellationToken)))
             .RequireAuthorization();
 
+        group.MapGet("/task-reminder-settings", async (ClaimsPrincipal user, ITaskReminderSettingsService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.GetCurrentUserSettingsAsync(user.GetUserId(), cancellationToken)))
+            .RequireAuthorization();
+
+        group.MapPut("/task-reminder-settings", async (ClaimsPrincipal user, UpdateTaskReminderSettingsRequest request, ITaskReminderSettingsService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.UpdateCurrentUserSettingsAsync(user.GetUserId(), request, cancellationToken)))
+            .RequireAuthorization();
+
         return endpoints;
     }
 }

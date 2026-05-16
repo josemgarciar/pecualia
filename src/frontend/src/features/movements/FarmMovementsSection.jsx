@@ -10,6 +10,7 @@ import {
 import { apiRequest } from '../../shared/api/client';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader, ModalStepper } from '../../shared/components/modal/Modal';
 import { isValidRegaCode, normalizeRegaCode } from '../../shared/validation/identifiers';
+import { formatLivestockSpecies } from '../farms/FarmDetailShared';
 
 const fullMovementImportSteps = [
   { label: 'Configuración' },
@@ -231,7 +232,7 @@ function MovementDetailModal({ farm, movement, loading, confirming, onClose, onV
               <div className="animal-detail-hero movement-detail-hero">
                 <div className="animal-detail-hero-top">
                   <div>
-                    <span>Guía REMO</span>
+                    <span>Guía</span>
                     <strong>{movement.codRemo}</strong>
                     <p>{movement.serie ?? 'Sin serie'}</p>
                   </div>
@@ -248,7 +249,7 @@ function MovementDetailModal({ farm, movement, loading, confirming, onClose, onV
                 </div>
                 <div className="movement-detail-group">
                   <span>Especie</span>
-                  <strong>{movement.livestockSpecies}</strong>
+                  <strong>{formatLivestockSpecies(movement.livestockSpecies)}</strong>
                 </div>
                 <div className="movement-detail-group">
                   <span>Salida</span>
@@ -647,7 +648,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
                   <span className="farm-field-label">Explotación</span>
                   <div className="movement-selected-farm">
                     <strong>{farm.name}</strong>
-                    <span>REGA {farm.regaCode} · {farm.livestockSpecies}</span>
+                    <span>REGA {farm.regaCode} · {formatLivestockSpecies(farm.livestockSpecies)}</span>
                   </div>
                                 {isOvineOrCaprine && (
                 <div className="movement-unidentified-section">

@@ -97,6 +97,15 @@ export function ModalBody({ children, className = '' }) {
   return <div className={classNames('farm-modal-body', className)}>{children}</div>;
 }
 
+export function ModalFieldLabel({ children, required = false, className = '' }) {
+  return (
+    <span className={classNames('farm-field-label', className)}>
+      {children}
+      {required && <span className="farm-field-label-required"> *</span>}
+    </span>
+  );
+}
+
 export function ModalFooter({ children, align = 'between', className = '' }) {
   return (
     <div className={classNames('farm-modal-footer', `farm-modal-footer-${align}`, className)}>

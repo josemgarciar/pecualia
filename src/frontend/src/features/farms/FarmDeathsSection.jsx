@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, Skull, Tag } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
-import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
+import { ModalBody, ModalDialog, ModalFieldLabel, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 import {
   buildMerCodeExample,
   getAnimalIdentificationFormatMessage,
@@ -240,12 +240,12 @@ export function FarmDeathsSection({ farm, token }) {
           <ModalBody className="operation-modal-body">
             {formError && <div className="error-banner">{formError}</div>}
             <label>
-              <span>{farm.livestockSpecies === 'Porcine' ? 'Crotal / identificación' : 'Crotal / identificación *'}</span>
-              <input value={form.identification} onChange={(event) => setForm({ ...form, identification: event.target.value })} placeholder={farm.livestockSpecies === 'Porcine' ? 'Opcional. Ej: GT1800001004' : 'Ej: ES0600005831'} />
+              <ModalFieldLabel required={farm.livestockSpecies !== 'Porcine'}>Crotal / identificación</ModalFieldLabel>
+              <input value={form.identification} onChange={(event) => setForm({ ...form, identification: event.target.value })} placeholder={farm.livestockSpecies === 'Ej: ES060000583112'} />
             </label>
             {farm.livestockSpecies === 'Porcine' && (
               <label>
-                <span>Tipo de animal *</span>
+                <ModalFieldLabel required>Tipo de animal</ModalFieldLabel>
                 <select value={form.animalType} onChange={(event) => setForm({ ...form, animalType: event.target.value })}>
                   <option value="">Seleccionar...</option>
                   {porcineAnimalTypeOptions.map((option) => (
@@ -256,7 +256,7 @@ export function FarmDeathsSection({ farm, token }) {
             )}
             {farm.livestockSpecies === 'Porcine' && (
               <label>
-                <span>Nº animales *</span>
+                <ModalFieldLabel required>Nº animales</ModalFieldLabel>
                 <input
                   type="number"
                   min="1"
@@ -267,11 +267,11 @@ export function FarmDeathsSection({ farm, token }) {
               </label>
             )}
             <label>
-              <span>Fecha de baja *</span>
+              <ModalFieldLabel required>Fecha de baja</ModalFieldLabel>
               <input type="date" value={form.dischargeDate} onChange={(event) => setForm({ ...form, dischargeDate: event.target.value })} />
             </label>
             <label>
-              <span>Destino *</span>
+              <ModalFieldLabel required>Destino</ModalFieldLabel>
               <select
                 value={form.destinationCode}
                 disabled={isMerOnlyFarm}
@@ -284,7 +284,7 @@ export function FarmDeathsSection({ farm, token }) {
             </label>
             {form.destinationCode === 'MER' && (
               <label>
-                <span>Nº MER *</span>
+                <ModalFieldLabel required>Nº MER</ModalFieldLabel>
                 <div className="inline-form-actions">
                   <input
                     value={form.merCode}

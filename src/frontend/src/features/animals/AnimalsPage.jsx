@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ChevronDown, Plus, Search, Tag, Upload } from 'lucide-react';
+import { ArrowRightLeft, ChevronDown, Plus, Search, Tag, Upload } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
-import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
+import { ModalBody, ModalDialog, ModalFieldLabel, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 import {
   buildMerCodeExample,
   buildRandomMerCode,
@@ -166,15 +166,12 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
       />
       <ModalBody>
           {(formError || error) && (
-            <div className="error-banner">
-              <AlertCircle size={14} />
-              {formError || error}
-            </div>
+            <div className="error-banner">{formError || error}</div>
           )}
 
           <div className="grid-form">
-            <label>
-              Explotación
+            <label className="farm-form-field">
+              <ModalFieldLabel required>Explotación</ModalFieldLabel>
               <div className="select-wrapper">
                 <select value={form.farmId} onChange={(event) => updateField('farmId', event.target.value)} required>
                   <option value="">Selecciona explotación</option>
@@ -187,21 +184,21 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
                 <ChevronDown size={16} />
               </div>
             </label>
-            <label>
-              Identificación / crotal
+            <label className="farm-form-field">
+              <ModalFieldLabel required>Identificación / crotal</ModalFieldLabel>
               <input
                 value={form.identification}
                 onChange={(event) => updateField('identification', event.target.value)}
-                placeholder={selectedFarm?.livestockSpecies === 'Porcine' ? 'GT1800001004' : 'ES0600005831'}
+                placeholder={selectedFarm?.livestockSpecies === 'Porcine' ? 'GT1800001004' : 'ES060000583112'}
                 required
               />
             </label>
-            <label>
-              Raza
+            <label className="farm-form-field">
+              <ModalFieldLabel>Raza</ModalFieldLabel>
               <input value={form.breed} onChange={(event) => updateField('breed', event.target.value)} placeholder="Merina" />
             </label>
-            <label>
-              Sexo
+            <label className="farm-form-field">
+              <ModalFieldLabel>Sexo</ModalFieldLabel>
               <div className="select-wrapper">
                 <select value={form.sex} onChange={(event) => updateField('sex', event.target.value)}>
                   <option value="">No informado</option>
@@ -211,16 +208,16 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
                 <ChevronDown size={16} />
               </div>
             </label>
-            <label>
-              Año nacimiento
+            <label className="farm-form-field">
+              <ModalFieldLabel>Año nacimiento</ModalFieldLabel>
               <input type="number" min="1900" max="2100" value={form.birthYear} onChange={(event) => updateField('birthYear', event.target.value)} placeholder="2024" />
             </label>
-            <label>
-              Fecha alta
+            <label className="farm-form-field">
+              <ModalFieldLabel>Fecha alta</ModalFieldLabel>
               <input type="date" value={form.registrationDate} onChange={(event) => updateField('registrationDate', event.target.value)} />
             </label>
-            <label>
-              Causa alta
+            <label className="farm-form-field">
+              <ModalFieldLabel>Causa alta</ModalFieldLabel>
               <div className="select-wrapper">
                 <select value={form.registrationCause} onChange={(event) => updateField('registrationCause', event.target.value)}>
                   <option value="">No informada</option>
@@ -230,9 +227,9 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
                 <ChevronDown size={16} />
               </div>
             </label>
-            <label>
-              Código origen
-              <input value={form.originCode} onChange={(event) => updateField('originCode', event.target.value)} placeholder="ES06000058" />
+            <label className="farm-form-field">
+              <ModalFieldLabel>Código origen</ModalFieldLabel>
+              <input value={form.originCode} onChange={(event) => updateField('originCode', event.target.value)} placeholder="ES060000581234" />
             </label>
           </div>
 
@@ -240,16 +237,16 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
             <div className="animal-specific-block">
               <h3>Datos ovino/caprino</h3>
               <div className="grid-form">
-                <label>
-                  Genotipado
+                <label className="farm-form-field">
+                  <ModalFieldLabel>Genotipado</ModalFieldLabel>
                   <input value={form.genotyping} onChange={(event) => updateField('genotyping', event.target.value)} placeholder="ARQ/ARR" />
                 </label>
-                <label>
-                  Alelo dominante
+                <label className="farm-form-field">
+                  <ModalFieldLabel>Alelo dominante</ModalFieldLabel>
                   <input value={form.dominantAllele} onChange={(event) => updateField('dominantAllele', event.target.value)} placeholder="ARR" />
                 </label>
-                <label>
-                  Alelo bajo
+                <label className="farm-form-field">
+                  <ModalFieldLabel>Alelo bajo</ModalFieldLabel>
                   <input value={form.lowAllele} onChange={(event) => updateField('lowAllele', event.target.value)} placeholder="ARQ" />
                 </label>
               </div>
@@ -260,20 +257,20 @@ function AnimalFormModal({ farms, loading, error, onClose, onSubmit }) {
             <div className="animal-specific-block">
               <h3>Datos porcino</h3>
               <div className="grid-form">
-                <label>
-                  Tipo de animal
+                <label className="farm-form-field">
+                  <ModalFieldLabel required>Tipo de animal</ModalFieldLabel>
                   <input value={form.animalType} onChange={(event) => updateField('animalType', event.target.value)} placeholder="Cebo" required />
                 </label>
-                <label>
-                  Fecha identificación
+                <label className="farm-form-field">
+                  <ModalFieldLabel>Fecha identificación</ModalFieldLabel>
                   <input type="date" value={form.identificationDate} onChange={(event) => updateField('identificationDate', event.target.value)} />
                 </label>
-                <label>
-                  Nº registro porcino
+                <label className="farm-form-field">
+                  <ModalFieldLabel>Nº registro porcino</ModalFieldLabel>
                   <input value={form.pigRegistrationNumber} onChange={(event) => updateField('pigRegistrationNumber', event.target.value)} placeholder="RPO-2026-0001" />
                 </label>
-                <label>
-                  Marca/crotal
+                <label className="farm-form-field">
+                  <ModalFieldLabel>Marca / crotal</ModalFieldLabel>
                   <input value={form.tag} onChange={(event) => updateField('tag', event.target.value)} placeholder="GT215284" />
                 </label>
               </div>
@@ -405,8 +402,6 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
 
         <div className="animal-detail-body">
           {loading && <div className="muted-text">Cargando detalle...</div>}
-          {dischargeError && <div className="error-banner">{dischargeError}</div>}
-
           {tab === 'data' && !loading && (
             <>
               <AnimalDetailField label="Sexo" value={`${sexSymbol(animal.sex)} ${formatSex(animal.sex)}`.trim()} />
@@ -453,13 +448,18 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
       {dischargeModalOpen && (
         <ModalDialog cardAs="form" size="wide" onSubmit={handleDischargeSubmit}>
           <ModalHeader
+            icon={<ArrowRightLeft size={18} />}
             title="Registrar baja"
             subtitle={animal.identification}
-            onClose={() => setDischargeModalOpen(false)}
+            onClose={() => {
+              setDischargeModalOpen(false);
+              setDischargeError('');
+            }}
           />
-          <ModalBody>
+          <ModalBody className="operation-modal-body">
+            {dischargeError && <div className="error-banner">{dischargeError}</div>}
             <label>
-              Fecha de baja
+              <ModalFieldLabel required>Fecha de baja</ModalFieldLabel>
               <input
                 type="date"
                 value={dischargeForm.dischargeDate}
@@ -467,7 +467,7 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
               />
             </label>
             <label>
-              Causa
+              <ModalFieldLabel required>Causa</ModalFieldLabel>
               <select
                 value={dischargeForm.dischargeCause}
                 onChange={(event) => setDischargeForm({
@@ -484,7 +484,7 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
             </label>
             {dischargeForm.dischargeCause === 'Muerte' && (
               <label>
-                Destino
+                <ModalFieldLabel required>Destino</ModalFieldLabel>
                 <select
                   value={dischargeForm.destinationCode}
                   disabled={isMerOnlySpecies}
@@ -501,7 +501,7 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
             )}
             {dischargeForm.dischargeCause === 'Muerte' && (isMerOnlySpecies || dischargeForm.destinationCode === 'MER') && (
               <label>
-                Nº MER
+                <ModalFieldLabel required>Nº MER</ModalFieldLabel>
                 <div className="animal-discharge-mer-row">
                   <input
                     value={dischargeForm.merCode}
@@ -520,8 +520,11 @@ function AnimalDetailPanel({ animal, loading, onClose, onDischarged }) {
             )}
           </ModalBody>
           <ModalFooter align="end">
-            <button className="secondary-button" type="button" onClick={() => setDischargeModalOpen(false)}>Cancelar</button>
-            <button className="danger-button" type="submit" disabled={discharging}>
+            <button className="secondary-button" type="button" onClick={() => {
+              setDischargeModalOpen(false);
+              setDischargeError('');
+            }}>Cancelar</button>
+            <button className="primary-button" type="submit" disabled={discharging}>
               {discharging ? 'Registrando...' : 'Guardar baja'}
             </button>
           </ModalFooter>
@@ -710,7 +713,10 @@ export function AnimalsPage() {
             <Upload size={16} />
             Importar identificadores
           </button>
-          <button className="primary-button" type="button" onClick={() => setModalOpen(true)}>
+          <button className="primary-button" type="button" onClick={() => {
+            setFormError('');
+            setModalOpen(true);
+          }}>
             <Plus size={16} />
             Registrar animal
           </button>
@@ -750,7 +756,16 @@ export function AnimalsPage() {
       </div>
 
       {modalOpen && (
-        <AnimalFormModal farms={farms} loading={submitting} error={formError} onClose={() => setModalOpen(false)} onSubmit={createAnimal} />
+        <AnimalFormModal
+          farms={farms}
+          loading={submitting}
+          error={formError}
+          onClose={() => {
+            setModalOpen(false);
+            setFormError('');
+          }}
+          onSubmit={createAnimal}
+        />
       )}
     </div>
   );

@@ -181,7 +181,7 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
             .ToListAsync(cancellationToken);
     }
 
-    private static List<DashboardTaskResponse> BuildPendingTasks(
+    internal static List<DashboardTaskResponse> BuildPendingTasks(
         IReadOnlyCollection<Vaccination> vaccinations,
         IReadOnlyCollection<Inspection> inspections,
         IReadOnlyCollection<MovementCertificate> pendingMovementConfirmations,
@@ -329,7 +329,7 @@ public sealed class DashboardService(PecualiaDbContext dbContext, IClock clock) 
         return char.ToUpperInvariant(label[0]) + label[1..];
     }
 
-    private static string FormatDueText(DateOnly dueDate, DateOnly today)
+    internal static string FormatDueText(DateOnly dueDate, DateOnly today)
     {
         var delta = dueDate.DayNumber - today.DayNumber;
         return delta switch

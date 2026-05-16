@@ -2,20 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Bell,
   CreditCard,
-  Globe2,
-  LogOut,
   Mail,
   RefreshCw,
   Save,
-  Settings,
   Shield,
   UserCircle2
 } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { getPlanLabel } from '../../shared/subscription/plans';
-
-const notificationStorageKey = (userId) => `pecualia.notifications.${userId}`;
 
 function buildInitialAccountForm(user) {
   return {
@@ -35,46 +30,31 @@ function buildInitialPasswordForm() {
   };
 }
 
-function buildInitialNotifications(user) {
-  if (!user?.id) {
-    return {
-      emailNotifications: true,
-      operationalAlerts: true,
-      bookReminders: true,
-      accountAnnouncements: false
-    };
-  }
+function buildInitialReminderForm() {
+  return {
+    enabled: false,
+    email: '',
+    intervalDays: ''
+  };
+}
 
-  try {
-    const raw = localStorage.getItem(notificationStorageKey(user.id));
-    if (!raw) {
-      return {
-        emailNotifications: true,
-        operationalAlerts: true,
-        bookReminders: true,
-        accountAnnouncements: false
-      };
-    }
-
-    return JSON.parse(raw);
-  } catch {
-    return {
-      emailNotifications: true,
-      operationalAlerts: true,
-      bookReminders: true,
-      accountAnnouncements: false
-    };
-  }
+function mapReminderSettings(response) {
+  return {
+    enabled: Boolean(response?.enabled),
+    email: response?.email ?? '',
+    intervalDays: response?.intervalDays ? String(response.intervalDays) : ''
+  };
 }
 
 export function SettingsPage() {
-  const { token, user, logout, refreshProfile } = useAuth();
+  const { token, user, refreshProfile } = useAuth();
   const [accountForm, setAccountForm] = useState(() => buildInitialAccountForm(user));
   const [passwordForm, setPasswordForm] = useState(buildInitialPasswordForm);
-  const [notifications, setNotifications] = useState(() => buildInitialNotifications(user));
+  const [reminderForm, setReminderForm] = useState(buildInitialReminderForm);
   const [accountSaving, setAccountSaving] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
-  const [notificationSaving, setNotificationSaving] = useState(false);
+  const [reminderLoading, setReminderLoading] = useState(false);
+  const [reminderSaving, setReminderSaving] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
 
@@ -83,8 +63,36 @@ export function SettingsPage() {
   }, [user]);
 
   useEffect(() => {
-    setNotifications(buildInitialNotifications(user));
-  }, [user]);
+    let cancelled = false;
+
+    if (!token) {
+      setReminderForm(buildInitialReminderForm());
+      return undefined;
+    }
+
+    setReminderLoading(true);
+
+    apiRequest('/api/auth/task-reminder-settings', { token })
+      .then((response) => {
+        if (!cancelled) {
+          setReminderForm(mapReminderSettings(response));
+        }
+      })
+      .catch((requestError) => {
+        if (!cancelled) {
+          setError(requestError.message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setReminderLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const isManager = user?.role === 'Manager';
   const planLabel = getPlanLabel(user);
@@ -163,25 +171,54 @@ export function SettingsPage() {
     }
   }
 
-  function handleNotificationToggle(field) {
-    setNotifications((current) => ({ ...current, [field]: !current[field] }));
+  function handleReminderChange(field, value) {
+    setReminderForm((current) => ({ ...current, [field]: value }));
   }
 
-  async function handleNotificationsSubmit(event) {
+  async function handleReminderSubmit(event) {
     event.preventDefault();
-    setNotificationSaving(true);
+    setReminderSaving(true);
     setFeedback('');
     setError('');
 
+    const normalizedEmail = reminderForm.email.trim().toLowerCase();
+    const normalizedIntervalDays = reminderForm.intervalDays.trim();
+
+    if (reminderForm.enabled && !normalizedEmail) {
+      setError('Debes indicar el correo al que quieres enviar los recordatorios.');
+      setReminderSaving(false);
+      return;
+    }
+
+    if (reminderForm.enabled && !normalizedIntervalDays) {
+      setError('Debes indicar cada cuántos días quieres recibir recordatorios.');
+      setReminderSaving(false);
+      return;
+    }
+
+    if (normalizedIntervalDays && Number(normalizedIntervalDays) <= 0) {
+      setError('La frecuencia de recordatorios debe ser mayor que 0 días.');
+      setReminderSaving(false);
+      return;
+    }
+
     try {
-      if (user?.id) {
-        localStorage.setItem(notificationStorageKey(user.id), JSON.stringify(notifications));
-      }
-      setFeedback('Preferencias de notificaciones guardadas. Se aplicarán al conectar el servicio de envío.');
-    } catch {
-      setError('No se pudieron guardar las preferencias de notificaciones.');
+      const response = await apiRequest('/api/auth/task-reminder-settings', {
+        method: 'PUT',
+        token,
+        body: {
+          enabled: reminderForm.enabled,
+          email: normalizedEmail || null,
+          intervalDays: normalizedIntervalDays ? Number(normalizedIntervalDays) : null
+        }
+      });
+
+      setReminderForm(mapReminderSettings(response));
+      setFeedback('Configuración de recordatorios guardada correctamente.');
+    } catch (requestError) {
+      setError(requestError.message);
     } finally {
-      setNotificationSaving(false);
+      setReminderSaving(false);
     }
   }
 
@@ -190,7 +227,7 @@ export function SettingsPage() {
       <header className="page-header">
         <div>
           <h1>Ajustes</h1>
-          <p>Gestiona datos de cuenta, credenciales y preferencias de notificaciones desde una pantalla dedicada.</p>
+          <p>Gestiona datos de cuenta, credenciales y recordatorios automáticos desde una pantalla dedicada.</p>
         </div>
       </header>
 
@@ -201,7 +238,6 @@ export function SettingsPage() {
         <div className="settings-hero-copy">
           <span className="settings-hero-kicker">Cuenta y preferencias</span>
           <h2>{user?.name} {user?.surname}</h2>
-          <p>Actualiza correo, usuario, contraseña y, si eres Gestor@, la organización asociada a la cuenta. También puedes preparar la suscripción a notificaciones.</p>
         </div>
         <div className="settings-hero-actions">
           <button className="secondary-button" type="button" onClick={refreshProfile}>
@@ -313,57 +349,67 @@ export function SettingsPage() {
         </form>
       </div>
 
-      <form className="panel-card stack" onSubmit={handleNotificationsSubmit}>
+      <form className="panel-card stack settings-reminder-panel" onSubmit={handleReminderSubmit}>
         <div className="panel-header-inline">
           <div>
-            <h2>Notificaciones</h2>
-            <p>Define qué comunicaciones quieres recibir o tener activas cuando se conecte el servicio de envío.</p>
+            <h2>Recordatorios de tareas</h2>
+            <p>Recibe por correo el mismo resumen de tareas pendientes que ves en el dashboard con la frecuencia que prefieras.</p>
           </div>
         </div>
 
-        <div className="settings-notification-grid">
-          <button type="button" className={notifications.emailNotifications ? 'settings-toggle-card settings-toggle-card-active' : 'settings-toggle-card'} onClick={() => handleNotificationToggle('emailNotifications')}>
-            <Mail size={18} />
-            <div>
-              <strong>Notificaciones por correo</strong>
-              <span>Habilita el envío general al correo principal de la cuenta.</span>
-            </div>
-          </button>
+        <label className="settings-reminder-toggle">
+          <input
+            type="checkbox"
+            checked={reminderForm.enabled}
+            onChange={(event) => handleReminderChange('enabled', event.target.checked)}
+          />
+          <div>
+            <strong>Activar recordatorios por correo</strong>
+            <span>Cuando esté activo, Pecualia enviará automáticamente un resumen de tareas pendientes.</span>
+          </div>
+        </label>
 
-          <button type="button" className={notifications.operationalAlerts ? 'settings-toggle-card settings-toggle-card-active' : 'settings-toggle-card'} onClick={() => handleNotificationToggle('operationalAlerts')}>
-            <Bell size={18} />
-            <div>
-              <strong>Avisos operativos</strong>
-              <span>Incidencias, movimientos y eventos relevantes de la operativa diaria.</span>
-            </div>
-          </button>
+        <div className="settings-reminder-grid">
+          <label>
+            <span>Correo de destino</span>
+            <input
+              type="email"
+              placeholder="avisos@empresa.com"
+              value={reminderForm.email}
+              disabled={reminderLoading || !reminderForm.enabled}
+              onChange={(event) => handleReminderChange('email', event.target.value)}
+            />
+          </label>
 
-          <button type="button" className={notifications.bookReminders ? 'settings-toggle-card settings-toggle-card-active' : 'settings-toggle-card'} onClick={() => handleNotificationToggle('bookReminders')}>
-            <Settings size={18} />
-            <div>
-              <strong>Recordatorios documentales</strong>
-              <span>Alertas para libro, inspecciones o revisiones pendientes.</span>
-            </div>
-          </button>
-
-          <button type="button" className={notifications.accountAnnouncements ? 'settings-toggle-card settings-toggle-card-active' : 'settings-toggle-card'} onClick={() => handleNotificationToggle('accountAnnouncements')}>
-            <Globe2 size={18} />
-            <div>
-              <strong>Novedades de cuenta</strong>
-              <span>Comunicaciones sobre mejoras del producto, facturación y cambios de servicio.</span>
-            </div>
-          </button>
+          <label>
+            <span>Cada cuántos días</span>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              placeholder="7"
+              value={reminderForm.intervalDays}
+              disabled={reminderLoading || !reminderForm.enabled}
+              onChange={(event) => handleReminderChange('intervalDays', event.target.value)}
+            />
+          </label>
         </div>
 
         <div className="settings-security-note">
           <Bell size={16} />
-          <span>Estas preferencias quedan guardadas en local hasta conectar el envío real de notificaciones en backend.</span>
+          <span>
+            {reminderLoading
+              ? 'Cargando configuración de recordatorios...'
+              : reminderForm.enabled
+                ? 'El primer ciclo empezará a contar desde el momento en que guardes esta configuración.'
+                : 'Cuando vuelvas a activarlos, Pecualia conservará el correo y la frecuencia que hayas guardado.'}
+          </span>
         </div>
 
         <div className="settings-form-actions">
-          <button className="primary-button" type="submit" disabled={notificationSaving}>
+          <button className="primary-button" type="submit" disabled={reminderLoading || reminderSaving}>
             <Save size={15} />
-            {notificationSaving ? 'Guardando...' : 'Guardar notificaciones'}
+            {reminderSaving ? 'Guardando...' : 'Guardar recordatorios'}
           </button>
         </div>
       </form>

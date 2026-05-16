@@ -13,7 +13,7 @@ import {
   Trash2,
   TriangleAlert
 } from 'lucide-react';
-import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
+import { ModalBody, ModalDialog, ModalFieldLabel, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 import {
   getAnimalIdentificationFormatMessage,
   isMerDestinationCode,
@@ -94,6 +94,10 @@ export const provinceOptions = [
 
 export function formatText(value, fallback = 'No informado') {
   return value ?? fallback;
+}
+
+export function formatLivestockSpecies(value, fallback = 'Sin especie') {
+  return speciesToneMap[value]?.label ?? value ?? fallback;
 }
 
 export function formatRegime(value) {
@@ -710,17 +714,17 @@ export function AnimalDetailModal({
             </div>
 
             <div className="grid-form">
-              <label>
-                Identificación / crotal
+              <label className="farm-form-field">
+                <ModalFieldLabel>Identificación / crotal</ModalFieldLabel>
                 <input value={form.identification} onChange={(event) => onChange('identification', event.target.value)} />
                 {errors.identification && <span className="farm-inline-error">{errors.identification}</span>}
               </label>
-              <label>
-                Raza
+              <label className="farm-form-field">
+                <ModalFieldLabel>Raza</ModalFieldLabel>
                 <input value={form.breed} onChange={(event) => onChange('breed', event.target.value)} />
               </label>
-              <label>
-                Sexo
+              <label className="farm-form-field">
+                <ModalFieldLabel>Sexo</ModalFieldLabel>
                 <div className="select-wrapper">
                   <select value={form.sex} onChange={(event) => onChange('sex', event.target.value)}>
                     <option value="">No informado</option>
@@ -730,17 +734,17 @@ export function AnimalDetailModal({
                   <ChevronDown size={16} />
                 </div>
               </label>
-              <label>
-                Año nacimiento
+              <label className="farm-form-field">
+                <ModalFieldLabel>Año nacimiento</ModalFieldLabel>
                 <input type="number" min="1900" max="2100" value={form.birthYear} onChange={(event) => onChange('birthYear', event.target.value)} />
                 {errors.birthYear && <span className="farm-inline-error">{errors.birthYear}</span>}
               </label>
-              <label>
-                Fecha alta
+              <label className="farm-form-field">
+                <ModalFieldLabel>Fecha alta</ModalFieldLabel>
                 <input type="date" value={form.registrationDate} onChange={(event) => onChange('registrationDate', event.target.value)} />
               </label>
-              <label>
-                Causa alta
+              <label className="farm-form-field">
+                <ModalFieldLabel>Causa alta</ModalFieldLabel>
                 <div className="select-wrapper">
                   <select value={form.registrationCause} onChange={(event) => onChange('registrationCause', event.target.value)}>
                     <option value="">No informada</option>
@@ -750,13 +754,13 @@ export function AnimalDetailModal({
                   <ChevronDown size={16} />
                 </div>
               </label>
-              <label>
-                Procedencia
+              <label className="farm-form-field">
+                <ModalFieldLabel>Procedencia</ModalFieldLabel>
                 <input value={form.originCode} onChange={(event) => onChange('originCode', event.target.value)} />
                 {errors.originCode && <span className="farm-inline-error">{errors.originCode}</span>}
               </label>
-              <label className="form-full">
-                Serie guía entrada / salida
+              <label className="farm-form-field form-full">
+                <ModalFieldLabel>Serie guía entrada / salida</ModalFieldLabel>
                 <input
                   value={formatAnimalGuideSeries(animal.entryGuideSerie, animal.exitGuideSerie)}
                   disabled
@@ -768,16 +772,16 @@ export function AnimalDetailModal({
               <div className="animal-specific-block">
                 <h3>Datos ovino/caprino</h3>
                 <div className="grid-form">
-                  <label>
-                    Genotipado
+                  <label className="farm-form-field">
+                    <ModalFieldLabel>Genotipado</ModalFieldLabel>
                     <input value={form.genotyping} onChange={(event) => onChange('genotyping', event.target.value)} />
                   </label>
-                  <label>
-                    Alelo dominante
+                  <label className="farm-form-field">
+                    <ModalFieldLabel>Alelo dominante</ModalFieldLabel>
                     <input value={form.dominantAllele} onChange={(event) => onChange('dominantAllele', event.target.value)} />
                   </label>
-                  <label>
-                    Alelo bajo
+                  <label className="farm-form-field">
+                    <ModalFieldLabel>Alelo bajo</ModalFieldLabel>
                     <input value={form.lowAllele} onChange={(event) => onChange('lowAllele', event.target.value)} />
                   </label>
                 </div>
@@ -788,44 +792,44 @@ export function AnimalDetailModal({
               <div className="animal-specific-block">
                 <h3>Datos porcino</h3>
                 <div className="grid-form">
-                  <label>
-                    Tipo de animal
+                  <label className="farm-form-field">
+                    <ModalFieldLabel>Tipo de animal</ModalFieldLabel>
                     <input value={form.animalType} onChange={(event) => onChange('animalType', event.target.value)} />
                     {errors.animalType && <span className="farm-inline-error">{errors.animalType}</span>}
                   </label>
-                  <label>
-                    Fecha identificación
+                  <label className="farm-form-field">
+                    <ModalFieldLabel>Fecha identificación</ModalFieldLabel>
                     <input type="date" value={form.identificationDate} onChange={(event) => onChange('identificationDate', event.target.value)} />
                   </label>
-                  <label>
-                    Nº registro porcino
+                  <label className="farm-form-field">
+                    <ModalFieldLabel>Nº registro porcino</ModalFieldLabel>
                     <input value={form.pigRegistrationNumber} onChange={(event) => onChange('pigRegistrationNumber', event.target.value)} />
                   </label>
-                  <label>
-                    Marca / crotal
+                  <label className="farm-form-field">
+                    <ModalFieldLabel>Marca / crotal</ModalFieldLabel>
                     <input value={form.tag} onChange={(event) => onChange('tag', event.target.value)} />
                   </label>
                 </div>
               </div>
             )}
 
-            <div className="animal-specific-block">
-              <h3>Histórico de baja</h3>
-              <div className="grid-form">
-                <label>
-                  Causa de baja
-                  <input value={formatAnimalCause(animal.dischargeCause)} disabled />
-                </label>
-                <label>
-                  Fecha de baja
-                  <input value={formatDate(animal.dischargeDate)} disabled />
-                </label>
-                <label>
-                  Destino
-                  <input value={animal.destinationCode ?? 'No informado'} disabled />
-                </label>
+              <div className="animal-specific-block">
+                <h3>Histórico de baja</h3>
+                <div className="grid-form">
+                  <label className="farm-form-field">
+                    <ModalFieldLabel>Causa de baja</ModalFieldLabel>
+                    <input value={formatAnimalCause(animal.dischargeCause)} disabled />
+                  </label>
+                  <label className="farm-form-field">
+                    <ModalFieldLabel>Fecha de baja</ModalFieldLabel>
+                    <input value={formatDate(animal.dischargeDate)} disabled />
+                  </label>
+                  <label className="farm-form-field">
+                    <ModalFieldLabel>Destino</ModalFieldLabel>
+                    <input value={animal.destinationCode ?? 'No informado'} disabled />
+                  </label>
+                </div>
               </div>
-            </div>
           </>
         )}
       </ModalBody>
@@ -956,21 +960,21 @@ export function AnimalAutorrepositionModal({
           <div className="animal-specific-block">
             <h3>Datos porcino</h3>
             <div className="grid-form">
-              <label>
-                Tipo de animal
+              <label className="farm-form-field">
+                <ModalFieldLabel>Tipo de animal</ModalFieldLabel>
                 <input value={form.animalType} onChange={(event) => onChange('animalType', event.target.value)} />
                 {errors.animalType && <span className="farm-inline-error">{errors.animalType}</span>}
               </label>
-              <label>
-                Fecha identificación
+              <label className="farm-form-field">
+                <ModalFieldLabel>Fecha identificación</ModalFieldLabel>
                 <input type="date" value={form.identificationDate} onChange={(event) => onChange('identificationDate', event.target.value)} />
               </label>
-              <label>
-                Nº registro porcino
+              <label className="farm-form-field">
+                <ModalFieldLabel>Nº registro porcino</ModalFieldLabel>
                 <input value={form.pigRegistrationNumber} onChange={(event) => onChange('pigRegistrationNumber', event.target.value)} />
               </label>
-              <label>
-                Marca / tag
+              <label className="farm-form-field">
+                <ModalFieldLabel>Marca / tag</ModalFieldLabel>
                 <input value={form.tag} onChange={(event) => onChange('tag', event.target.value)} />
               </label>
             </div>
@@ -979,16 +983,16 @@ export function AnimalAutorrepositionModal({
           <div className="animal-specific-block">
             <h3>Datos ovino/caprino</h3>
             <div className="grid-form">
-              <label>
-                Genotipado
+              <label className="farm-form-field">
+                <ModalFieldLabel>Genotipado</ModalFieldLabel>
                 <input value={form.genotyping} onChange={(event) => onChange('genotyping', event.target.value)} />
               </label>
-              <label>
-                Alelo dominante
+              <label className="farm-form-field">
+                <ModalFieldLabel>Alelo dominante</ModalFieldLabel>
                 <input value={form.dominantAllele} onChange={(event) => onChange('dominantAllele', event.target.value)} />
               </label>
-              <label>
-                Alelo bajo
+              <label className="farm-form-field">
+                <ModalFieldLabel>Alelo bajo</ModalFieldLabel>
                 <input value={form.lowAllele} onChange={(event) => onChange('lowAllele', event.target.value)} />
               </label>
             </div>

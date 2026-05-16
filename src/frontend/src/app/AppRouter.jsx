@@ -6,8 +6,6 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  ShieldCheck,
-  Tag,
   Users,
   X
 } from 'lucide-react';
@@ -26,6 +24,8 @@ import { SettingsPage } from '../features/profile/SettingsPage';
 import { SubscriptionPage } from '../features/profile/SubscriptionPage';
 import { useAuth } from '../shared/auth/AuthContext';
 import { getPlanLabel } from '../shared/subscription/plans';
+
+const APP_ICON = '/pecualia_icon.png';
 
 function RequireAuth() {
   const { token, bootstrapped } = useAuth();
@@ -100,7 +100,7 @@ function AppShell() {
       <aside className={`sidebar${mobileOpen ? ' sidebar-open' : ''}`}>
         <div className="sidebar-brand">
           <div className="sidebar-brand-mark">
-            <Tag size={16} />
+            <img className="sidebar-brand-image" src={APP_ICON} alt="Icono de Pecualia" />
           </div>
           <span className="sidebar-brand-title">Pecualia</span>
           <button className="sidebar-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Cerrar menú">
@@ -166,7 +166,7 @@ function AppShell() {
           </button>
           <div className="mobile-topbar-brand">
             <div className="sidebar-brand-mark">
-              <Tag size={14} />
+              <img className="sidebar-brand-image" src={APP_ICON} alt="Icono de Pecualia" />
             </div>
             <span>Pecualia</span>
           </div>

@@ -86,3 +86,12 @@ public sealed class DatabaseBootstrapOptions
 
     public bool SeedDemoData { get; init; }
 }
+
+public sealed class TaskReminderWorkerOptions
+{
+    public const string SectionName = "TaskReminderWorker";
+
+    public int PollIntervalMinutes { get; init; } = 60;
+
+    public string TimeZoneId { get; init; } = "Europe/Madrid";
+}

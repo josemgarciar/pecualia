@@ -11,7 +11,16 @@ CREATE TABLE app_user (
     email_verified_at TIMESTAMPTZ,
     is_active BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    task_reminder_enabled BOOLEAN NOT NULL DEFAULT false,
+    task_reminder_email VARCHAR(255),
+    task_reminder_interval_days INTEGER,
+    task_reminder_anchor_date DATE,
+    task_reminder_last_processed_on DATE,
+    task_reminder_last_sent_at TIMESTAMPTZ,
+    CONSTRAINT app_user_task_reminder_interval_positive_chk CHECK (
+        task_reminder_interval_days IS NULL OR task_reminder_interval_days > 0
+    )
 );
 
 CREATE TABLE manager (

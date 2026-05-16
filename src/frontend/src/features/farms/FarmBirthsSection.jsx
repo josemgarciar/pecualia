@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Sprout } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
-import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
+import { ModalBody, ModalDialog, ModalFieldLabel, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 import { BirthDetailModal, formatDate, parsePositiveNumber } from './FarmDetailShared';
 
 function createBirthFormState() {
@@ -218,19 +218,19 @@ export function FarmBirthsSection({ farm, token }) {
             <ModalBody className="operation-modal-body">
               {formError && <div className="error-banner">{formError}</div>}
               <label>
-                <span>Fecha de parto *</span>
+                <ModalFieldLabel required>Fecha de parto</ModalFieldLabel>
                 <input type="date" max={new Date().toISOString().slice(0, 10)} value={form.birthDate} onChange={(event) => setForm({ ...form, birthDate: event.target.value })} />
               </label>
               <label>
-                <span>Número de crías *</span>
+                <ModalFieldLabel required>Número de crías</ModalFieldLabel>
                 <input type="number" min="1" value={form.offspringNumber} onChange={(event) => setForm({ ...form, offspringNumber: event.target.value })} />
               </label>
               <label>
-                <span>Peso medio al nacimiento</span>
+                <ModalFieldLabel>Peso medio al nacimiento</ModalFieldLabel>
                 <input type="number" min="0" step="0.001" value={form.birthWeight} onChange={(event) => setForm({ ...form, birthWeight: event.target.value })} placeholder="3.0 kg" />
               </label>
               <label className="operation-form-wide">
-                <span>Observaciones</span>
+                <ModalFieldLabel>Observaciones</ModalFieldLabel>
                 <textarea value={form.observations} onChange={(event) => setForm({ ...form, observations: event.target.value })} placeholder="Notas sobre el parto, complicaciones, etc." />
               </label>
             </ModalBody>

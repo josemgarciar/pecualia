@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Edit3, Plus, Search, Shield, Trash2 } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
-import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
+import { ModalBody, ModalDialog, ModalFieldLabel, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 import {
   getAnimalIdentificationFormatMessage,
   isValidAnimalIdentification,
@@ -19,6 +19,7 @@ export function FarmVaccinationsSection({ farm, token }) {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -49,6 +50,7 @@ export function FarmVaccinationsSection({ farm, token }) {
   function openCreateModal() {
     setEditingVaccination(null);
     setForm(createVaccinationFormState());
+    setFormError('');
     setModalOpen(true);
   }
 
@@ -61,6 +63,7 @@ export function FarmVaccinationsSection({ farm, token }) {
       vaccinationType: vaccination.vaccinationType ?? '',
       observations: vaccination.observations ?? ''
     });
+    setFormError('');
     setModalOpen(true);
   }
 
@@ -68,25 +71,27 @@ export function FarmVaccinationsSection({ farm, token }) {
     setModalOpen(false);
     setEditingVaccination(null);
     setForm(createVaccinationFormState());
+    setFormError('');
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError('');
+    setFormError('');
     setSuccess('');
 
     if (!form.animalIdentification.trim() || !form.vaccinationDate || !form.vaccinationType.trim()) {
-      setError(`Debes indicar ${identificationLabel.toLowerCase()}, fecha y tipo de vacunación.`);
+      setFormError(`Debes indicar ${identificationLabel.toLowerCase()}, fecha y tipo de vacunación.`);
       return;
     }
 
     if (!isValidAnimalIdentification(farm.livestockSpecies, form.animalIdentification)) {
-      setError(getAnimalIdentificationFormatMessage(farm.livestockSpecies));
+      setFormError(getAnimalIdentificationFormatMessage(farm.livestockSpecies));
       return;
     }
 
     if (form.nextDose && form.nextDose < form.vaccinationDate) {
-      setError('La próxima dosis no puede ser anterior a la fecha de vacunación.');
+      setFormError('La próxima dosis no puede ser anterior a la fecha de vacunación.');
       return;
     }
 
@@ -119,7 +124,7 @@ export function FarmVaccinationsSection({ farm, token }) {
       closeModal();
       await loadVaccinations();
     } catch (requestError) {
-      setError(requestError.message);
+      setFormError(requestError.message);
     } finally {
       setSubmitting(false);
     }
@@ -247,16 +252,17 @@ export function FarmVaccinationsSection({ farm, token }) {
             onClose={closeModal}
           />
           <ModalBody className="operation-modal-body">
+            {formError && <div className="error-banner">{formError}</div>}
             <label>
-              <span>{identificationLabel} *</span>
+              <ModalFieldLabel required>{identificationLabel}</ModalFieldLabel>
               <input
                 value={form.animalIdentification}
                 onChange={(event) => setForm({ ...form, animalIdentification: event.target.value })}
-                placeholder={farm.livestockSpecies === 'Porcine' ? 'Ej: GT1800001004' : 'Ej: ES0600005831'}
+                placeholder={farm.livestockSpecies === 'Porcine' ? 'Ej: GT1800001004' : 'Ej: ES060000583112'}
               />
             </label>
             <label>
-              <span>Tipo de vacunación *</span>
+              <ModalFieldLabel required>Tipo de vacunación</ModalFieldLabel>
               <input
                 value={form.vaccinationType}
                 onChange={(event) => setForm({ ...form, vaccinationType: event.target.value })}
@@ -264,15 +270,15 @@ export function FarmVaccinationsSection({ farm, token }) {
               />
             </label>
             <label>
-              <span>Fecha aplicada *</span>
+              <ModalFieldLabel required>Fecha aplicada</ModalFieldLabel>
               <input type="date" value={form.vaccinationDate} onChange={(event) => setForm({ ...form, vaccinationDate: event.target.value })} />
             </label>
             <label>
-              <span>Próxima dosis</span>
+              <ModalFieldLabel>Próxima dosis</ModalFieldLabel>
               <input type="date" value={form.nextDose} onChange={(event) => setForm({ ...form, nextDose: event.target.value })} />
             </label>
             <label className="operation-form-wide">
-              <span>Observaciones</span>
+              <ModalFieldLabel>Observaciones</ModalFieldLabel>
               <textarea
                 value={form.observations}
                 onChange={(event) => setForm({ ...form, observations: event.target.value })}
