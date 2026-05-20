@@ -101,6 +101,44 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
+    public async Task RegisterFarmerAsync_CreatesActiveFarmerLinkedToManager()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock, new CapturingEmailSender());
+
+        var managerUser = ServiceTestData.CreateUser(15, UserRole.Manager, "Marta", "Gestora", email: "manager-ok@test.local");
+        managerUser.Username = "manager-ok";
+        managerUser.PasswordHash = "hash::secret";
+        var manager = ServiceTestData.CreateManager(managerUser.Id, managerUser);
+        manager.InvitationCode = "INVITE99";
+
+        dbContext.Users.Add(managerUser);
+        dbContext.Managers.Add(manager);
+        await dbContext.SaveChangesAsync();
+
+        var response = await service.RegisterFarmerAsync(new RegisterFarmerRequest(
+            "Nuevo",
+            "Ganadero",
+            "nuevo-ok@test.local",
+            "nuevo-ok",
+            "12345678",
+            "12345678Z",
+            "600000000",
+            "Calle Test",
+            "Sevilla",
+            "Sevilla",
+            "41001",
+            PersonType.Individual,
+            new DateOnly(1990, 1, 1),
+            "INVITE99",
+            null), CancellationToken.None);
+
+        response.Token.Should().StartWith("jwt-");
+        dbContext.Farmers.Should().ContainSingle(entity => entity.ManagerId == managerUser.Id && entity.Status == FarmerStatus.Active);
+    }
+
+    [Fact]
     public async Task LoginAsync_ReturnsToken_WhenCredentialsAreValid()
     {
         await using var dbContext = ServiceTestDbFactory.CreateContext();
@@ -276,6 +314,117 @@ public sealed class AuthServiceTests
 
         await action.Should().ThrowAsync<DomainException>()
             .WithMessage("El enlace de recuperación no es válido o ha caducado.");
+    }
+
+    [Fact]
+    public async Task ResendActivationAsync_ReturnsActivationUrl_ForInactiveFarmer()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var emailSender = new CapturingEmailSender();
+        var service = CreateService(dbContext, clock, emailSender);
+        var user = ServiceTestData.CreateUser(60, UserRole.Farmer, "Ina", "Activa", isActive: false, email: "inactive@test.local");
+        var farmer = ServiceTestData.CreateFarmer(user.Id, user, nifCif: "00000010H", status: FarmerStatus.PendingActivation);
+
+        dbContext.Users.Add(user);
+        dbContext.Farmers.Add(farmer);
+        await dbContext.SaveChangesAsync();
+
+        var response = await service.ResendActivationAsync(new ResendActivationRequest(user.Email!), CancellationToken.None);
+
+        response.Message.Should().Be("Se ha reenviado la invitación.");
+        response.ActivationUrl.Should().NotBeNull();
+        dbContext.AccountActivationTokens.Should().ContainSingle();
+        emailSender.Messages.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task GetCurrentUserAsync_ReturnsManagerProfileWithSubscription()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock, new CapturingEmailSender());
+        var user = ServiceTestData.CreateUser(70, UserRole.Manager, "Mar", "Perfil", email: "perfil@test.local");
+        user.Username = "perfil";
+        var manager = ServiceTestData.CreateManager(user.Id, user);
+        var subscription = new Subscription
+        {
+            Id = 2,
+            UserId = user.Id,
+            Autorenew = true,
+            InitialDate = new DateOnly(2026, 1, 1),
+            ExpirationDate = new DateOnly(2026, 12, 31),
+            PlanType = PlanType.Professional,
+            State = SubscriptionState.Active
+        };
+
+        dbContext.Users.Add(user);
+        dbContext.Managers.Add(manager);
+        dbContext.Subscriptions.Add(subscription);
+        await dbContext.SaveChangesAsync();
+
+        var profile = await service.GetCurrentUserAsync(user.Id, CancellationToken.None);
+
+        profile.Should().NotBeNull();
+        profile!.OrganizationName.Should().Be(manager.OrganizationName);
+        profile.PlanType.Should().Be(PlanType.Professional.ToString());
+        profile.SubscriptionAutorenew.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpdateCurrentUserSettingsAsync_UpdatesManagerProfileAndPassword()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock, new CapturingEmailSender());
+        var user = ServiceTestData.CreateUser(71, UserRole.Manager, "Mar", "Vieja", email: "old@test.local");
+        user.Username = "old-user";
+        user.PasswordHash = "hash::old-password";
+        var manager = ServiceTestData.CreateManager(user.Id, user);
+
+        dbContext.Users.Add(user);
+        dbContext.Managers.Add(manager);
+        await dbContext.SaveChangesAsync();
+
+        var profile = await service.UpdateCurrentUserSettingsAsync(user.Id, new UpdateUserSettingsRequest(
+            "María",
+            "Nueva",
+            "new@test.local",
+            "new-user",
+            "Gestoría Nueva",
+            "old-password",
+            "new-password"), CancellationToken.None);
+
+        profile.Email.Should().Be("new@test.local");
+        profile.Username.Should().Be("new-user");
+        manager.OrganizationName.Should().Be("Gestoría Nueva");
+        user.PasswordHash.Should().Be("hash::new-password");
+    }
+
+    [Fact]
+    public async Task UpdateCurrentUserSettingsAsync_Rejects_WhenCurrentPasswordIsMissing()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock, new CapturingEmailSender());
+        var user = ServiceTestData.CreateUser(72, UserRole.Farmer, "Paco", "Actual", email: "paco-current@test.local");
+        user.Username = "paco-current";
+        user.PasswordHash = "hash::old-password";
+
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var action = () => service.UpdateCurrentUserSettingsAsync(user.Id, new UpdateUserSettingsRequest(
+            "Paco",
+            "Actualizado",
+            "paco-current@test.local",
+            "paco-current",
+            null,
+            null,
+            "new-password"), CancellationToken.None);
+
+        await action.Should().ThrowAsync<DomainException>()
+            .WithMessage("Debes indicar la contraseña actual para establecer una nueva.");
     }
 
     private static AuthService CreateService(Pecualia.Api.Data.PecualiaDbContext dbContext, TestClock clock, CapturingEmailSender emailSender)

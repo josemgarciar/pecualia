@@ -149,8 +149,7 @@ export function FarmerDetailPage({
                     {farmer.personType === 'Individual' ? (
                       <>
                         <div><span>Nombre</span><strong>{farmer.name || 'No informado'}</strong></div>
-                        <div><span>Primer apellido</span><strong>{farmer.firstSurname || 'No informado'}</strong></div>
-                        <div><span>Segundo apellido</span><strong>{farmer.secondSurname || 'No informado'}</strong></div>
+                        <div><span>Apellidos</span><strong>{farmer.surname || 'No informado'}</strong></div>
                         <div><span>Nacimiento</span><strong>{farmer.birthDate || 'No informado'}</strong></div>
                       </>
                     ) : (

@@ -8,6 +8,27 @@ namespace Pecualia.Test.Services;
 public sealed class TaskReminderSettingsServiceTests
 {
     [Fact]
+    public async Task GetCurrentUserSettingsAsync_ReturnsPersistedReminderSettings()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 16, 09, 00, 00, TimeSpan.Zero));
+        var user = ServiceTestData.CreateUser(9, UserRole.Farmer, "Ana", "Avisos", email: "ana-settings@test.local");
+        user.TaskReminderEnabled = true;
+        user.TaskReminderEmail = "reminders@test.local";
+        user.TaskReminderIntervalDays = 10;
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var service = new TaskReminderSettingsService(dbContext, clock);
+
+        var response = await service.GetCurrentUserSettingsAsync(user.Id, CancellationToken.None);
+
+        response.Enabled.Should().BeTrue();
+        response.Email.Should().Be("reminders@test.local");
+        response.IntervalDays.Should().Be(10);
+    }
+
+    [Fact]
     public async Task UpdateCurrentUserSettingsAsync_PersistsEnabledReminderSettings_AndAnchorsSchedule()
     {
         await using var dbContext = ServiceTestDbFactory.CreateContext();
@@ -51,6 +72,25 @@ public sealed class TaskReminderSettingsServiceTests
 
         await action.Should().ThrowAsync<DomainException>()
             .WithMessage("Debes indicar el correo al que quieres enviar los recordatorios.");
+    }
+
+    [Fact]
+    public async Task UpdateCurrentUserSettingsAsync_RejectsInvalidEmailFormat()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 16, 09, 00, 00, TimeSpan.Zero));
+        var user = ServiceTestData.CreateUser(13, UserRole.Manager, "Marta", "Gestora", email: "marta-invalid@test.local");
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var service = new TaskReminderSettingsService(dbContext, clock);
+        var action = () => service.UpdateCurrentUserSettingsAsync(
+            user.Id,
+            new UpdateTaskReminderSettingsRequest(true, "not-an-email", 5),
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<DomainException>()
+            .WithMessage("El correo de recordatorios no es válido.");
     }
 
     [Fact]

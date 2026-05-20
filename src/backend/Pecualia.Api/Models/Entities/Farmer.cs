@@ -10,8 +10,6 @@ public sealed class Farmer
 
     public string NifCif { get; set; } = string.Empty;
 
-    public string? SecondSurname { get; set; }
-
     public string? CompanyName { get; set; }
 
     public string? LegalRepresentative { get; set; }

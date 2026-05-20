@@ -44,8 +44,7 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
                 (entity.Town != null && entity.Town.ToLower().Contains(normalizedSearch)) ||
                 (entity.CompanyName != null && entity.CompanyName.ToLower().Contains(normalizedSearch)) ||
                 entity.User.Name.ToLower().Contains(normalizedSearch) ||
-                entity.User.Surname.ToLower().Contains(normalizedSearch) ||
-                (entity.SecondSurname != null && entity.SecondSurname.ToLower().Contains(normalizedSearch)));
+                entity.User.Surname.ToLower().Contains(normalizedSearch));
         }
 
         if (!string.IsNullOrWhiteSpace(normalizedProvince))
@@ -83,7 +82,7 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
 
     public async Task<FarmerListItemResponse> CreateManagedFarmerAsync(long managerUserId, CreateFarmerRequest request, CancellationToken cancellationToken)
     {
-        ValidateFarmerRequest(request.PersonType, request.Name, request.FirstSurname, request.CompanyName, request.LegalRepresentative, request.NifCif, request.PhoneNumber, request.Town, request.Province);
+        ValidateFarmerRequest(request.PersonType, request.Name, request.Surname, request.CompanyName, request.LegalRepresentative, request.NifCif, request.PhoneNumber, request.Town, request.Province);
         await EnsureManagedFarmerPlanCapacityAsync(managerUserId, cancellationToken);
 
         var email = NormalizeOptionalEmail(request.Email);
@@ -105,7 +104,7 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
                 : request.Name!.Trim(),
             Surname = request.PersonType == PersonType.Company
                 ? string.Empty
-                : request.FirstSurname!.Trim(),
+                : request.Surname!.Trim(),
             Role = UserRole.Farmer,
             IsActive = false,
             CreatedAt = clock.UtcNow,
@@ -121,7 +120,6 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             User = user,
             ManagerId = managerUserId,
             NifCif = request.NifCif.Trim().ToUpperInvariant(),
-            SecondSurname = Normalize(request.SecondSurname),
             CompanyName = Normalize(request.CompanyName),
             LegalRepresentative = Normalize(request.LegalRepresentative),
             PhoneNumber = Normalize(request.PhoneNumber),
@@ -148,7 +146,7 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
 
     public async Task<FarmerListItemResponse> UpdateManagedFarmerAsync(long managerUserId, long farmerUserId, UpdateFarmerRequest request, CancellationToken cancellationToken)
     {
-        ValidateFarmerRequest(request.PersonType, request.Name, request.FirstSurname, request.CompanyName, request.LegalRepresentative, request.NifCif, request.PhoneNumber, request.Town, request.Province);
+        ValidateFarmerRequest(request.PersonType, request.Name, request.Surname, request.CompanyName, request.LegalRepresentative, request.NifCif, request.PhoneNumber, request.Town, request.Province);
 
         var farmer = await LoadManagedFarmerAsync(managerUserId, farmerUserId, cancellationToken);
         var previousEmail = NormalizeOptionalEmail(farmer.User.Email);
@@ -172,10 +170,9 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             : request.Name!.Trim();
         farmer.User.Surname = request.PersonType == PersonType.Company
             ? string.Empty
-            : request.FirstSurname!.Trim();
+            : request.Surname!.Trim();
         farmer.User.UpdatedAt = clock.UtcNow;
         farmer.NifCif = normalizedNif;
-        farmer.SecondSurname = Normalize(request.SecondSurname);
         farmer.CompanyName = Normalize(request.CompanyName);
         farmer.LegalRepresentative = Normalize(request.LegalRepresentative);
         farmer.PhoneNumber = Normalize(request.PhoneNumber);
@@ -254,7 +251,7 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
     {
         var displayName = BuildDisplayName(farmer);
         var fullName = farmer.PersonType == PersonType.Individual
-            ? $"{farmer.User.Name} {farmer.User.Surname} {farmer.SecondSurname}".Replace("  ", " ").Trim()
+            ? $"{farmer.User.Name} {farmer.User.Surname}".Trim()
             : null;
 
         return new FarmerListItemResponse(
@@ -294,7 +291,6 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             BuildDisplayName(farmer),
             farmer.PersonType == PersonType.Individual ? farmer.User.Name : null,
             farmer.PersonType == PersonType.Individual ? EmptyToNull(farmer.User.Surname) : null,
-            farmer.PersonType == PersonType.Individual ? EmptyToNull(farmer.SecondSurname) : null,
             farmer.PersonType == PersonType.Individual ? farmer.BirthDate : null,
             farmer.PersonType == PersonType.Company ? EmptyToNull(farmer.CompanyName) : null,
             farmer.PersonType == PersonType.Company ? EmptyToNull(farmer.LegalRepresentative) : null,
@@ -313,7 +309,7 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
     private static void ValidateFarmerRequest(
         PersonType personType,
         string? name,
-        string? firstSurname,
+        string? surname,
         string? companyName,
         string? legalRepresentative,
         string nifCif,
@@ -323,9 +319,9 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
     {
         if (personType == PersonType.Individual)
         {
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(firstSurname))
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(surname))
             {
-                throw new DomainException("Nombre y primer apellido son obligatorios para persona física.");
+                throw new DomainException("Nombre y apellidos son obligatorios para persona física.");
             }
         }
         else if (string.IsNullOrWhiteSpace(companyName) || string.IsNullOrWhiteSpace(legalRepresentative))
@@ -379,7 +375,7 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
     {
         return farmer.PersonType == PersonType.Company
             ? farmer.CompanyName?.Trim() ?? farmer.LegalRepresentative?.Trim() ?? farmer.User.Name
-            : $"{farmer.User.Name} {farmer.User.Surname} {farmer.SecondSurname}".Replace("  ", " ").Trim();
+            : $"{farmer.User.Name} {farmer.User.Surname}".Trim();
     }
 
     private static string Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();

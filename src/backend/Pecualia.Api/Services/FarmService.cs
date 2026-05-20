@@ -371,6 +371,6 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock, IFarm
     {
         return farmer.PersonType == PersonType.Company
             ? farmer.CompanyName?.Trim() ?? farmer.LegalRepresentative?.Trim() ?? farmer.User.Name
-            : $"{farmer.User.Name} {farmer.User.Surname} {farmer.SecondSurname}".Replace("  ", " ").Trim();
+            : $"{farmer.User.Name} {farmer.User.Surname}".Trim();
     }
 }

@@ -10,8 +10,7 @@ import { FarmerDetailPage } from './FarmerDetailPage';
 const initialForm = {
   personType: 'Individual',
   name: '',
-  firstSurname: '',
-  secondSurname: '',
+  surname: '',
   birthDate: '',
   companyName: '',
   legalRepresentative: '',
@@ -44,8 +43,7 @@ function toPayload(form) {
   return {
     personType: form.personType,
     name: form.personType === 'Individual' ? form.name.trim() : null,
-    firstSurname: form.personType === 'Individual' ? form.firstSurname.trim() : null,
-    secondSurname: form.personType === 'Individual' ? emptyToNull(form.secondSurname) : null,
+    surname: form.personType === 'Individual' ? form.surname.trim() : null,
     birthDate: form.personType === 'Individual' && form.birthDate ? form.birthDate : null,
     companyName: form.personType === 'Company' ? form.companyName.trim() : null,
     legalRepresentative: form.personType === 'Company' ? form.legalRepresentative.trim() : null,
@@ -63,8 +61,7 @@ function mapDetailToForm(detail) {
   return {
     personType: detail.personType,
     name: detail.name ?? '',
-    firstSurname: detail.firstSurname ?? '',
-    secondSurname: detail.secondSurname ?? '',
+    surname: detail.surname ?? '',
     birthDate: detail.birthDate ?? '',
     companyName: detail.companyName ?? '',
     legalRepresentative: detail.legalRepresentative ?? '',
@@ -93,8 +90,8 @@ function formatStatus(status) {
 function buildValidationMessage(form, step) {
   if (step === 1) {
     if (form.personType === 'Individual') {
-      if (!form.name.trim() || !form.firstSurname.trim() || !form.nifCif.trim()) {
-        return 'Completa nombre, primer apellido y NIF.';
+      if (!form.name.trim() || !form.surname.trim() || !form.nifCif.trim()) {
+        return 'Completa nombre, apellidos y NIF.';
       }
       if (!isValidTaxIdentifier('Individual', form.nifCif)) {
         return 'El DNI/NIF indicado no es válido.';
@@ -141,7 +138,7 @@ function FarmerWizardModal({
   const isCreate = mode === 'create';
   const displayName = form.personType === 'Company'
     ? form.companyName || 'Ganader@ sin nombre'
-    : [form.name, form.firstSurname, form.secondSurname].filter(Boolean).join(' ') || 'Ganader@ sin nombre';
+    : [form.name, form.surname].filter(Boolean).join(' ') || 'Ganader@ sin nombre';
   const idDocument = form.nifCif || 'Sin NIF/CIF';
 
   return (
@@ -187,11 +184,8 @@ function FarmerWizardModal({
                     <FormField label="Nombre" required>
                       <input className="farm-input" value={form.name} onChange={(event) => onChange('name', event.target.value)} placeholder="ej: Miguel" />
                     </FormField>
-                    <FormField label="Primer apellido" required>
-                      <input className="farm-input" value={form.firstSurname} onChange={(event) => onChange('firstSurname', event.target.value)} placeholder="ej: Torres" />
-                    </FormField>
-                    <FormField label="Segundo apellido">
-                      <input className="farm-input" value={form.secondSurname} onChange={(event) => onChange('secondSurname', event.target.value)} placeholder="ej: Vega" />
+                    <FormField label="Apellidos" required>
+                      <input className="farm-input" value={form.surname} onChange={(event) => onChange('surname', event.target.value)} placeholder="ej: Torres Vega" />
                     </FormField>
                     <FormField label="NIF" required>
                       <input className="farm-input" value={form.nifCif} onChange={(event) => onChange('nifCif', event.target.value)} placeholder="ej: 12345678A" />
@@ -510,8 +504,7 @@ export function FarmersPage() {
           ...current,
           personType: value,
           name: '',
-          firstSurname: '',
-          secondSurname: '',
+          surname: '',
           birthDate: ''
         };
       }

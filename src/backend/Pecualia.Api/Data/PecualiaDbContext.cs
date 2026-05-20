@@ -99,7 +99,6 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         farmer.Property(entity => entity.UserId).HasColumnName("user_id");
         farmer.Property(entity => entity.ManagerId).HasColumnName("manager_id");
         farmer.Property(entity => entity.NifCif).HasColumnName("nif_cif").HasMaxLength(32).IsRequired();
-        farmer.Property(entity => entity.SecondSurname).HasColumnName("second_surname").HasMaxLength(180);
         farmer.Property(entity => entity.CompanyName).HasColumnName("company_name").HasMaxLength(180);
         farmer.Property(entity => entity.LegalRepresentative).HasColumnName("legal_representative").HasMaxLength(180);
         farmer.Property(entity => entity.PhoneNumber).HasColumnName("phone_number").HasMaxLength(32);

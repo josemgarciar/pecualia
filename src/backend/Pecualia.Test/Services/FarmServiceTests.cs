@@ -124,4 +124,116 @@ public sealed class FarmServiceTests
         await action.Should().ThrowAsync<DomainException>()
             .WithMessage("El plan Free permite hasta 2 explotaciones. Cambia de plan para crear más.");
     }
+
+    [Fact]
+    public async Task CreateFarmAsync_CreatesPorcineFarm_ForManagedFarmer()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var censusProjectionService = new FarmCensusProjectionService(dbContext, clock);
+        var service = new FarmService(dbContext, clock, censusProjectionService);
+
+        var managerUser = ServiceTestData.CreateUser(40, UserRole.Manager, "Marta", "Gestora", email: "farm-manager@test.local");
+        var manager = ServiceTestData.CreateManager(managerUser.Id, managerUser);
+        var farmerUser = ServiceTestData.CreateUser(41, UserRole.Farmer, "Paco", "Ganadero", email: "farm-farmer@test.local");
+        var farmer = ServiceTestData.CreateFarmer(farmerUser.Id, farmerUser, managerId: managerUser.Id, nifCif: "00000011A");
+
+        dbContext.Users.AddRange(managerUser, farmerUser);
+        dbContext.Managers.Add(manager);
+        dbContext.Farmers.Add(farmer);
+        await dbContext.SaveChangesAsync();
+
+        var created = await service.CreateFarmAsync(managerUser.Id, UserRole.Manager, new CreateFarmRequest(
+            farmer.UserId,
+            "Porcina nueva",
+            "ES410010000040",
+            LivestockSpecies.Porcine,
+            FarmRegime.Intensive,
+            "Sevilla",
+            "Sevilla",
+            "Camino 1",
+            "41001",
+            null,
+            "PR-40",
+            "Producción",
+            12,
+            18,
+            "Responsable",
+            "Multiplicación",
+            30,
+            123.45,
+            678.9), CancellationToken.None);
+
+        created.LivestockSpecies.Should().Be(LivestockSpecies.Porcine.ToString());
+        created.AuthorisedCapacity.Should().Be(30);
+        dbContext.Farms.Should().ContainSingle(entity => entity.Name == "Porcina nueva" && entity.PorcineRegistryNumber == "PR-40");
+    }
+
+    [Fact]
+    public async Task UpdateFarmAsync_UpdatesPorcineCapacitiesAndMetadata()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var censusProjectionService = new FarmCensusProjectionService(dbContext, clock);
+        var service = new FarmService(dbContext, clock, censusProjectionService);
+
+        var farmerUser = ServiceTestData.CreateUser(50, UserRole.Farmer, "Rosa", "Titular", email: "farm-update@test.local");
+        var farmer = ServiceTestData.CreateFarmer(50, farmerUser, nifCif: "00000012B");
+        var farm = ServiceTestData.CreateFarm(150, farmer.UserId, LivestockSpecies.Porcine, "Porcina base", "ES410010000050", authorisedCapacity: 20, porcineMothersCapacity: 8, porcineFatteningCapacity: 12);
+
+        dbContext.Users.Add(farmerUser);
+        dbContext.Farmers.Add(farmer);
+        dbContext.Farms.Add(farm);
+        await dbContext.SaveChangesAsync();
+
+        var updated = await service.UpdateFarmAsync(farmerUser.Id, UserRole.Farmer, farm.Id, new UpdateFarmRequest(
+            "Porcina actualizada",
+            "ES410010000051",
+            FarmRegime.SemiExtensive,
+            "Huelva",
+            "Huelva",
+            "Carretera 2",
+            "21001",
+            null,
+            "PR-UPDATED",
+            "Cebo",
+            10,
+            15,
+            "Nueva responsable",
+            "Producción",
+            29,
+            222.2,
+            333.3), CancellationToken.None);
+
+        updated.Name.Should().Be("Porcina actualizada");
+        updated.AuthorisedCapacity.Should().Be(25);
+        updated.PorcineRegistryNumber.Should().Be("PR-UPDATED");
+        updated.Town.Should().Be("Huelva");
+    }
+
+    [Fact]
+    public async Task GetSummaryAsync_ReturnsFarmerAndCapacityData()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var censusProjectionService = new FarmCensusProjectionService(dbContext, clock);
+        var service = new FarmService(dbContext, clock, censusProjectionService);
+
+        var farmerUser = ServiceTestData.CreateUser(60, UserRole.Farmer, "Clara", "Titular", email: "farm-summary@test.local");
+        var farmer = ServiceTestData.CreateFarmer(60, farmerUser, nifCif: "00000013C");
+        var farm = ServiceTestData.CreateFarm(160, farmer.UserId, LivestockSpecies.Porcine, "Porcina resumen", "ES410010000060", authorisedCapacity: 12, porcineMothersCapacity: 5, porcineFatteningCapacity: 7);
+        var birth = ServiceTestData.CreateBirth(3001, farm.Id, new DateOnly(2026, 05, 1), 2);
+
+        dbContext.Users.Add(farmerUser);
+        dbContext.Farmers.Add(farmer);
+        dbContext.Farms.Add(farm);
+        dbContext.AnimalBirths.Add(birth);
+        await dbContext.SaveChangesAsync();
+
+        var summary = await service.GetSummaryAsync(farmerUser.Id, UserRole.Farmer, farm.Id, CancellationToken.None);
+
+        summary.FarmerName.Should().Be("Clara Titular");
+        summary.AuthorisedCapacity.Should().Be(12);
+        summary.AnimalCount.Should().Be(2);
+    }
 }

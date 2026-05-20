@@ -37,7 +37,6 @@ CREATE TABLE farmer (
     user_id BIGINT PRIMARY KEY REFERENCES app_user(id) ON DELETE CASCADE,
     manager_id BIGINT REFERENCES manager(user_id) ON DELETE SET NULL,
     nif_cif VARCHAR(32) NOT NULL UNIQUE,
-    second_surname VARCHAR(180),
     company_name VARCHAR(180),
     legal_representative VARCHAR(180),
     phone_number VARCHAR(32),

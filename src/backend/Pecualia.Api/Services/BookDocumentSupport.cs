@@ -495,7 +495,7 @@ internal static class BookDocumentSupport
     {
         return farmer.PersonType == PersonType.Company
             ? farmer.CompanyName?.Trim() ?? farmer.LegalRepresentative?.Trim() ?? farmer.User.Name
-            : $"{farmer.User.Name} {farmer.User.Surname} {farmer.SecondSurname}".Replace("  ", " ").Trim();
+            : $"{farmer.User.Name} {farmer.User.Surname}".Trim();
     }
 
     internal static string? EmptyToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
