@@ -127,6 +127,32 @@ Validación de backend:
 dotnet build Pecualia.sln
 ```
 
+Pruebas de rendimiento de backend:
+
+```bash
+dotnet test src/backend/Pecualia.Test/Pecualia.Test.csproj --filter "Category=Performance"
+```
+
+Solo módulo ovino/caprino:
+
+```bash
+dotnet test src/backend/Pecualia.Test/Pecualia.Test.csproj --filter "PerformanceModule=OvineCaprine"
+```
+
+Solo módulo porcino:
+
+```bash
+dotnet test src/backend/Pecualia.Test/Pecualia.Test.csproj --filter "PerformanceModule=Porcine"
+```
+
+Solo módulo transversal:
+
+```bash
+dotnet test src/backend/Pecualia.Test/Pecualia.Test.csproj --filter "PerformanceModule=Transversal"
+```
+
+Estas pruebas miden regresiones de rendimiento a nivel de servicio sobre la base de datos en memoria del proyecto. Sirven para detectar degradaciones en consultas, agregaciones y cargas masivas del dominio sin depender de latencia externa.
+
 Validación de frontend:
 
 ```bash
@@ -143,39 +169,3 @@ docker compose down
 ## Despliegue en Render
 
 La opción preparada en este repositorio despliega la SPA y la API en un único servicio Docker de Render, con PostgreSQL gestionado por Render y seed de demo opcional en el arranque. La configuración actual está orientada al plan `free` tanto para el servicio web como para la base de datos.
-
-### Archivos preparados
-
-- `render.yaml`: define el servicio `pecualia-app` y la base `pecualia-db`
-- `Dockerfile`: construye frontend y backend en una sola imagen
-- `.github/workflows/deploy-render.yml`: despliega en Render en cada push a `main`
-
-### Flujo recomendado
-
-1. Sube este repositorio a GitHub.
-2. En Render, crea un nuevo Blueprint apuntando a este repositorio y a `render.yaml`.
-3. Lanza el primer despliegue desde Render para que se creen:
-   - el servicio web `pecualia-app`
-   - la base de datos `pecualia-db`
-4. En el servicio web, abre `Settings > Deploy Hook` y copia la URL del hook.
-5. En GitHub, crea el secreto del repositorio `RENDER_DEPLOY_HOOK_URL` con esa URL.
-6. En Render, deja `Auto-Deploy` del servicio web en `Off` para evitar despliegues duplicados, porque el workflow de GitHub ya se encargará del despliegue por cada push a `main`.
-
-### Variables de entorno en Render
-
-El `render.yaml` ya deja configuradas las claves principales:
-
-- `ConnectionStrings__Postgres` desde la base de datos gestionada por Render
-- `Database__BootstrapOnStartup=true`
-- `Database__SeedDemoData=true`
-- `Jwt__Issuer`
-- `Jwt__Audience`
-- `Jwt__SigningKey` generado automáticamente
-- `Email__Mode=File`
-
-Si más adelante usas dominio propio, puedes sobrescribir manualmente:
-
-- `Frontend__Origin`
-- `Activation__BaseUrl`
-
-Si no las defines, la aplicación deriva ambos valores automáticamente a partir del hostname público de Render.
