@@ -55,6 +55,7 @@ coverage/
 # =========================
 # Project-specific
 # =========================
+# Información privada empleada para el diseño del sistema
 .tmp/
 info/
 output/
