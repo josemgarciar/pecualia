@@ -2,7 +2,9 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Pecualia.Api.Configuration;
@@ -21,32 +23,37 @@ ApplyRenderDerivedConfiguration(builder.Configuration);
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 QuestPDF.Settings.EnableDebugging = builder.Environment.IsDevelopment();
 
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.AddOptions<JwtOptions>()
+    .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
+    .Validate(static options => !string.IsNullOrWhiteSpace(options.Issuer), "Falta la configuración obligatoria 'Jwt:Issuer'. Revísala en el entorno o en el fichero .env.")
+    .Validate(static options => !string.IsNullOrWhiteSpace(options.Audience), "Falta la configuración obligatoria 'Jwt:Audience'. Revísala en el entorno o en el fichero .env.")
+    .Validate(static options => !string.IsNullOrWhiteSpace(options.SigningKey), "Falta la configuración obligatoria 'Jwt:SigningKey'. Revísala en el entorno o en el fichero .env.")
+    .ValidateOnStart();
 builder.Services.Configure<ActivationOptions>(builder.Configuration.GetSection(ActivationOptions.SectionName));
 builder.Services.Configure<PasswordResetOptions>(builder.Configuration.GetSection(PasswordResetOptions.SectionName));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
-builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
+builder.Services.AddOptions<FrontendOptions>()
+    .Bind(builder.Configuration.GetSection(FrontendOptions.SectionName))
+    .Validate(static options => !string.IsNullOrWhiteSpace(options.Origin), "Falta la configuración obligatoria 'Frontend:Origin'. Revísala en el entorno o en el fichero .env.")
+    .ValidateOnStart();
 builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection(StripeOptions.SectionName));
 builder.Services.Configure<DatabaseBootstrapOptions>(builder.Configuration.GetSection(DatabaseBootstrapOptions.SectionName));
 builder.Services.Configure<TaskReminderWorkerOptions>(builder.Configuration.GetSection(TaskReminderWorkerOptions.SectionName));
 
-var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
-ValidateRequiredSetting(jwtOptions.Issuer, "Jwt:Issuer");
-ValidateRequiredSetting(jwtOptions.Audience, "Jwt:Audience");
-ValidateRequiredSetting(jwtOptions.SigningKey, "Jwt:SigningKey");
-
-var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey));
-var postgresConnectionString = PostgresConnectionStringResolver.RequireNormalized(builder.Configuration);
-var frontendOrigin = RequireConfigurationValue(builder.Configuration, "Frontend:Origin");
-
-builder.Services.AddDbContext<PecualiaDbContext>(options =>
+builder.Services.AddDbContext<PecualiaDbContext>((serviceProvider, options) =>
 {
-    options.UseNpgsql(postgresConnectionString);
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    options.UseNpgsql(PostgresConnectionStringResolver.RequireNormalized(configuration));
 });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+    .AddJwtBearer();
+
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptions<JwtOptions>>((options, jwtOptionsAccessor) =>
     {
+        var jwtOptions = jwtOptionsAccessor.Value;
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey));
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -74,15 +81,17 @@ builder.Services.AddAuthorization(options =>
                 (claim.Value == UserRole.Manager.ToString() || claim.Value == UserRole.Farmer.ToString()))));
 });
 
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
+builder.Services.AddCors();
+builder.Services.AddOptions<CorsOptions>()
+    .Configure<IOptions<FrontendOptions>>((options, frontendOptionsAccessor) =>
     {
-        policy.WithOrigins(frontendOrigin)
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+        options.AddDefaultPolicy(policy =>
+        {
+            policy.WithOrigins(frontendOptionsAccessor.Value.Origin)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
     });
-});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -198,25 +207,6 @@ if (hasFrontendBuild)
 }
 
 app.Run();
-
-static string RequireConfigurationValue(IConfiguration configuration, string key)
-{
-    var value = configuration[key];
-    if (string.IsNullOrWhiteSpace(value))
-    {
-        throw new InvalidOperationException($"Falta la configuración obligatoria '{key}'. Revísala en el entorno o en el fichero .env.");
-    }
-
-    return value;
-}
-
-static void ValidateRequiredSetting(string value, string key)
-{
-    if (string.IsNullOrWhiteSpace(value))
-    {
-        throw new InvalidOperationException($"Falta la configuración obligatoria '{key}'. Revísala en el entorno o en el fichero .env.");
-    }
-}
 
 static void ApplyRenderDerivedConfiguration(IConfiguration configuration)
 {
