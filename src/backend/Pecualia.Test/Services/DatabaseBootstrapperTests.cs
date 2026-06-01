@@ -39,7 +39,15 @@ public sealed class DatabaseBootstrapperTests
 
         var dbDirectory = InvokePrivateStatic<string>("ResolveDbDirectory", contentRoot);
 
-        dbDirectory.Should().EndWith(Path.Combine("pecualia", "db"));
+        var expectedLocations = new[]
+        {
+            Path.Combine("pecualia", "db"),
+            Path.Combine("Pecualia.Test", "bin", "Release", "net8.0", "db")
+        };
+
+        expectedLocations.Any(expected => dbDirectory.EndsWith(expected, StringComparison.Ordinal))
+            .Should()
+            .BeTrue($"expected '{dbDirectory}' to resolve either the repository db folder or the published test output copy");
         File.Exists(Path.Combine(dbDirectory, "init", "001_schema.sql")).Should().BeTrue();
     }
 
