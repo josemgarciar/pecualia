@@ -5,6 +5,7 @@ import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { isValidTaxIdentifier, normalizeTaxIdentifier } from '../../shared/validation/identifiers';
 
+const MIN_PASSWORD_LENGTH = 10;
 const STEPS = [
   { label: 'Acceso' },
   { label: 'Información' },
@@ -53,7 +54,7 @@ export function RegisterFarmerPage() {
       if (!form.email.trim()) { setError('El correo es obligatorio.'); return false; }
       if (!form.username.trim()) { setError('El usuario es obligatorio.'); return false; }
       if (!form.password.trim()) { setError('La contraseña es obligatoria.'); return false; }
-      if (form.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return false; }
+      if (form.password.length < MIN_PASSWORD_LENGTH) { setError(`La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`); return false; }
     }
     if (targetStep === 1) {
       if (!form.nifCif.trim()) { setError('El NIF/CIF es obligatorio.'); return false; }
@@ -148,7 +149,7 @@ export function RegisterFarmerPage() {
                 type={showPassword ? 'text' : 'password'}
                 value={form.password}
                 onChange={set('password')}
-                placeholder="Mín. 6 caracteres"
+                placeholder={`Mín. ${MIN_PASSWORD_LENGTH} caracteres`}
               />
               <button className="password-toggle" type="button" onClick={() => setShowPassword((v) => !v)}>
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}

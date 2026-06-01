@@ -8,7 +8,7 @@ import {
   buildBookPdfPath
 } from './FarmDetailShared';
 
-export function FarmBookSection({ farm, token }) {
+export function FarmBookSection({ farm }) {
   const [preview, setPreview] = useState(null);
   const [selectedSectionIds, setSelectedSectionIds] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +28,7 @@ export function FarmBookSection({ farm, token }) {
       setError('');
 
       try {
-        const response = await apiRequest(`/api/farms/${farm.id}/book/preview`, { token });
+        const response = await apiRequest(`/api/farms/${farm.id}/book/preview`);
         if (!cancelled) {
           setPreview(response);
           setSelectedSectionIds(response.sections.map((section) => section.id));
@@ -51,7 +51,7 @@ export function FarmBookSection({ farm, token }) {
     return () => {
       cancelled = true;
     };
-  }, [farm.id, token]);
+  }, [farm.id]);
 
   const orderedSelectedSectionIds = useMemo(
     () => preview?.sections.filter((section) => selectedSectionIds.includes(section.id)).map((section) => section.id) ?? [],
@@ -82,7 +82,6 @@ export function FarmBookSection({ farm, token }) {
 
       try {
         const { blob } = await apiBlobRequest(buildBookPdfPath(farm.id, orderedSelectedSectionIds), {
-          token,
           signal: abortController.signal
         });
 
@@ -178,7 +177,7 @@ export function FarmBookSection({ farm, token }) {
         pdfDocument.destroy().catch(() => {});
       }
     };
-  }, [farm.id, orderedSelectedSectionIds, preview, token]);
+  }, [farm.id, orderedSelectedSectionIds, preview]);
 
   function toggleSection(sectionId) {
     setSelectedSectionIds((current) => (
@@ -210,7 +209,7 @@ export function FarmBookSection({ farm, token }) {
     setError('');
 
     try {
-      const { blob, filename } = await apiBlobRequest(buildBookPdfPath(farm.id, orderedSelectedSectionIds), { token });
+      const { blob, filename } = await apiBlobRequest(buildBookPdfPath(farm.id, orderedSelectedSectionIds));
       const objectUrl = URL.createObjectURL(blob);
 
       if (mode === 'download') {

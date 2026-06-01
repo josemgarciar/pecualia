@@ -390,7 +390,7 @@ function FarmerWizardModal({
 export function FarmersPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const [farmers, setFarmers] = useState([]);
   const [selectedFarmerId, setSelectedFarmerId] = useState(null);
   const [search, setSearch] = useState('');
@@ -428,7 +428,7 @@ export function FarmersPage() {
         params.set('status', status);
       }
 
-      const response = await apiRequest(`/api/farmers${params.toString() ? `?${params.toString()}` : ''}`, { token });
+      const response = await apiRequest(`/api/farmers${params.toString() ? `?${params.toString()}` : ''}`);
       setFarmers(response);
 
       const candidateId = preferredFarmerId ?? selectedFarmerId;
@@ -452,7 +452,7 @@ export function FarmersPage() {
     if (user?.role === 'Manager') {
       loadFarmers();
     }
-  }, [token, user, search, province, status]);
+  }, [user, search, province, status]);
 
   const closeModal = () => {
     setModalOpen(false);
@@ -523,8 +523,8 @@ export function FarmersPage() {
     try {
       const payload = toPayload(modalForm);
       const response = modalMode === 'create'
-        ? await apiRequest('/api/farmers', { method: 'POST', token, body: payload })
-        : await apiRequest(`/api/farmers/${selectedFarmerId}`, { method: 'PUT', token, body: payload });
+        ? await apiRequest('/api/farmers', { method: 'POST', body: payload })
+        : await apiRequest(`/api/farmers/${selectedFarmerId}`, { method: 'PUT', body: payload });
 
       closeModal();
       setSuccess(modalMode === 'create' ? 'Ganader@ creado correctamente.' : 'Ganader@ actualizado correctamente.');
@@ -666,7 +666,6 @@ export function FarmersPage() {
       {detailModalOpen && selectedFarmerId && (
         <FarmerDetailPage
           farmerId={selectedFarmerId}
-          token={token}
           onClose={() => setDetailModalOpen(false)}
           onEdit={openEditModal}
           onOpenFarms={(farmerId) => navigate(`/app/farms?farmerId=${farmerId}`)}

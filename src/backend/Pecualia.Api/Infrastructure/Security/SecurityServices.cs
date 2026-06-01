@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Http;
 using BCrypt.Net;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -70,6 +71,45 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+}
+
+public interface IAuthCookieService
+{
+    void AppendAuthCookie(HttpContext httpContext, string token);
+
+    void ClearAuthCookie(HttpContext httpContext);
+}
+
+public sealed class AuthCookieService(IOptions<AuthCookieOptions> options) : IAuthCookieService
+{
+    private readonly AuthCookieOptions _options = options.Value;
+
+    public void AppendAuthCookie(HttpContext httpContext, string token)
+    {
+        httpContext.Response.Cookies.Append(
+            _options.Name,
+            token,
+            BuildCookieOptions(TimeSpan.FromMinutes(_options.ExpirationMinutes)));
+    }
+
+    public void ClearAuthCookie(HttpContext httpContext)
+    {
+        httpContext.Response.Cookies.Delete(_options.Name, BuildCookieOptions(null));
+    }
+
+    private CookieOptions BuildCookieOptions(TimeSpan? maxAge)
+    {
+        return new CookieOptions
+        {
+            HttpOnly = true,
+            IsEssential = true,
+            Secure = _options.Secure,
+            SameSite = _options.SameSite,
+            Domain = string.IsNullOrWhiteSpace(_options.Domain) ? null : _options.Domain,
+            Path = "/",
+            MaxAge = maxAge
+        };
     }
 }
 

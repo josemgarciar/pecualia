@@ -95,9 +95,9 @@ internal static class PerformanceTestSupport
 
     internal sealed class FakeAuthService : IAuthService
     {
-        public Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<AuthResponse> RegisterManagerAsync(RegisterManagerRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<AuthResponse> RegisterFarmerAsync(RegisterFarmerRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<AuthSessionResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<AuthSessionResult> RegisterManagerAsync(RegisterManagerRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<AuthSessionResult> RegisterFarmerAsync(RegisterFarmerRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ActivationResponse> ActivateAccountAsync(ActivateAccountRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ActivationResponse> ResendActivationAsync(ResendActivationRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ForgotPasswordResponse> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();

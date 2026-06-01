@@ -14,7 +14,7 @@ import {
   formatDate
 } from './FarmDetailShared';
 
-export function FarmVaccinationsSection({ farm, token }) {
+export function FarmVaccinationsSection({ farm }) {
   const [vaccinations, setVaccinations] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -30,14 +30,14 @@ export function FarmVaccinationsSection({ farm, token }) {
 
   useEffect(() => {
     loadVaccinations();
-  }, [farm.id, token]);
+  }, [farm.id]);
 
   async function loadVaccinations() {
     setLoading(true);
     setError('');
 
     try {
-      const response = await apiRequest(`/api/farms/${farm.id}/vaccinations`, { token });
+      const response = await apiRequest(`/api/farms/${farm.id}/vaccinations`);
       setVaccinations(response);
     } catch (requestError) {
       setError(requestError.message);
@@ -108,14 +108,12 @@ export function FarmVaccinationsSection({ farm, token }) {
       if (editingVaccination) {
         await apiRequest(`/api/farms/${farm.id}/vaccinations/${editingVaccination.id}`, {
           method: 'PUT',
-          token,
           body
         });
         setSuccess('Vacunación actualizada correctamente.');
       } else {
         await apiRequest(`/api/farms/${farm.id}/vaccinations`, {
           method: 'POST',
-          token,
           body
         });
         setSuccess('Vacunación registrada correctamente.');
@@ -141,8 +139,7 @@ export function FarmVaccinationsSection({ farm, token }) {
 
     try {
       await apiRequest(`/api/farms/${farm.id}/vaccinations/${vaccination.id}`, {
-        method: 'DELETE',
-        token
+        method: 'DELETE'
       });
       setSuccess('Vacunación eliminada correctamente.');
       await loadVaccinations();

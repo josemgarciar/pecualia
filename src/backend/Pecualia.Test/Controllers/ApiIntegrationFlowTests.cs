@@ -51,7 +51,7 @@ public sealed class ApiIntegrationFlowTests : IClassFixture<ApiWebApplicationFac
             "Gestora",
             "manager.flow@test.local",
             "manager-flow",
-            "12345678",
+            "1234567890",
             "Gestoría Flow",
             "COL-100",
             "600000000",
@@ -72,8 +72,8 @@ public sealed class ApiIntegrationFlowTests : IClassFixture<ApiWebApplicationFac
             "manager.flow.updated@test.local",
             "manager-flow-updated",
             "Gestoría Flow Actualizada",
-            "12345678",
-            "87654321"), JsonOptions);
+            "1234567890",
+            "8765432109"), JsonOptions);
         updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var reminderGet = await client.GetAsync("/api/auth/task-reminder-settings");
@@ -87,7 +87,7 @@ public sealed class ApiIntegrationFlowTests : IClassFixture<ApiWebApplicationFac
 
         var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(
             "manager.flow.updated@test.local",
-            "87654321"), JsonOptions);
+            "8765432109"), JsonOptions);
         loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         await _factory.SeedAsync(async dbContext =>
@@ -487,7 +487,7 @@ public sealed class ApiIntegrationFlowTests : IClassFixture<ApiWebApplicationFac
             "Principal",
             email,
             username,
-            "12345678",
+            "1234567890",
             "Gestoría Cobertura",
             $"COL-{username}",
             "600000000",

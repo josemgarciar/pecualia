@@ -31,7 +31,6 @@ import { FarmVaccinationsSection } from './FarmVaccinationsSection';
 export function FarmDetailPage() {
   const { farmId } = useParams();
   const navigate = useNavigate();
-  const { token } = useAuth();
   const [farm, setFarm] = useState(null);
   const [summaryCensus, setSummaryCensus] = useState(null);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
@@ -57,7 +56,7 @@ export function FarmDetailPage() {
       setLoading(false);
       setError('Explotación no encontrada.');
     }
-  }, [farmId, token]);
+  }, [farmId]);
 
   async function loadFarmDetail(targetFarmId) {
     setLoading(true);
@@ -65,8 +64,8 @@ export function FarmDetailPage() {
 
     try {
       const [farmResult, censusResult] = await Promise.allSettled([
-        apiRequest(`/api/farms/${targetFarmId}`, { token }),
-        apiRequest(`/api/farms/${targetFarmId}/census?year=${currentYear}`, { token })
+        apiRequest(`/api/farms/${targetFarmId}`),
+        apiRequest(`/api/farms/${targetFarmId}/census?year=${currentYear}`)
       ]);
 
       if (farmResult.status !== 'fulfilled') {
@@ -78,7 +77,7 @@ export function FarmDetailPage() {
 
       if (farmResult.value.livestockSpecies === 'Porcine') {
         try {
-          const pendingResponse = await apiRequest(`/api/farms/${targetFarmId}/porcine-transitions/pending`, { token });
+          const pendingResponse = await apiRequest(`/api/farms/${targetFarmId}/porcine-transitions/pending`);
           setPendingPorcineTransitions(pendingResponse);
         } catch {
           setPendingPorcineTransitions([]);
@@ -152,7 +151,6 @@ export function FarmDetailPage() {
     try {
       const updatedFarm = await apiRequest(`/api/farms/${farm.id}`, {
         method: 'PUT',
-        token,
         body: {
           name: settingsForm.name.trim(),
           regaCode: normalizeRegaCode(settingsForm.regaCode),
@@ -221,7 +219,6 @@ export function FarmDetailPage() {
     animals: (
       <FarmAnimalsSection
         farm={farm}
-        token={token}
         movementFilter={movementAnimalFilter}
         onClearMovementFilter={() => setMovementAnimalFilter(null)}
       />
@@ -229,7 +226,6 @@ export function FarmDetailPage() {
     movements: (
       <FarmMovementsSection
         farm={farm}
-        token={token}
         onViewAnimalsForMovement={(movement) => {
           setMovementAnimalFilter({
             movementId: movement.id,
@@ -239,13 +235,13 @@ export function FarmDetailPage() {
         }}
       />
     ),
-    births: <FarmBirthsSection farm={farm} token={token} />,
-    deaths: <FarmDeathsSection farm={farm} token={token} />,
-    vaccinations: <FarmVaccinationsSection farm={farm} token={token} />,
-    balances: <FarmCensusBalancesSection farm={farm} token={token} />,
-    book: <FarmBookSection farm={farm} token={token} />,
-    incidents: <FarmIncidentsSection farm={farm} token={token} />,
-    inspections: <FarmInspectionsSection farm={farm} token={token} />
+    births: <FarmBirthsSection farm={farm} />,
+    deaths: <FarmDeathsSection farm={farm} />,
+    vaccinations: <FarmVaccinationsSection farm={farm} />,
+    balances: <FarmCensusBalancesSection farm={farm} />,
+    book: <FarmBookSection farm={farm} />,
+    incidents: <FarmIncidentsSection farm={farm} />,
+    inspections: <FarmInspectionsSection farm={farm} />
   };
 
   return (
@@ -384,7 +380,6 @@ export function FarmDetailPage() {
       {porcineTransitionsOpen && pendingPorcineTransitions.length > 0 && (
         <FarmPorcineTransitionsModal
           farm={farm}
-          token={token}
           tasks={pendingPorcineTransitions}
           onClose={() => setPorcineTransitionsOpen(false)}
           onResolved={async () => {

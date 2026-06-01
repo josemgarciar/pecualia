@@ -4,6 +4,8 @@ import { Eye, EyeOff, CheckCircle, ShieldAlert } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { AuthLayout } from './AuthLayout';
 
+const MIN_PASSWORD_LENGTH = 10;
+
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || '';
@@ -19,8 +21,8 @@ export function ResetPasswordPage() {
     event.preventDefault();
     setError('');
 
-    if (form.password.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres.');
+    if (form.password.length < MIN_PASSWORD_LENGTH) {
+      setError(`La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`);
       return;
     }
 
@@ -93,9 +95,9 @@ export function ResetPasswordPage() {
                 type={showPassword ? 'text' : 'password'}
                 value={form.password}
                 onChange={(event) => setForm({ ...form, password: event.target.value })}
-                placeholder="Mínimo 8 caracteres"
+                placeholder={`Mínimo ${MIN_PASSWORD_LENGTH} caracteres`}
                 required
-                minLength={8}
+                minLength={MIN_PASSWORD_LENGTH}
                 id="reset-password-new"
               />
               <button className="password-toggle" type="button" onClick={() => setShowPassword((current) => !current)}>
@@ -113,7 +115,7 @@ export function ResetPasswordPage() {
                 onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })}
                 placeholder="Repite la contraseña"
                 required
-                minLength={8}
+                minLength={MIN_PASSWORD_LENGTH}
                 id="reset-password-confirm"
               />
               <button className="password-toggle" type="button" onClick={() => setShowConfirm((current) => !current)}>

@@ -2,6 +2,19 @@ const JSON_HEADERS = {
   'Content-Type': 'application/json'
 };
 
+function buildApiUrl(path) {
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  const baseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (!baseUrl) {
+    return path;
+  }
+
+  return new URL(path, `${baseUrl.replace(/\/+$/, '')}/`).toString();
+}
+
 async function parseResponse(response) {
   const isJson = response.headers.get('content-type')?.includes('application/json');
   const payload = isJson ? await response.json() : null;
@@ -13,34 +26,30 @@ async function parseResponse(response) {
   return payload;
 }
 
-export async function apiRequest(path, { method = 'GET', body, token } = {}) {
+export async function apiRequest(path, { method = 'GET', body } = {}) {
   const headers = { ...JSON_HEADERS };
   if (!body) {
     delete headers['Content-Type'];
   }
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
 
-  const response = await fetch(path, {
+  const response = await fetch(buildApiUrl(path), {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'include'
   });
 
   return parseResponse(response);
 }
 
-export async function apiBlobRequest(path, { method = 'GET', token, signal } = {}) {
+export async function apiBlobRequest(path, { method = 'GET', signal } = {}) {
   const headers = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
 
-  const response = await fetch(path, {
+  const response = await fetch(buildApiUrl(path), {
     method,
     headers,
-    signal
+    signal,
+    credentials: 'include'
   });
 
   if (!response.ok) {

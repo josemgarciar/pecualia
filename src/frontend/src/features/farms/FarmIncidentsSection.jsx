@@ -19,7 +19,7 @@ function createIncidentFormState() {
   };
 }
 
-export function FarmIncidentsSection({ farm, token }) {
+export function FarmIncidentsSection({ farm }) {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,14 +31,14 @@ export function FarmIncidentsSection({ farm, token }) {
 
   useEffect(() => {
     loadIncidents();
-  }, [farm.id, token]);
+  }, [farm.id]);
 
   async function loadIncidents() {
     setLoading(true);
     setError('');
 
     try {
-      const response = await apiRequest(`/api/farms/${farm.id}/incidents`, { token });
+      const response = await apiRequest(`/api/farms/${farm.id}/incidents`);
       setIncidents(response);
     } catch (requestError) {
       setError(requestError.message);
@@ -89,7 +89,6 @@ export function FarmIncidentsSection({ farm, token }) {
     try {
       await apiRequest(`/api/farms/${farm.id}/incidents`, {
         method: 'POST',
-        token,
         body: {
           animalIdentification: form.animalIdentification.trim() ? normalizeAnimalIdentification(form.animalIdentification) : null,
           incidentDate: form.incidentDate,

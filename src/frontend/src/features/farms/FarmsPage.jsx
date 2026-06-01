@@ -532,7 +532,7 @@ export function FarmsPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const [farms, setFarms] = useState([]);
   const [farmers, setFarmers] = useState([]);
   const [search, setSearch] = useState('');
@@ -552,8 +552,8 @@ export function FarmsPage() {
 
     try {
       const [farmResponse, farmerResponse] = await Promise.all([
-        apiRequest('/api/farms', { token }),
-        user?.role === 'Manager' ? apiRequest('/api/farmers', { token }) : Promise.resolve([])
+        apiRequest('/api/farms'),
+        user?.role === 'Manager' ? apiRequest('/api/farmers') : Promise.resolve([])
       ]);
 
       setFarms(farmResponse);
@@ -565,7 +565,7 @@ export function FarmsPage() {
 
   useEffect(() => {
     loadData();
-  }, [token, user?.role]);
+  }, [user?.role]);
 
   const selectedFarmer = farmers.find((farmer) => String(farmer.id) === selectedFarmerId) ?? null;
 
@@ -663,7 +663,6 @@ export function FarmsPage() {
     try {
       await apiRequest('/api/farms', {
         method: 'POST',
-        token,
         body: {
           farmerId: Number(modalForm.farmerId || user.id),
           name: modalForm.name.trim(),

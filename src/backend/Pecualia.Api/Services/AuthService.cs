@@ -13,11 +13,11 @@ namespace Pecualia.Api.Services;
 
 public interface IAuthService
 {
-    Task<AuthResponse> RegisterManagerAsync(RegisterManagerRequest request, CancellationToken cancellationToken);
+    Task<AuthSessionResult> RegisterManagerAsync(RegisterManagerRequest request, CancellationToken cancellationToken);
 
-    Task<AuthResponse> RegisterFarmerAsync(RegisterFarmerRequest request, CancellationToken cancellationToken);
+    Task<AuthSessionResult> RegisterFarmerAsync(RegisterFarmerRequest request, CancellationToken cancellationToken);
 
-    Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken);
+    Task<AuthSessionResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken);
 
     Task<ActivationResponse> ActivateAccountAsync(ActivateAccountRequest request, CancellationToken cancellationToken);
 
@@ -32,6 +32,8 @@ public interface IAuthService
     Task<UserProfileResponse> UpdateCurrentUserSettingsAsync(long userId, UpdateUserSettingsRequest request, CancellationToken cancellationToken);
 }
 
+public sealed record AuthSessionResult(string Token, UserProfileResponse User);
+
 public sealed class AuthService(
     PecualiaDbContext dbContext,
     IPasswordHasher passwordHasher,
@@ -43,12 +45,14 @@ public sealed class AuthService(
     IOptions<PasswordResetOptions> passwordResetOptions)
     : IAuthService
 {
+    private const int MinimumPasswordLength = 10;
     private readonly ActivationOptions _activationOptions = activationOptions.Value;
     private readonly PasswordResetOptions _passwordResetOptions = passwordResetOptions.Value;
 
-    public async Task<AuthResponse> RegisterManagerAsync(RegisterManagerRequest request, CancellationToken cancellationToken)
+    public async Task<AuthSessionResult> RegisterManagerAsync(RegisterManagerRequest request, CancellationToken cancellationToken)
     {
         await EnsureUniqueIdentityAsync(request.Email, request.Username, cancellationToken);
+        ValidatePasswordOrThrow(request.Password);
 
         var now = clock.UtcNow;
         var user = new AppUser
@@ -92,12 +96,13 @@ public sealed class AuthService(
         dbContext.Subscriptions.Add(subscription);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return new AuthResponse(jwtTokenService.CreateToken(user), MapProfile(user));
+        return new AuthSessionResult(jwtTokenService.CreateToken(user), MapProfile(user));
     }
 
-    public async Task<AuthResponse> RegisterFarmerAsync(RegisterFarmerRequest request, CancellationToken cancellationToken)
+    public async Task<AuthSessionResult> RegisterFarmerAsync(RegisterFarmerRequest request, CancellationToken cancellationToken)
     {
         await EnsureUniqueIdentityAsync(request.Email, request.Username, cancellationToken);
+        ValidatePasswordOrThrow(request.Password);
 
         if (!DomainValidators.IsValidTaxIdentifier(request.PersonType, request.NifCif))
         {
@@ -145,10 +150,10 @@ public sealed class AuthService(
         dbContext.Farmers.Add(farmer);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return new AuthResponse(jwtTokenService.CreateToken(user), MapProfile(user));
+        return new AuthSessionResult(jwtTokenService.CreateToken(user), MapProfile(user));
     }
 
-    public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
+    public async Task<AuthSessionResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
     {
         var identifier = request.Identifier.Trim().ToLowerInvariant();
         var user = await dbContext.Users
@@ -170,7 +175,7 @@ public sealed class AuthService(
             throw new DomainException("La cuenta aún no está activa. Revisa el correo de activación.");
         }
 
-        return new AuthResponse(jwtTokenService.CreateToken(user), MapProfile(user));
+        return new AuthSessionResult(jwtTokenService.CreateToken(user), MapProfile(user));
     }
 
     public async Task<ActivationResponse> ActivateAccountAsync(ActivateAccountRequest request, CancellationToken cancellationToken)
@@ -193,6 +198,7 @@ public sealed class AuthService(
             throw new DomainException("El nombre de usuario ya está en uso.");
         }
 
+        ValidatePasswordOrThrow(request.Password);
         token.User.Username = username;
         token.User.PasswordHash = passwordHasher.Hash(request.Password);
         token.User.EmailVerifiedAt = clock.UtcNow;
@@ -293,11 +299,7 @@ public sealed class AuthService(
                 throw new DomainException("La contraseña actual no es válida.");
             }
 
-            if (normalizedNewPassword.Length < 8)
-            {
-                throw new DomainException("La nueva contraseña debe tener al menos 8 caracteres.");
-            }
-
+            ValidatePasswordOrThrow(normalizedNewPassword);
             user.PasswordHash = passwordHasher.Hash(normalizedNewPassword);
         }
 
@@ -517,11 +519,7 @@ public sealed class AuthService(
             throw new DomainException("El enlace de recuperación no es válido o ha caducado.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
-        {
-            throw new DomainException("La nueva contraseña debe tener al menos 8 caracteres.");
-        }
-
+        ValidatePasswordOrThrow(request.NewPassword);
         token.User.PasswordHash = passwordHasher.Hash(request.NewPassword);
         token.User.UpdatedAt = clock.UtcNow;
         token.UsedAt = clock.UtcNow;
@@ -610,6 +608,14 @@ public sealed class AuthService(
               </body>
             </html>
             """;
+    }
+
+    private static void ValidatePasswordOrThrow(string? password)
+    {
+        if (string.IsNullOrWhiteSpace(password) || password.Trim().Length < MinimumPasswordLength)
+        {
+            throw new DomainException($"La contraseña debe tener al menos {MinimumPasswordLength} caracteres.");
+        }
     }
 
     private async Task EnsureUniqueIdentityAsync(string email, string username, CancellationToken cancellationToken)

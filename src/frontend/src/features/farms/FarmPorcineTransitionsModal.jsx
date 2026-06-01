@@ -12,7 +12,7 @@ function createForm(task) {
   };
 }
 
-export function FarmPorcineTransitionsModal({ farm, token, tasks, onClose, onResolved }) {
+export function FarmPorcineTransitionsModal({ farm, tasks, onClose, onResolved }) {
   const [selectedBirthId, setSelectedBirthId] = useState(tasks[0]?.birthId ?? null);
   const selectedTask = useMemo(
     () => tasks.find((task) => task.birthId === selectedBirthId) ?? tasks[0] ?? null,
@@ -57,7 +57,6 @@ export function FarmPorcineTransitionsModal({ farm, token, tasks, onClose, onRes
     try {
       await apiRequest(`/api/farms/${farm.id}/porcine-transitions/${selectedTask.birthId}`, {
         method: 'PUT',
-        token,
         body: {
           toRears,
           toSowsReposition,

@@ -14,7 +14,7 @@ function createInspectionFormState() {
   };
 }
 
-export function FarmInspectionsSection({ farm, token }) {
+export function FarmInspectionsSection({ farm }) {
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -26,14 +26,14 @@ export function FarmInspectionsSection({ farm, token }) {
 
   useEffect(() => {
     loadInspections();
-  }, [farm.id, token]);
+  }, [farm.id]);
 
   async function loadInspections() {
     setLoading(true);
     setError('');
 
     try {
-      const response = await apiRequest(`/api/farms/${farm.id}/inspections`, { token });
+      const response = await apiRequest(`/api/farms/${farm.id}/inspections`);
       setInspections(response);
     } catch (requestError) {
       setError(requestError.message);
@@ -69,7 +69,6 @@ export function FarmInspectionsSection({ farm, token }) {
     try {
       await apiRequest(`/api/farms/${farm.id}/inspections`, {
         method: 'POST',
-        token,
         body: {
           inspectionDate: form.inspectionDate,
           reason: emptyToNull(form.reason),

@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http;
+
 namespace Pecualia.Api.Configuration;
 
 public sealed class JwtOptions
@@ -61,6 +63,21 @@ public sealed class FrontendOptions
     public const string SectionName = "Frontend";
 
     public string Origin { get; init; } = string.Empty;
+}
+
+public sealed class AuthCookieOptions
+{
+    public const string SectionName = "AuthCookie";
+
+    public string Name { get; init; } = "pecualia.auth";
+
+    public string? Domain { get; init; }
+
+    public bool Secure { get; init; } = true;
+
+    public SameSiteMode SameSite { get; init; } = SameSiteMode.Lax;
+
+    public int ExpirationMinutes { get; init; } = 720;
 }
 
 public sealed class StripeOptions

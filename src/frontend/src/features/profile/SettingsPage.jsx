@@ -38,6 +38,8 @@ function buildInitialReminderForm() {
   };
 }
 
+const MIN_PASSWORD_LENGTH = 10;
+
 function mapReminderSettings(response) {
   return {
     enabled: Boolean(response?.enabled),
@@ -47,7 +49,7 @@ function mapReminderSettings(response) {
 }
 
 export function SettingsPage() {
-  const { token, user, refreshProfile } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [accountForm, setAccountForm] = useState(() => buildInitialAccountForm(user));
   const [passwordForm, setPasswordForm] = useState(buildInitialPasswordForm);
   const [reminderForm, setReminderForm] = useState(buildInitialReminderForm);
@@ -65,14 +67,9 @@ export function SettingsPage() {
   useEffect(() => {
     let cancelled = false;
 
-    if (!token) {
-      setReminderForm(buildInitialReminderForm());
-      return undefined;
-    }
-
     setReminderLoading(true);
 
-    apiRequest('/api/auth/task-reminder-settings', { token })
+    apiRequest('/api/auth/task-reminder-settings')
       .then((response) => {
         if (!cancelled) {
           setReminderForm(mapReminderSettings(response));
@@ -92,7 +89,7 @@ export function SettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, []);
 
   const isManager = user?.role === 'Manager';
   const planLabel = getPlanLabel(user);
@@ -118,7 +115,6 @@ export function SettingsPage() {
 
     const response = await apiRequest('/api/auth/settings', {
       method: 'PUT',
-      token,
       body: payload
     });
 
@@ -156,6 +152,12 @@ export function SettingsPage() {
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       setError('La confirmación de contraseña no coincide.');
+      setPasswordSaving(false);
+      return;
+    }
+
+    if (passwordForm.newPassword.length < MIN_PASSWORD_LENGTH) {
+      setError(`La nueva contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`);
       setPasswordSaving(false);
       return;
     }
@@ -205,7 +207,6 @@ export function SettingsPage() {
     try {
       const response = await apiRequest('/api/auth/task-reminder-settings', {
         method: 'PUT',
-        token,
         body: {
           enabled: reminderForm.enabled,
           email: normalizedEmail || null,

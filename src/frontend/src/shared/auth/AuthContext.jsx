@@ -2,32 +2,19 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api/client';
 
-const STORAGE_KEY = 'pecualia.auth';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const navigate = useNavigate();
-  const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
   const [bootstrapped, setBootstrapped] = useState(false);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      setBootstrapped(true);
-      return;
-    }
-
-    const parsed = JSON.parse(raw);
-    setToken(parsed.token);
-
-    apiRequest('/api/auth/me', { token: parsed.token })
+    apiRequest('/api/auth/me')
       .then((profile) => {
         setUser(profile);
       })
       .catch(() => {
-        localStorage.removeItem(STORAGE_KEY);
-        setToken(null);
         setUser(null);
       })
       .finally(() => {
@@ -36,29 +23,29 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = (authResponse) => {
-    setToken(authResponse.token);
     setUser(authResponse.user);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(authResponse));
     navigate('/app/dashboard');
   };
 
-  const logout = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setToken(null);
+  const logout = async () => {
+    try {
+      await apiRequest('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Limpia el estado local aunque el backend ya no esté disponible.
+    }
+
     setUser(null);
     navigate('/login');
   };
 
   const refreshProfile = async () => {
-    if (!token) return;
-    const profile = await apiRequest('/api/auth/me', { token });
+    const profile = await apiRequest('/api/auth/me');
     setUser(profile);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, user: profile }));
   };
 
   const value = useMemo(
-    () => ({ token, user, bootstrapped, login, logout, refreshProfile }),
-    [token, user, bootstrapped]
+    () => ({ user, bootstrapped, login, logout, refreshProfile }),
+    [user, bootstrapped]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

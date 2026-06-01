@@ -4,7 +4,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { apiRequest } from '../../shared/api/client';
 import { currentYear, monthLabels, speciesToneMap } from './FarmDetailShared';
 
-export function FarmCensusBalancesSection({ farm, token }) {
+export function FarmCensusBalancesSection({ farm }) {
   const [activeSubTab, setActiveSubTab] = useState('census');
   const [year, setYear] = useState(currentYear);
   const [census, setCensus] = useState(null);
@@ -14,7 +14,7 @@ export function FarmCensusBalancesSection({ farm, token }) {
 
   useEffect(() => {
     loadData(year);
-  }, [farm.id, token, year]);
+  }, [farm.id, year]);
 
   async function loadData(targetYear = year) {
     setLoading(true);
@@ -22,8 +22,8 @@ export function FarmCensusBalancesSection({ farm, token }) {
 
     try {
       const [censusResponse, balanceResponse] = await Promise.all([
-        apiRequest(`/api/farms/${farm.id}/census?year=${targetYear}`, { token }),
-        apiRequest(`/api/farms/${farm.id}/balances?year=${targetYear}`, { token })
+        apiRequest(`/api/farms/${farm.id}/census?year=${targetYear}`),
+        apiRequest(`/api/farms/${farm.id}/balances?year=${targetYear}`)
       ]);
       setCensus(censusResponse);
       setBalance(balanceResponse);

@@ -19,7 +19,7 @@ import {
   validateManualPorcineAnimalForm
 } from './FarmDetailShared';
 
-export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovementFilter }) {
+export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter }) {
   const canUseAutorreposition = farm.livestockSpecies !== 'Porcine';
   const canCreateManualPorcineAnimal = farm.livestockSpecies === 'Porcine';
   const [animals, setAnimals] = useState([]);
@@ -100,7 +100,7 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
       setLoadingAutorrepositionBirths(true);
 
       try {
-        const response = await apiRequest(`/api/farms/${farm.id}/births/autorreposition-availability`, { token });
+        const response = await apiRequest(`/api/farms/${farm.id}/births/autorreposition-availability`);
         if (!cancelled) {
           setAutorrepositionAvailability(response);
         }
@@ -120,7 +120,7 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
       setLoadingBreedOptions(true);
 
       try {
-        const response = await apiRequest(`/api/movements/breeds/${farm.livestockSpecies}`, { token });
+        const response = await apiRequest(`/api/movements/breeds/${farm.livestockSpecies}`);
         if (!cancelled) {
           setBreedOptions(response);
         }
@@ -142,11 +142,11 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
     return () => {
       cancelled = true;
     };
-  }, [autorrepositionOpen, manualPorcineOpen, farm.id, farm.livestockSpecies, token]);
+  }, [autorrepositionOpen, manualPorcineOpen, farm.id, farm.livestockSpecies]);
 
   useEffect(() => {
     loadAnimals();
-  }, [debouncedSearch, farm.id, movementFilter?.movementId, page, pageSize, reloadKey, token]);
+  }, [debouncedSearch, farm.id, movementFilter?.movementId, page, pageSize, reloadKey]);
 
   async function loadAnimals() {
     setLoading(true);
@@ -163,7 +163,7 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
       params.set('page', String(page));
       params.set('pageSize', String(pageSize));
 
-      const response = await apiRequest(`/api/farms/${farm.id}/animals${params.toString() ? `?${params}` : ''}`, { token });
+      const response = await apiRequest(`/api/farms/${farm.id}/animals${params.toString() ? `?${params}` : ''}`);
       setAnimals(response.items);
       setTotalCount(response.totalCount);
       setActiveCount(response.activeCount);
@@ -266,7 +266,7 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
     setAnimalFormErrors({});
 
     try {
-      const response = await apiRequest(`/api/animals/${animalId}`, { token });
+      const response = await apiRequest(`/api/animals/${animalId}`);
       setSelectedAnimal(response);
       setAnimalForm(createAnimalDetailForm(response));
     } catch (requestError) {
@@ -306,7 +306,6 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
     try {
       const updatedAnimal = await apiRequest(`/api/animals/${selectedAnimal.id}`, {
         method: 'PUT',
-        token,
         body: {
           identification: normalizeAnimalIdentification(animalForm.identification),
           birthYear: animalForm.birthYear === '' ? null : Number(animalForm.birthYear),
@@ -358,7 +357,7 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
     setDetailError('');
 
     try {
-      await apiRequest(`/api/animals/${selectedAnimal.id}`, { method: 'DELETE', token });
+      await apiRequest(`/api/animals/${selectedAnimal.id}`, { method: 'DELETE' });
       closeAnimalModal();
       setReloadKey((current) => current + 1);
     } catch (requestError) {
@@ -384,7 +383,6 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
     try {
       const response = await apiRequest(`/api/farms/${farm.id}/animals/autorreposition`, {
         method: 'POST',
-        token,
         body: {
           startIdentification: normalizeAnimalIdentification(autorrepositionForm.startIdentification),
           quantity: Number(autorrepositionForm.quantity),
@@ -437,7 +435,6 @@ export function FarmAnimalsSection({ farm, token, movementFilter, onClearMovemen
     try {
       await apiRequest('/api/animals/', {
         method: 'POST',
-        token,
         body: {
           farmId: farm.id,
           identification: normalizeAnimalIdentification(manualPorcineForm.identification),

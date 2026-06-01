@@ -25,7 +25,7 @@ function formatPrice(price) {
 export function SubscriptionPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { token, user, refreshProfile } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
   const [loadingAction, setLoadingAction] = useState('');
@@ -63,7 +63,7 @@ export function SubscriptionPage() {
       return;
     }
 
-    if (checkoutState !== 'success' || !sessionId || !token) {
+    if (checkoutState !== 'success' || !sessionId) {
       return;
     }
 
@@ -78,7 +78,7 @@ export function SubscriptionPage() {
     setFeedback('Pago confirmado en Stripe. Sincronizando la suscripción...');
     setLoadingAction('sync');
 
-    apiRequest(`/api/billing/checkout-session-status/${encodeURIComponent(sessionId)}`, { token })
+    apiRequest(`/api/billing/checkout-session-status/${encodeURIComponent(sessionId)}`)
       .then(async () => {
         await refreshProfile();
         if (!cancelled) {
@@ -100,21 +100,16 @@ export function SubscriptionPage() {
     return () => {
       cancelled = true;
     };
-  }, [location.pathname, location.search, navigate, refreshProfile, token]);
+  }, [location.pathname, location.search, navigate, refreshProfile]);
 
   async function handlePortalSession() {
-    if (!token) {
-      return;
-    }
-
     setLoadingAction('portal');
     setError('');
     setFeedback('');
 
     try {
       const response = await apiRequest('/api/billing/portal-session', {
-        method: 'POST',
-        token
+        method: 'POST'
       });
 
       window.location.assign(response.portalUrl);
@@ -126,10 +121,6 @@ export function SubscriptionPage() {
   }
 
   async function handlePlanSelection(plan) {
-    if (!token) {
-      return;
-    }
-
     if (plan.price === 0) {
       await handlePortalSession();
       return;
@@ -142,7 +133,6 @@ export function SubscriptionPage() {
     try {
       const response = await apiRequest('/api/billing/checkout-session', {
         method: 'POST',
-        token,
         body: {
           planType: plan.backendPlanType
         }

@@ -340,7 +340,7 @@ function MovementDetailModal({ farm, movement, loading, confirming, onClose, onV
   );
 }
 
-function MovementImportModal({ farm, token, onClose, onCommitted }) {
+function MovementImportModal({ farm, onClose, onCommitted }) {
   const [step, setStep] = useState(1);
   const [config, setConfig] = useState({
     direction: 'Exit',
@@ -500,7 +500,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
       setLoadingBreedOptions(true);
 
       try {
-        const response = await apiRequest(`/api/movements/breeds/${farm.livestockSpecies}`, { token });
+        const response = await apiRequest(`/api/movements/breeds/${farm.livestockSpecies}`);
         if (!cancelled) {
           setBreedOptions(response);
         }
@@ -521,7 +521,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
     return () => {
       cancelled = true;
     };
-  }, [farm.livestockSpecies, token]);
+  }, [farm.livestockSpecies]);
 
   async function handleFileSelected(event) {
     const file = event.target.files?.[0];
@@ -548,7 +548,6 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
     try {
       const response = await apiRequest('/api/movements/imports/preview', {
         method: 'POST',
-        token,
         body: {
           farmId: farm.id,
           operation: derivedOperation,
@@ -616,7 +615,6 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
 
       const response = await apiRequest('/api/movements/imports/commit', {
         method: 'POST',
-        token,
         body
       });
 
@@ -997,7 +995,7 @@ function MovementImportModal({ farm, token, onClose, onCommitted }) {
   );
 }
 
-export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) {
+export function FarmMovementsSection({ farm, onViewAnimalsForMovement }) {
   const [movements, setMovements] = useState([]);
   const [selectedMovementId, setSelectedMovementId] = useState(null);
   const [selectedMovement, setSelectedMovement] = useState(null);
@@ -1018,7 +1016,7 @@ export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) 
     setError('');
 
     try {
-      const movementResponse = await apiRequest(`/api/farms/${farm.id}/movements`, { token });
+      const movementResponse = await apiRequest(`/api/farms/${farm.id}/movements`);
       setMovements(movementResponse);
 
       if (keepSelection && selectedMovementId && movementResponse.some((entry) => entry.id === selectedMovementId)) {
@@ -1043,12 +1041,11 @@ export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) 
     setError('');
     try {
       await apiRequest(`/api/movements/${selectedMovementId}/confirm`, {
-        method: 'POST',
-        token
+        method: 'POST'
       });
 
       await loadMovements(true);
-      const response = await apiRequest(`/api/movements/${selectedMovementId}`, { token });
+      const response = await apiRequest(`/api/movements/${selectedMovementId}`);
       setSelectedMovement(response);
     } catch (requestError) {
       setError(requestError.message);
@@ -1060,7 +1057,7 @@ export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) 
   useEffect(() => {
     loadMovements(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [farm.id, token]);
+  }, [farm.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1074,7 +1071,7 @@ export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) 
       setDetailLoading(true);
       setSelectedMovement(null);
       try {
-        const response = await apiRequest(`/api/movements/${selectedMovementId}`, { token });
+        const response = await apiRequest(`/api/movements/${selectedMovementId}`);
         if (!cancelled) {
           setSelectedMovement(response);
         }
@@ -1094,7 +1091,7 @@ export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) 
     return () => {
       cancelled = true;
     };
-  }, [selectedMovementId, token]);
+  }, [selectedMovementId]);
 
   const filteredMovements = useMemo(() => (
     movements.filter((movement) => {
@@ -1188,7 +1185,6 @@ export function FarmMovementsSection({ farm, token, onViewAnimalsForMovement }) 
       {importOpen && (
         <MovementImportModal
           farm={farm}
-          token={token}
           onClose={() => setImportOpen(false)}
           onCommitted={() => {
             loadMovements(false);

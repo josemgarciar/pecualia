@@ -597,7 +597,6 @@ function AnimalsTable({ animals, selectedAnimalId, onSelect }) {
 }
 
 export function AnimalsPage() {
-  const { token } = useAuth();
   const [animals, setAnimals] = useState([]);
   const [farms, setFarms] = useState([]);
   const [selectedAnimal, setSelectedAnimal] = useState(null);
@@ -619,7 +618,7 @@ export function AnimalsPage() {
           params.set(key, value);
         }
       });
-      const response = await apiRequest(`/api/animals${params.toString() ? `?${params}` : ''}`, { token });
+      const response = await apiRequest(`/api/animals${params.toString() ? `?${params}` : ''}`);
       setAnimals(response);
       if (selectedAnimal && !response.some((animal) => animal.id === selectedAnimal.id)) {
         setSelectedAnimal(null);
@@ -637,7 +636,7 @@ export function AnimalsPage() {
 
     async function loadFarms() {
       try {
-        const response = await apiRequest('/api/farms/', { token });
+        const response = await apiRequest('/api/farms/');
         if (!cancelled) {
           setFarms(response);
         }
@@ -652,11 +651,11 @@ export function AnimalsPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     loadAnimals();
-  }, [filters.search, filters.species, filters.sex, token]);
+  }, [filters.search, filters.species, filters.sex]);
 
   const counters = useMemo(() => ({
     active: animals.filter((animal) => animal.status === 'Active').length,
@@ -667,7 +666,7 @@ export function AnimalsPage() {
     setSelectedAnimal(animal);
     setDetailLoading(true);
     try {
-      const response = await apiRequest(`/api/animals/${animal.id}`, { token });
+      const response = await apiRequest(`/api/animals/${animal.id}`);
       setSelectedAnimal(response);
     } catch (requestError) {
       setError(requestError.message);
@@ -680,7 +679,7 @@ export function AnimalsPage() {
     setSubmitting(true);
     setFormError('');
     try {
-      const created = await apiRequest('/api/animals/', { method: 'POST', body: payload, token });
+      const created = await apiRequest('/api/animals/', { method: 'POST', body: payload });
       setModalOpen(false);
       setSelectedAnimal(created);
       await loadAnimals();
@@ -692,7 +691,7 @@ export function AnimalsPage() {
   }
 
   async function dischargeAnimal(animalId, payload) {
-    const updated = await apiRequest(`/api/animals/${animalId}/discharge`, { method: 'POST', body: payload, token });
+    const updated = await apiRequest(`/api/animals/${animalId}/discharge`, { method: 'POST', body: payload });
     setSelectedAnimal(updated);
     await loadAnimals();
   }

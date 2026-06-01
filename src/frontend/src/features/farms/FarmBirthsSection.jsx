@@ -13,7 +13,7 @@ function createBirthFormState() {
   };
 }
 
-export function FarmBirthsSection({ farm, token }) {
+export function FarmBirthsSection({ farm }) {
   const [births, setBirths] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -27,14 +27,14 @@ export function FarmBirthsSection({ farm, token }) {
 
   useEffect(() => {
     loadBirths();
-  }, [farm.id, token]);
+  }, [farm.id]);
 
   async function loadBirths() {
     setLoading(true);
     setError('');
 
     try {
-      const response = await apiRequest(`/api/farms/${farm.id}/births`, { token });
+      const response = await apiRequest(`/api/farms/${farm.id}/births`);
       setBirths(response);
     } catch (requestError) {
       setError(requestError.message);
@@ -79,7 +79,6 @@ export function FarmBirthsSection({ farm, token }) {
     try {
       await apiRequest(`/api/farms/${farm.id}/births${editingBirth ? `/${editingBirth.id}` : ''}`, {
         method: editingBirth ? 'PUT' : 'POST',
-        token,
         body: {
           birthDate: form.birthDate,
           offspringNumber,
@@ -132,8 +131,7 @@ export function FarmBirthsSection({ farm, token }) {
 
     try {
       await apiRequest(`/api/farms/${farm.id}/births/${birth.id}`, {
-        method: 'DELETE',
-        token
+        method: 'DELETE'
       });
       setDetailBirth(null);
       setSuccess('Nacimiento eliminado correctamente.');

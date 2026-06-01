@@ -28,13 +28,13 @@ import { getPlanLabel } from '../shared/subscription/plans';
 const APP_ICON = '/pecualia_icon.png';
 
 function RequireAuth() {
-  const { token, bootstrapped } = useAuth();
+  const { user, bootstrapped } = useAuth();
 
   if (!bootstrapped) {
     return <div className="screen-center">Cargando sesión...</div>;
   }
 
-  if (!token) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 

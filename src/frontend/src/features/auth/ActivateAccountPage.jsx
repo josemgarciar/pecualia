@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { AuthLayout } from './AuthLayout';
 import { apiRequest } from '../../shared/api/client';
 
+const MIN_PASSWORD_LENGTH = 10;
+
 export function ActivateAccountPage() {
   const [searchParams] = useSearchParams();
   const token = useMemo(() => searchParams.get('token') ?? '', [searchParams]);
@@ -16,6 +18,12 @@ export function ActivateAccountPage() {
     setSubmitting(true);
     setError('');
     setSuccess('');
+
+    if (form.password.length < MIN_PASSWORD_LENGTH) {
+      setError(`La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`);
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const response = await apiRequest('/api/auth/activate-account', {
@@ -47,7 +55,7 @@ export function ActivateAccountPage() {
 
         <label>
           Contraseña
-          <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required />
+          <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required minLength={MIN_PASSWORD_LENGTH} />
         </label>
 
         {!token && <div className="error-banner">No se ha encontrado el token de activación.</div>}

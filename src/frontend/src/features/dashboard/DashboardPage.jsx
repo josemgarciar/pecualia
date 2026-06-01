@@ -33,16 +33,16 @@ const toneMap = {
 };
 
 export function DashboardPage() {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState('');
   const planLabel = getPlanLabel(user);
 
   useEffect(() => {
-    apiRequest('/api/dashboard/summary', { token })
+    apiRequest('/api/dashboard/summary')
       .then(setSummary)
       .catch((requestError) => setError(requestError.message));
-  }, [token]);
+  }, []);
 
   const metrics = useMemo(() => {
     const baseMetrics = [];

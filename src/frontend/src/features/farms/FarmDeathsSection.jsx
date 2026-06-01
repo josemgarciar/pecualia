@@ -22,7 +22,7 @@ import {
   porcineAnimalTypeOptions
 } from './FarmDetailShared';
 
-export function FarmDeathsSection({ farm, token }) {
+export function FarmDeathsSection({ farm }) {
   const isMerOnlyFarm = isMerOnlyDeathSpecies(farm.livestockSpecies);
   const [deaths, setDeaths] = useState([]);
   const [search, setSearch] = useState('');
@@ -38,14 +38,14 @@ export function FarmDeathsSection({ farm, token }) {
 
   useEffect(() => {
     loadDeaths();
-  }, [farm.id, token]);
+  }, [farm.id]);
 
   async function loadDeaths() {
     setLoading(true);
     setError('');
 
     try {
-      const response = await apiRequest(`/api/farms/${farm.id}/deaths`, { token });
+      const response = await apiRequest(`/api/farms/${farm.id}/deaths`);
       setDeaths(response);
     } catch (requestError) {
       setError(requestError.message);
@@ -113,7 +113,6 @@ export function FarmDeathsSection({ farm, token }) {
     try {
       await apiRequest(`/api/farms/${farm.id}/deaths`, {
         method: 'POST',
-        token,
         body: {
           identification: form.identification.trim()
             ? normalizeAnimalIdentification(form.identification)

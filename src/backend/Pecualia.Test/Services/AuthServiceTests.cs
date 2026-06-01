@@ -27,7 +27,7 @@ public sealed class AuthServiceTests
             "Gestora",
             "manager@test.local",
             "marta-manager",
-            "12345678",
+            "1234567890",
             "Gestoría Sierra",
             "COL-001",
             "600000000",
@@ -84,7 +84,7 @@ public sealed class AuthServiceTests
             "Ganadero",
             "nuevo@test.local",
             "nuevo-ganadero",
-            "12345678",
+            "1234567890",
             "12345678Z",
             "600000000",
             null,
@@ -122,7 +122,7 @@ public sealed class AuthServiceTests
             "Ganadero",
             "nuevo-ok@test.local",
             "nuevo-ok",
-            "12345678",
+            "1234567890",
             "12345678Z",
             "600000000",
             "Calle Test",
@@ -148,12 +148,12 @@ public sealed class AuthServiceTests
 
         var user = ServiceTestData.CreateUser(20, UserRole.Farmer, "Ana", "Titular", email: "ana@test.local");
         user.Username = "ana";
-        user.PasswordHash = "hash::12345678";
+        user.PasswordHash = "hash::1234567890";
         user.IsActive = true;
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var response = await service.LoginAsync(new LoginRequest("ana@test.local", "12345678"), CancellationToken.None);
+        var response = await service.LoginAsync(new LoginRequest("ana@test.local", "1234567890"), CancellationToken.None);
 
         response.Token.Should().Be("jwt-20");
         response.User.Email.Should().Be("ana@test.local");
@@ -168,7 +168,7 @@ public sealed class AuthServiceTests
 
         var user = ServiceTestData.CreateUser(21, UserRole.Farmer, "Ana", "Titular", email: "ana2@test.local");
         user.Username = "ana2";
-        user.PasswordHash = "hash::12345678";
+        user.PasswordHash = "hash::1234567890";
         user.IsActive = true;
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
@@ -188,11 +188,11 @@ public sealed class AuthServiceTests
 
         var user = ServiceTestData.CreateUser(22, UserRole.Farmer, "Ana", "Titular", isActive: false, email: "ana3@test.local");
         user.Username = "ana3";
-        user.PasswordHash = "hash::12345678";
+        user.PasswordHash = "hash::1234567890";
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var action = () => service.LoginAsync(new LoginRequest("ana3", "12345678"), CancellationToken.None);
+        var action = () => service.LoginAsync(new LoginRequest("ana3", "1234567890"), CancellationToken.None);
 
         await action.Should().ThrowAsync<DomainException>()
             .WithMessage("La cuenta aún no está activa. Revisa el correo de activación.");
@@ -226,12 +226,12 @@ public sealed class AuthServiceTests
         dbContext.AccountActivationTokens.Add(token);
         await dbContext.SaveChangesAsync();
 
-        var response = await service.ActivateAccountAsync(new ActivateAccountRequest(plainToken, "paco-activo", "12345678"), CancellationToken.None);
+        var response = await service.ActivateAccountAsync(new ActivateAccountRequest(plainToken, "paco-activo", "1234567890"), CancellationToken.None);
 
         response.Message.Should().Be("Cuenta activada correctamente. Ya puedes iniciar sesión.");
         user.IsActive.Should().BeTrue();
         user.Username.Should().Be("paco-activo");
-        user.PasswordHash.Should().Be("hash::12345678");
+        user.PasswordHash.Should().Be("hash::1234567890");
         farmer.Status.Should().Be(FarmerStatus.Active);
         token.UsedAt.Should().Be(clock.UtcNow);
     }
@@ -245,7 +245,7 @@ public sealed class AuthServiceTests
         var service = CreateService(dbContext, clock, emailSender);
 
         var user = ServiceTestData.CreateUser(40, UserRole.Farmer, "Rosa", "Activa", email: "rosa@test.local");
-        user.PasswordHash = "hash::12345678";
+        user.PasswordHash = "hash::1234567890";
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 

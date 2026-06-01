@@ -46,7 +46,7 @@ public sealed record ForgotPasswordResponse(string Message);
 
 public sealed record ResetPasswordResponse(string Message);
 
-public sealed record AuthResponse(string Token, UserProfileResponse User);
+public sealed record AuthResponse(UserProfileResponse User);
 
 public sealed record ActivationResponse(string Message, string? ActivationUrl);
 

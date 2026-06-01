@@ -18,7 +18,6 @@ function formatPersonType(personType) {
 
 export function FarmerDetailPage({
   farmerId,
-  token,
   onClose,
   onEdit,
   onOpenFarms,
@@ -39,7 +38,7 @@ export function FarmerDetailPage({
 
     setLoading(true);
     try {
-      const response = await apiRequest(`/api/farmers/${farmerId}`, { token });
+      const response = await apiRequest(`/api/farmers/${farmerId}`);
       setFarmer(response);
     } catch (requestError) {
       onError(requestError.message);
@@ -50,7 +49,7 @@ export function FarmerDetailPage({
 
   useEffect(() => {
     loadFarmerDetail();
-  }, [farmerId, token]);
+  }, [farmerId]);
 
   const handleResend = async () => {
     if (!farmerId) {
@@ -60,8 +59,7 @@ export function FarmerDetailPage({
     setActionLoading(true);
     try {
       const response = await apiRequest(`/api/farmers/${farmerId}/send-activation`, {
-        method: 'POST',
-        token
+        method: 'POST'
       });
 
       onSuccess(response.resent ? 'Invitación reenviada correctamente.' : 'La cuenta ya está activa.');
@@ -86,8 +84,7 @@ export function FarmerDetailPage({
     setActionLoading(true);
     try {
       await apiRequest(`/api/farmers/${farmerId}/manager-link`, {
-        method: 'DELETE',
-        token
+        method: 'DELETE'
       });
 
       onSuccess('Ganader@ desvinculado correctamente del gestor.');
