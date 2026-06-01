@@ -1,6 +1,7 @@
 using Npgsql;
 using Microsoft.Extensions.Options;
 using Pecualia.Api.Configuration;
+using System.Data;
 
 namespace Pecualia.Api.Services;
 
@@ -72,6 +73,11 @@ public sealed class DatabaseBootstrapper(
                 await command.ExecuteNonQueryAsync(cancellationToken);
                 await RecordAppliedScriptAsync(connection, script.Id, cancellationToken);
             }
+        }
+        catch
+        {
+            await RollbackIfNeededAsync(connection, cancellationToken);
+            throw;
         }
         finally
         {
@@ -214,6 +220,17 @@ public sealed class DatabaseBootstrapper(
     {
         await using var command = new NpgsqlCommand("SELECT pg_advisory_unlock(@lockKey);", connection);
         command.Parameters.AddWithValue("lockKey", AdvisoryLockKey);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task RollbackIfNeededAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        if ((connection.FullState & ConnectionState.Open) == 0)
+        {
+            return;
+        }
+
+        await using var command = new NpgsqlCommand("ROLLBACK;", connection);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 

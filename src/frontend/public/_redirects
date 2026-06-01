@@ -1,0 +1,3 @@
+/api/* https://api.pecualia.es/api/:splat 200
+/health/* https://api.pecualia.es/health/:splat 200
+/* /index.html 200
