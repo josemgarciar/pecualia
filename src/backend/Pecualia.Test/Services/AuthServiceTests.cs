@@ -139,6 +139,62 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
+    public async Task RegisterFarmerAsync_Rejects_WhenBirthDateIsBefore1900()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock, new CapturingEmailSender());
+
+        var action = () => service.RegisterFarmerAsync(new RegisterFarmerRequest(
+            "Nuevo",
+            "Ganadero",
+            "nuevo-before1900@test.local",
+            "nuevo-before1900",
+            "1234567890",
+            "12345678Z",
+            "600000000",
+            "Calle Test",
+            "Sevilla",
+            "Sevilla",
+            "41001",
+            PersonType.Individual,
+            new DateOnly(1899, 12, 31),
+            null,
+            null), CancellationToken.None);
+
+        await action.Should().ThrowAsync<DomainException>()
+            .WithMessage("La fecha de nacimiento no puede ser anterior al 1 de enero de 1900.");
+    }
+
+    [Fact]
+    public async Task RegisterFarmerAsync_Rejects_WhenZipCodeIsNotNumeric()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock, new CapturingEmailSender());
+
+        var action = () => service.RegisterFarmerAsync(new RegisterFarmerRequest(
+            "Nuevo",
+            "Ganadero",
+            "nuevo-zip@test.local",
+            "nuevo-zip",
+            "1234567890",
+            "12345678Z",
+            "600000000",
+            "Calle Test",
+            "Sevilla",
+            "Sevilla",
+            "41A01",
+            PersonType.Individual,
+            new DateOnly(1990, 1, 1),
+            null,
+            null), CancellationToken.None);
+
+        await action.Should().ThrowAsync<DomainException>()
+            .WithMessage("El código postal solo puede contener números.");
+    }
+
+    [Fact]
     public async Task LoginAsync_ReturnsToken_WhenCredentialsAreValid()
     {
         await using var dbContext = ServiceTestDbFactory.CreateContext();
@@ -425,6 +481,92 @@ public sealed class AuthServiceTests
 
         await action.Should().ThrowAsync<DomainException>()
             .WithMessage("Debes indicar la contraseña actual para establecer una nueva.");
+    }
+
+    [Fact]
+    public async Task DeleteCurrentUserAsync_DeletesManager_RemovesInactiveFarmers_AndUnlinksActiveFarmers()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock, new CapturingEmailSender());
+
+        var managerUser = ServiceTestData.CreateUser(80, UserRole.Manager, "Marta", "Gestora", email: "manager-delete@test.local");
+        managerUser.Username = "manager-delete";
+        var manager = ServiceTestData.CreateManager(managerUser.Id, managerUser);
+        var subscription = new Subscription
+        {
+            Id = 3,
+            UserId = managerUser.Id,
+            Autorenew = false,
+            InitialDate = new DateOnly(2026, 1, 1),
+            ExpirationDate = new DateOnly(2026, 12, 31),
+            PlanType = PlanType.Professional,
+            State = SubscriptionState.Active
+        };
+
+        var inactiveFarmerUser = ServiceTestData.CreateUser(81, UserRole.Farmer, "Inactivo", "Pendiente", isActive: false, email: "inactive-linked@test.local");
+        var inactiveFarmer = ServiceTestData.CreateFarmer(inactiveFarmerUser.Id, inactiveFarmerUser, managerId: managerUser.Id, nifCif: "00000011L", status: FarmerStatus.PendingActivation);
+        var activeFarmerUser = ServiceTestData.CreateUser(82, UserRole.Farmer, "Activo", "Vinculado", email: "active-linked@test.local");
+        var activeFarmer = ServiceTestData.CreateFarmer(activeFarmerUser.Id, activeFarmerUser, managerId: managerUser.Id, nifCif: "00000012R", status: FarmerStatus.Active);
+        var activationToken = new AccountActivationToken
+        {
+            Id = 2,
+            UserId = inactiveFarmerUser.Id,
+            User = inactiveFarmerUser,
+            TokenHash = ComputeTokenHash("inactive-delete-token"),
+            CreatedByUserId = managerUser.Id,
+            CreatedAt = clock.UtcNow,
+            ExpiresAt = clock.UtcNow.AddHours(24)
+        };
+
+        dbContext.Users.AddRange(managerUser, inactiveFarmerUser, activeFarmerUser);
+        dbContext.Managers.Add(manager);
+        dbContext.Subscriptions.Add(subscription);
+        dbContext.Farmers.AddRange(inactiveFarmer, activeFarmer);
+        dbContext.AccountActivationTokens.Add(activationToken);
+        await dbContext.SaveChangesAsync();
+
+        var response = await service.DeleteCurrentUserAsync(managerUser.Id, CancellationToken.None);
+
+        response.Message.Should().Be("Cuenta eliminada correctamente.");
+        dbContext.Users.Should().NotContain(entity => entity.Id == managerUser.Id || entity.Id == inactiveFarmerUser.Id);
+        dbContext.Managers.Should().BeEmpty();
+        dbContext.Subscriptions.Should().BeEmpty();
+        dbContext.Farmers.Should().NotContain(entity => entity.UserId == inactiveFarmerUser.Id);
+        dbContext.Farmers.Single(entity => entity.UserId == activeFarmerUser.Id).ManagerId.Should().BeNull();
+        dbContext.AccountActivationTokens.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task DeleteCurrentUserAsync_DeletesFarmerAccount()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock, new CapturingEmailSender());
+
+        var user = ServiceTestData.CreateUser(90, UserRole.Farmer, "Paco", "Eliminar", email: "delete-farmer@test.local");
+        var farmer = ServiceTestData.CreateFarmer(user.Id, user, nifCif: "00000013S", status: FarmerStatus.Active);
+        var resetToken = new PasswordResetToken
+        {
+            Id = 2,
+            UserId = user.Id,
+            User = user,
+            TokenHash = ComputeTokenHash("reset-delete-token"),
+            CreatedAt = clock.UtcNow,
+            ExpiresAt = clock.UtcNow.AddMinutes(30)
+        };
+
+        dbContext.Users.Add(user);
+        dbContext.Farmers.Add(farmer);
+        dbContext.PasswordResetTokens.Add(resetToken);
+        await dbContext.SaveChangesAsync();
+
+        var response = await service.DeleteCurrentUserAsync(user.Id, CancellationToken.None);
+
+        response.Message.Should().Be("Cuenta eliminada correctamente.");
+        dbContext.Users.Should().BeEmpty();
+        dbContext.Farmers.Should().BeEmpty();
+        dbContext.PasswordResetTokens.Should().BeEmpty();
     }
 
     private static AuthService CreateService(Pecualia.Api.Data.PecualiaDbContext dbContext, TestClock clock, CapturingEmailSender emailSender)

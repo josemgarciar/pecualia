@@ -183,6 +183,75 @@ public sealed class FarmerServiceTests
     }
 
     [Fact]
+    public async Task CreateManagedFarmerAsync_Rejects_WhenBirthDateIsInTheFuture()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock);
+
+        var managerUser = ServiceTestData.CreateUser(42, UserRole.Manager, "Marta", "Gestora", email: "manager-future@test.local");
+        var manager = ServiceTestData.CreateManager(managerUser.Id, managerUser);
+
+        dbContext.Users.Add(managerUser);
+        dbContext.Managers.Add(manager);
+        await dbContext.SaveChangesAsync();
+
+        var action = () => service.CreateManagedFarmerAsync(managerUser.Id, new CreateFarmerRequest(
+            PersonType.Individual,
+            "Nueva",
+            "Titular",
+            new DateOnly(2026, 5, 16),
+            null,
+            null,
+            "future-farmer@test.local",
+            "12345678Z",
+            "600000001",
+            "Calle Alta",
+            "Sevilla",
+            "Sevilla",
+            "41001"), CancellationToken.None);
+
+        await action.Should().ThrowAsync<DomainException>()
+            .WithMessage("La fecha de nacimiento no puede ser posterior a hoy.");
+    }
+
+    [Fact]
+    public async Task UpdateManagedFarmerAsync_Rejects_WhenZipCodeIsNotNumeric()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock);
+
+        var managerUser = ServiceTestData.CreateUser(53, UserRole.Manager, "Marta", "Gestora", email: "manager-zip@test.local");
+        var manager = ServiceTestData.CreateManager(managerUser.Id, managerUser);
+        var farmerUser = ServiceTestData.CreateUser(54, UserRole.Farmer, "Pendiente", "Correo", isActive: true, email: "zip-farmer@test.local");
+        var farmer = ServiceTestData.CreateFarmer(farmerUser.Id, farmerUser, managerId: managerUser.Id, nifCif: "87654321X", status: FarmerStatus.Active);
+
+        dbContext.Users.AddRange(managerUser, farmerUser);
+        dbContext.Managers.Add(manager);
+        dbContext.Farmers.Add(farmer);
+        await dbContext.SaveChangesAsync();
+
+        var action = () => service.UpdateManagedFarmerAsync(managerUser.Id, farmerUser.Id, new UpdateFarmerRequest(
+            PersonType.Individual,
+            "Pendiente",
+            "Correo",
+            new DateOnly(1990, 1, 1),
+            null,
+            null,
+            "zip-farmer@test.local",
+            "87654321X",
+            "600000002",
+            "Calle Nueva",
+            "Sevilla",
+            "Sevilla",
+            "41A01"), CancellationToken.None);
+
+        await action.Should().ThrowAsync<DomainException>()
+            .WithMessage("El código postal solo puede contener números.");
+    }
+
+    [Fact]
     public async Task UpdateManagedFarmerAsync_ResendsActivationWhenPendingEmailChanges()
     {
         await using var dbContext = ServiceTestDbFactory.CreateContext();
@@ -246,6 +315,52 @@ public sealed class FarmerServiceTests
         dbContext.Farmers.Single(entity => entity.UserId == farmerUser.Id).ManagerId.Should().BeNull();
     }
 
+    [Fact]
+    public async Task DeleteManagedFarmerAsync_RemovesPendingFarmerAndUser()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock, CreateAuthService(dbContext, clock, new CapturingEmailSender()));
+
+        var managerUser = ServiceTestData.CreateUser(71, UserRole.Manager, "Marta", "Gestora", email: "manager-delete-pending@test.local");
+        var manager = ServiceTestData.CreateManager(managerUser.Id, managerUser);
+        var farmerUser = ServiceTestData.CreateUser(72, UserRole.Farmer, "Pendiente", "Eliminar", isActive: false, email: "pending-delete@test.local");
+        var farmer = ServiceTestData.CreateFarmer(farmerUser.Id, farmerUser, managerId: managerUser.Id, nifCif: "00000022X", status: FarmerStatus.PendingActivation);
+
+        dbContext.Users.AddRange(managerUser, farmerUser);
+        dbContext.Managers.Add(manager);
+        dbContext.Farmers.Add(farmer);
+        await dbContext.SaveChangesAsync();
+
+        await service.DeleteManagedFarmerAsync(managerUser.Id, farmerUser.Id, CancellationToken.None);
+
+        dbContext.Farmers.Should().BeEmpty();
+        dbContext.Users.Should().NotContain(entity => entity.Id == farmerUser.Id);
+    }
+
+    [Fact]
+    public async Task DeleteManagedFarmerAsync_RejectsActiveFarmer()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock, CreateAuthService(dbContext, clock, new CapturingEmailSender()));
+
+        var managerUser = ServiceTestData.CreateUser(81, UserRole.Manager, "Marta", "Gestora", email: "manager-delete-active@test.local");
+        var manager = ServiceTestData.CreateManager(managerUser.Id, managerUser);
+        var farmerUser = ServiceTestData.CreateUser(82, UserRole.Farmer, "Activo", "Mantener", isActive: true, email: "active-keep@test.local");
+        var farmer = ServiceTestData.CreateFarmer(farmerUser.Id, farmerUser, managerId: managerUser.Id, nifCif: "00000023B", status: FarmerStatus.Active);
+
+        dbContext.Users.AddRange(managerUser, farmerUser);
+        dbContext.Managers.Add(manager);
+        dbContext.Farmers.Add(farmer);
+        await dbContext.SaveChangesAsync();
+
+        var action = () => service.DeleteManagedFarmerAsync(managerUser.Id, farmerUser.Id, CancellationToken.None);
+
+        await action.Should().ThrowAsync<DomainException>()
+            .WithMessage("Solo puedes eliminar ganaderos cuya cuenta siga pendiente de activación.");
+    }
+
     private static FarmerService CreateService(Pecualia.Api.Data.PecualiaDbContext dbContext, TestClock clock, IAuthService? authService = null)
     {
         var censusProjectionService = new FarmCensusProjectionService(dbContext, clock);
@@ -284,6 +399,7 @@ public sealed class FarmerServiceTests
         public Task<ResetPasswordResponse> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<UserProfileResponse?> GetCurrentUserAsync(long userId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<UserProfileResponse> UpdateCurrentUserSettingsAsync(long userId, UpdateUserSettingsRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<DeleteAccountResponse> DeleteCurrentUserAsync(long userId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class FakePasswordHasher : IPasswordHasher

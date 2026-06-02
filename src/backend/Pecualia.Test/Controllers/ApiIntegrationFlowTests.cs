@@ -104,6 +104,97 @@ public sealed class ApiIntegrationFlowTests : IClassFixture<ApiWebApplicationFac
     }
 
     [Fact]
+    public async Task DeleteCurrentUserEndpoint_DeletesManager_RemovesInactiveFarmers_AndUnlinksActiveFarmers()
+    {
+        using var client = _factory.CreateClient();
+
+        var registerResponse = await client.PostAsJsonAsync("/api/auth/register/manager", new RegisterManagerRequest(
+            "Marta",
+            "Gestora",
+            "manager.delete@test.local",
+            "manager-delete-flow",
+            "1234567890",
+            "Gestoría Delete",
+            "COL-DELETE",
+            "600000000",
+            "Sevilla",
+            "Sevilla",
+            PlanType.Professional), JsonOptions);
+        registerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var managerUserId = await ExtractUserIdAsync(registerResponse);
+
+        await _factory.SeedAsync(async dbContext =>
+        {
+            var inactiveFarmerUser = new AppUser
+            {
+                Id = 3001,
+                Email = "inactive.delete@test.local",
+                Name = "Inactivo",
+                Surname = "Pendiente",
+                Role = UserRole.Farmer,
+                IsActive = false,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            var activeFarmerUser = new AppUser
+            {
+                Id = 3002,
+                Email = "active.delete@test.local",
+                Name = "Activo",
+                Surname = "Vinculado",
+                Role = UserRole.Farmer,
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            dbContext.Users.AddRange(inactiveFarmerUser, activeFarmerUser);
+            dbContext.Farmers.AddRange(
+                new Farmer
+                {
+                    UserId = inactiveFarmerUser.Id,
+                    User = inactiveFarmerUser,
+                    ManagerId = managerUserId,
+                    NifCif = "00000020C",
+                    PersonType = PersonType.Individual,
+                    Status = FarmerStatus.PendingActivation,
+                    PhoneNumber = "600000001",
+                    Town = "Sevilla",
+                    Province = "Sevilla"
+                },
+                new Farmer
+                {
+                    UserId = activeFarmerUser.Id,
+                    User = activeFarmerUser,
+                    ManagerId = managerUserId,
+                    NifCif = "00000021K",
+                    PersonType = PersonType.Individual,
+                    Status = FarmerStatus.Active,
+                    PhoneNumber = "600000002",
+                    Town = "Sevilla",
+                    Province = "Sevilla"
+                });
+
+            await Task.CompletedTask;
+        });
+
+        SetTestAuth(client, managerUserId, UserRole.Manager);
+
+        var deleteResponse = await client.DeleteAsync("/api/auth/me");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await _factory.SeedAsync(async dbContext =>
+        {
+            (await dbContext.Users.AnyAsync(entity => entity.Id == managerUserId)).Should().BeFalse();
+            (await dbContext.Users.AnyAsync(entity => entity.Id == 3001)).Should().BeFalse();
+            (await dbContext.Users.AnyAsync(entity => entity.Id == 3002)).Should().BeTrue();
+            var activeFarmer = await dbContext.Farmers.SingleAsync(entity => entity.UserId == 3002);
+            activeFarmer.ManagerId.Should().BeNull();
+        });
+    }
+
+    [Fact]
     public async Task ManagerFarmerAndFarmEndpoints_SupportCrudFlow()
     {
         using var client = _factory.CreateClient();
@@ -181,6 +272,40 @@ public sealed class ApiIntegrationFlowTests : IClassFixture<ApiWebApplicationFac
 
         var unlinkResponse = await client.DeleteAsync($"/api/farmers/{farmerId}/manager-link");
         unlinkResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task DeleteManagedFarmerEndpoint_DeletesPendingFarmerAccount()
+    {
+        using var client = _factory.CreateClient();
+        var managerUserId = await RegisterManagerAsync(client, "manager.delete.pending@test.local", "manager-delete-pending");
+        SetTestAuth(client, managerUserId, UserRole.Manager);
+
+        var createFarmerResponse = await client.PostAsJsonAsync("/api/farmers", new CreateFarmerRequest(
+            PersonType.Individual,
+            "Pendiente",
+            "Eliminar",
+            new DateOnly(1990, 1, 1),
+            null,
+            null,
+            "pending.delete.endpoint@test.local",
+            "26060202Y",
+            "600000010",
+            "Calle Test",
+            "Sevilla",
+            "Sevilla",
+            "41001"), JsonOptions);
+        createFarmerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var farmerId = await ExtractIdAsync(createFarmerResponse);
+
+        var deleteResponse = await client.DeleteAsync($"/api/farmers/{farmerId}");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await _factory.SeedAsync(async dbContext =>
+        {
+            (await dbContext.Farmers.AnyAsync(entity => entity.UserId == farmerId)).Should().BeFalse();
+            (await dbContext.Users.AnyAsync(entity => entity.Id == farmerId)).Should().BeFalse();
+        });
     }
 
     [Fact]

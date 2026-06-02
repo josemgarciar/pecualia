@@ -18,6 +18,8 @@ public interface IFarmerService
 
     Task<bool> ResendActivationAsync(long managerUserId, long farmerUserId, CancellationToken cancellationToken);
 
+    Task DeleteManagedFarmerAsync(long managerUserId, long farmerUserId, CancellationToken cancellationToken);
+
     Task UnlinkManagedFarmerAsync(long managerUserId, long farmerUserId, CancellationToken cancellationToken);
 }
 
@@ -82,7 +84,19 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
 
     public async Task<FarmerListItemResponse> CreateManagedFarmerAsync(long managerUserId, CreateFarmerRequest request, CancellationToken cancellationToken)
     {
-        ValidateFarmerRequest(request.PersonType, request.Name, request.Surname, request.CompanyName, request.LegalRepresentative, request.NifCif, request.PhoneNumber, request.Town, request.Province);
+        ValidateFarmerRequest(
+            request.PersonType,
+            request.Name,
+            request.Surname,
+            request.CompanyName,
+            request.LegalRepresentative,
+            request.NifCif,
+            request.PhoneNumber,
+            request.Town,
+            request.Province,
+            request.BirthDate,
+            request.ZipCode,
+            DateOnly.FromDateTime(clock.UtcNow.UtcDateTime));
         await EnsureManagedFarmerPlanCapacityAsync(managerUserId, cancellationToken);
 
         var email = NormalizeOptionalEmail(request.Email);
@@ -146,7 +160,19 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
 
     public async Task<FarmerListItemResponse> UpdateManagedFarmerAsync(long managerUserId, long farmerUserId, UpdateFarmerRequest request, CancellationToken cancellationToken)
     {
-        ValidateFarmerRequest(request.PersonType, request.Name, request.Surname, request.CompanyName, request.LegalRepresentative, request.NifCif, request.PhoneNumber, request.Town, request.Province);
+        ValidateFarmerRequest(
+            request.PersonType,
+            request.Name,
+            request.Surname,
+            request.CompanyName,
+            request.LegalRepresentative,
+            request.NifCif,
+            request.PhoneNumber,
+            request.Town,
+            request.Province,
+            request.BirthDate,
+            request.ZipCode,
+            DateOnly.FromDateTime(clock.UtcNow.UtcDateTime));
 
         var farmer = await LoadManagedFarmerAsync(managerUserId, farmerUserId, cancellationToken);
         var previousEmail = NormalizeOptionalEmail(farmer.User.Email);
@@ -206,6 +232,26 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
 
         await ((AuthService)authService).CreateActivationAsync(farmer.User, managerUserId, cancellationToken);
         return true;
+    }
+
+    public async Task DeleteManagedFarmerAsync(long managerUserId, long farmerUserId, CancellationToken cancellationToken)
+    {
+        var farmer = await LoadManagedFarmerAsync(managerUserId, farmerUserId, cancellationToken);
+        if (farmer.User.IsActive)
+        {
+            throw new DomainException("Solo puedes eliminar ganaderos cuya cuenta siga pendiente de activación.");
+        }
+
+        await UserDeletionSupport.DeleteFarmerAccountAsync(dbContext, farmer, cancellationToken);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            throw new DomainException("No se puede eliminar el ganadero porque tiene información relacionada que debe resolverse antes.");
+        }
     }
 
     public async Task UnlinkManagedFarmerAsync(long managerUserId, long farmerUserId, CancellationToken cancellationToken)
@@ -303,6 +349,7 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             EmptyToNull(farmer.ZipCode),
             MapStatusForResponse(farmer),
             !farmer.User.IsActive && !string.IsNullOrWhiteSpace(farmer.User.Email),
+            !farmer.User.IsActive,
             farms);
     }
 
@@ -315,7 +362,10 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
         string nifCif,
         string phoneNumber,
         string town,
-        string province)
+        string province,
+        DateOnly? birthDate,
+        string? zipCode,
+        DateOnly today)
     {
         if (personType == PersonType.Individual)
         {
@@ -342,6 +392,21 @@ public sealed class FarmerService(PecualiaDbContext dbContext, IAuthService auth
             throw new DomainException(personType == PersonType.Company
                 ? "El NIF de la persona jurídica no es válido."
                 : "El DNI/NIF de la persona física no es válido.");
+        }
+
+        if (birthDate.HasValue && birthDate.Value < DomainValidators.MinimumBirthDate)
+        {
+            throw new DomainException("La fecha de nacimiento no puede ser anterior al 1 de enero de 1900.");
+        }
+
+        if (birthDate.HasValue && birthDate.Value > today)
+        {
+            throw new DomainException("La fecha de nacimiento no puede ser posterior a hoy.");
+        }
+
+        if (!DomainValidators.IsValidZipCode(zipCode))
+        {
+            throw new DomainException("El código postal solo puede contener números.");
         }
     }
 

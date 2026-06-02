@@ -7,6 +7,7 @@ import { ModalBody, ModalDialog, ModalFooter, ModalHeader, ModalStepper } from '
 import { isValidTaxIdentifier, normalizeTaxIdentifier } from '../../shared/validation/identifiers';
 import { FarmerDetailPage } from './FarmerDetailPage';
 
+const MIN_BIRTH_DATE = '1900-01-01';
 const initialForm = {
   personType: 'Individual',
   name: '',
@@ -87,6 +88,10 @@ function formatStatus(status) {
   return status === 'PendingActivation' ? 'Pendiente' : 'Activo';
 }
 
+function isNumericValue(value) {
+  return /^\d*$/.test(value);
+}
+
 function buildValidationMessage(form, step) {
   if (step === 1) {
     if (form.personType === 'Individual') {
@@ -101,11 +106,22 @@ function buildValidationMessage(form, step) {
     } else if (!isValidTaxIdentifier('Company', form.nifCif)) {
       return 'El NIF indicado no es válido.';
     }
+
+    const today = new Date().toISOString().slice(0, 10);
+    if (form.birthDate && form.birthDate < MIN_BIRTH_DATE) {
+      return 'La fecha de nacimiento no puede ser anterior al 1 de enero de 1900.';
+    }
+    if (form.birthDate && form.birthDate > today) {
+      return 'La fecha de nacimiento no puede ser posterior a hoy.';
+    }
   }
 
   if (step === 2) {
     if (!form.phoneNumber.trim() || !form.town.trim() || !form.province.trim()) {
       return 'Completa teléfono, localidad y provincia.';
+    }
+    if (!isNumericValue(form.zipCode)) {
+      return 'El código postal solo puede contener números.';
     }
   }
 
@@ -136,6 +152,7 @@ function FarmerWizardModal({
   onSubmit
 }) {
   const isCreate = mode === 'create';
+  const maxBirthDate = new Date().toISOString().slice(0, 10);
   const displayName = form.personType === 'Company'
     ? form.companyName || 'Ganader@ sin nombre'
     : [form.name, form.surname].filter(Boolean).join(' ') || 'Ganader@ sin nombre';
@@ -192,7 +209,7 @@ function FarmerWizardModal({
                     </FormField>
                     <div className="form-full">
                       <FormField label="Fecha de nacimiento">
-                        <input className="farm-input" type="date" value={form.birthDate} onChange={(event) => onChange('birthDate', event.target.value)} />
+                        <input className="farm-input" type="date" min={MIN_BIRTH_DATE} max={maxBirthDate} value={form.birthDate} onChange={(event) => onChange('birthDate', event.target.value)} />
                       </FormField>
                     </div>
                   </>
@@ -251,7 +268,7 @@ function FarmerWizardModal({
                   <input className="farm-input" value={form.province} onChange={(event) => onChange('province', event.target.value)} placeholder="ej: Cáceres" />
                 </FormField>
                 <FormField label="Código postal">
-                  <input className="farm-input" value={form.zipCode} onChange={(event) => onChange('zipCode', event.target.value)} placeholder="ej: 10001" />
+                  <input className="farm-input" value={form.zipCode} onChange={(event) => onChange('zipCode', event.target.value)} placeholder="ej: 10001" inputMode="numeric" />
                 </FormField>
               </div>
             </div>
@@ -509,12 +526,26 @@ export function FarmersPage() {
         };
       }
 
-      return { ...current, [field]: value };
+      return { ...current, [field]: field === 'zipCode' ? value.replace(/\D/g, '') : value };
     });
     setModalError('');
   };
 
   const handleModalSubmit = async () => {
+    const firstStepValidationMessage = buildValidationMessage(modalForm, 1);
+    if (firstStepValidationMessage) {
+      setModalError(firstStepValidationMessage);
+      setModalStep(1);
+      return;
+    }
+
+    const secondStepValidationMessage = buildValidationMessage(modalForm, 2);
+    if (secondStepValidationMessage) {
+      setModalError(secondStepValidationMessage);
+      setModalStep(2);
+      return;
+    }
+
     setModalSubmitting(true);
     setModalError('');
     setError('');
@@ -677,6 +708,11 @@ export function FarmersPage() {
           }}
           onError={setError}
           onUnlinked={async () => {
+            setDetailModalOpen(false);
+            setSelectedFarmerId(null);
+            await loadFarmers();
+          }}
+          onDeleted={async () => {
             setDetailModalOpen(false);
             setSelectedFarmerId(null);
             await loadFarmers();

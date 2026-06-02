@@ -262,6 +262,14 @@
   padding-top: 12px;
 }
 
+.summary-grid .farm-summary-card-header {
+  padding-bottom: 18px;
+}
+
+.summary-grid .farm-summary-card .summary-list {
+  padding-top: 8px;
+}
+
 .farm-confirmation-note {
   display: flex;
   align-items: flex-start;

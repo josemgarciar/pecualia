@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Bell,
   CreditCard,
+  AlertTriangle,
   Mail,
   RefreshCw,
   Save,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
+import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 import { getPlanLabel } from '../../shared/subscription/plans';
 
 function buildInitialAccountForm(user) {
@@ -49,7 +51,7 @@ function mapReminderSettings(response) {
 }
 
 export function SettingsPage() {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, deleteAccount } = useAuth();
   const [accountForm, setAccountForm] = useState(() => buildInitialAccountForm(user));
   const [passwordForm, setPasswordForm] = useState(buildInitialPasswordForm);
   const [reminderForm, setReminderForm] = useState(buildInitialReminderForm);
@@ -57,6 +59,9 @@ export function SettingsPage() {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [reminderLoading, setReminderLoading] = useState(false);
   const [reminderSaving, setReminderSaving] = useState(false);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmationValue, setDeleteConfirmationValue] = useState('');
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
 
@@ -93,6 +98,8 @@ export function SettingsPage() {
 
   const isManager = user?.role === 'Manager';
   const planLabel = getPlanLabel(user);
+  const deleteConfirmationTarget = user?.username?.trim() ?? '';
+  const deleteConfirmationMatches = deleteConfirmationValue.trim() === deleteConfirmationTarget;
   const accountSummary = useMemo(
     () => ({
       role: isManager ? 'Gestor@' : 'Ganader@',
@@ -220,6 +227,38 @@ export function SettingsPage() {
       setError(requestError.message);
     } finally {
       setReminderSaving(false);
+    }
+  }
+
+  function openDeleteModal() {
+    setDeleteConfirmationValue('');
+    setDeleteModalOpen(true);
+  }
+
+  function closeDeleteModal() {
+    if (deleteSaving) {
+      return;
+    }
+
+    setDeleteModalOpen(false);
+    setDeleteConfirmationValue('');
+  }
+
+  async function handleDeleteAccount() {
+    if (!deleteConfirmationMatches) {
+      setError('Debes escribir tu nombre de usuario para confirmar la eliminación.');
+      return;
+    }
+
+    setDeleteSaving(true);
+    setFeedback('');
+    setError('');
+
+    try {
+      await deleteAccount();
+    } catch (requestError) {
+      setError(requestError.message);
+      setDeleteSaving(false);
     }
   }
 
@@ -414,6 +453,81 @@ export function SettingsPage() {
           </button>
         </div>
       </form>
+
+      <section className="panel-card stack settings-danger-panel">
+        <div className="panel-header-inline">
+          <div>
+            <h2>Eliminar cuenta</h2>
+            <p>
+              {isManager
+                ? 'Al eliminar tu cuenta de gestor también se eliminarán las cuentas de ganadero no activadas asociadas y se desvincularán las activas.'
+                : 'Esta acción eliminará tu cuenta y no se puede deshacer.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="settings-danger-note">
+          <AlertTriangle size={16} />
+          <span>
+            {isManager
+              ? 'Revisa antes de continuar: los ganaderos activos seguirán existiendo, pero dejarán de estar vinculados a tu gestoría.'
+              : 'Si continúas, perderás el acceso a tu cuenta y a los datos que dependan de ella.'}
+          </span>
+        </div>
+
+        <div className="settings-form-actions">
+          <button className="danger-button" type="button" onClick={openDeleteModal} disabled={deleteSaving}>
+            <AlertTriangle size={15} />
+            {deleteSaving ? 'Eliminando...' : 'Eliminar cuenta'}
+          </button>
+        </div>
+      </section>
+
+      {deleteModalOpen && (
+        <ModalDialog shellClassName="settings-delete-modal">
+          <ModalHeader
+            icon={<AlertTriangle size={18} />}
+            title="Confirmar eliminación de cuenta"
+            subtitle="Esta acción es irreversible."
+            onClose={closeDeleteModal}
+          />
+          <ModalBody className="settings-delete-modal-body">
+            <div className="settings-danger-note">
+              <AlertTriangle size={16} />
+              <span>
+                {isManager
+                  ? 'Se eliminará tu cuenta de gestor. También se borrarán los ganaderos vinculados que sigan sin activar su cuenta.'
+                  : 'Se eliminará tu cuenta y dejarás de tener acceso a Pecualia.'}
+              </span>
+            </div>
+
+            <div className="stack">
+              <p className="settings-delete-modal-copy">
+                Escribe tu nombre de usuario para confirmar:
+                <strong>{deleteConfirmationTarget}</strong>
+              </p>
+              <label className="settings-delete-confirm-field">
+                <span>Nombre de usuario</span>
+                <input
+                  autoFocus
+                  value={deleteConfirmationValue}
+                  onChange={(event) => setDeleteConfirmationValue(event.target.value)}
+                  placeholder={deleteConfirmationTarget}
+                />
+              </label>
+            </div>
+          </ModalBody>
+          <ModalFooter align="end">
+            <button className="secondary-button" type="button" onClick={closeDeleteModal} disabled={deleteSaving}>
+              Cancelar
+            </button>
+            <button className="danger-button" type="button" onClick={handleDeleteAccount} disabled={deleteSaving || !deleteConfirmationMatches}>
+              <AlertTriangle size={15} />
+              {deleteSaving ? 'Eliminando...' : 'Eliminar cuenta'}
+            </button>
+          </ModalFooter>
+        </ModalDialog>
+      )}
     </div>
   );
 }

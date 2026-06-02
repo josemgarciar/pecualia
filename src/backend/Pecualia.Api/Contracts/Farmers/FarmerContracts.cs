@@ -71,4 +71,5 @@ public sealed record FarmerDetailResponse(
     string? ZipCode,
     string Status,
     bool CanResendActivation,
+    bool CanBeDeletedByManager,
     IReadOnlyList<FarmerFarmItemResponse> Farms);
