@@ -104,6 +104,7 @@ internal static class PerformanceTestSupport
         public Task<ResetPasswordResponse> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<UserProfileResponse?> GetCurrentUserAsync(long userId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<UserProfileResponse> UpdateCurrentUserSettingsAsync(long userId, UpdateUserSettingsRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<DeleteAccountResponse> DeleteCurrentUserAsync(long userId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     internal sealed record PerformanceMeasurement(TimeSpan Average, TimeSpan Maximum);

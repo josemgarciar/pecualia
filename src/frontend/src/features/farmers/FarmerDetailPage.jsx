@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pencil, RefreshCw, User, UserMinus } from 'lucide-react';
+import { AlertTriangle, Pencil, RefreshCw, Trash2, User, UserMinus } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
 import { formatLivestockSpecies } from '../farms/FarmDetailShared';
@@ -23,11 +23,13 @@ export function FarmerDetailPage({
   onOpenFarms,
   onSuccess,
   onError,
-  onUnlinked
+  onUnlinked,
+  onDeleted
 }) {
   const [farmer, setFarmer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
   const statusLabel = farmer ? formatStatus(farmer.status) : '';
 
   const loadFarmerDetail = async () => {
@@ -76,11 +78,6 @@ export function FarmerDetailPage({
       return;
     }
 
-    const confirmed = window.confirm(`Se desvinculará a "${farmer.displayName}" de tu cartera de gestión. La cuenta y sus explotaciones seguirán existiendo. ¿Quieres continuar?`);
-    if (!confirmed) {
-      return;
-    }
-
     setActionLoading(true);
     try {
       await apiRequest(`/api/farmers/${farmerId}/manager-link`, {
@@ -96,15 +93,45 @@ export function FarmerDetailPage({
     }
   };
 
+  const handleDelete = async () => {
+    if (!farmerId || !farmer) {
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await apiRequest(`/api/farmers/${farmerId}`, {
+        method: 'DELETE'
+      });
+
+      onSuccess('Ganader@ eliminado correctamente junto con sus datos asociados.');
+      await onDeleted();
+    } catch (requestError) {
+      onError(requestError.message);
+    } finally {
+      setActionLoading(false);
+      setConfirmAction(null);
+    }
+  };
+
+  const isPendingDeletion = Boolean(farmer?.canBeDeletedByManager);
+  const confirmTitle = isPendingDeletion ? 'Eliminar ganader@ pendiente' : 'Desvincular del gestor';
+  const confirmDescription = isPendingDeletion
+    ? 'Se eliminará la cuenta pendiente y todos los datos asociados del ganader@ seleccionado.'
+    : 'La cuenta y sus explotaciones seguirán existiendo, pero dejarán de estar vinculadas a tu gestoría.';
+  const confirmButtonLabel = isPendingDeletion ? 'Eliminar ganader@' : 'Desvincular del gestor';
+  const confirmButtonIcon = isPendingDeletion ? <Trash2 size={15} /> : <UserMinus size={15} />;
+
   return (
-    <ModalDialog size="wide" shellClassName="farmer-detail-modal">
-      <ModalHeader
-        icon={<User size={18} />}
-        title="Ficha del Ganader@"
-        subtitle={loading || !farmer ? 'Cargando información...' : formatPersonType(farmer.personType)}
-        onClose={onClose}
-      />
-      <ModalBody className="farmer-detail-body">
+    <>
+      <ModalDialog size="wide" shellClassName="farmer-detail-modal">
+        <ModalHeader
+          icon={<User size={18} />}
+          title="Ficha del Ganader@"
+          subtitle={loading || !farmer ? 'Cargando información...' : formatPersonType(farmer.personType)}
+          onClose={onClose}
+        />
+        <ModalBody className="farmer-detail-body">
           {loading ? (
             <div className="empty-state">Cargando ficha del Ganader@...</div>
           ) : !farmer ? (
@@ -176,9 +203,14 @@ export function FarmerDetailPage({
                   )}
                 </div>
                 <div className="farmer-detail-danger-zone">
-                  <button className="danger-button" type="button" onClick={handleUnlink} disabled={actionLoading}>
-                    <UserMinus size={15} />
-                    Desvincular del gestor
+                  <button
+                    className="danger-button"
+                    type="button"
+                    onClick={() => setConfirmAction(isPendingDeletion ? 'delete' : 'unlink')}
+                    disabled={actionLoading}
+                  >
+                    {isPendingDeletion ? <Trash2 size={15} /> : <UserMinus size={15} />}
+                    {isPendingDeletion ? 'Eliminar ganader@' : 'Desvincular del gestor'}
                   </button>
                 </div>
               </section>
@@ -209,10 +241,37 @@ export function FarmerDetailPage({
               </section>
             </div>
           )}
-      </ModalBody>
-      <ModalFooter align="end">
-        <button className="primary-button" type="button" onClick={onClose}>Cerrar</button>
-      </ModalFooter>
-    </ModalDialog>
+        </ModalBody>
+        <ModalFooter align="end">
+          <button className="primary-button" type="button" onClick={onClose}>Cerrar</button>
+        </ModalFooter>
+      </ModalDialog>
+
+      {confirmAction && farmer && (
+        <ModalDialog shellClassName="settings-delete-modal">
+          <ModalHeader
+            icon={<AlertTriangle size={18} />}
+            title={confirmTitle}
+            subtitle={farmer.displayName}
+            onClose={() => !actionLoading && setConfirmAction(null)}
+          />
+          <ModalBody className="settings-delete-modal-body">
+            <div className="settings-danger-note">
+              <AlertTriangle size={16} />
+              <span>{confirmDescription}</span>
+            </div>
+          </ModalBody>
+          <ModalFooter align="end">
+            <button className="secondary-button" type="button" onClick={() => setConfirmAction(null)} disabled={actionLoading}>
+              Cancelar
+            </button>
+            <button className="danger-button" type="button" onClick={confirmAction === 'delete' ? handleDelete : handleUnlink} disabled={actionLoading}>
+              {confirmButtonIcon}
+              {actionLoading ? 'Procesando...' : confirmButtonLabel}
+            </button>
+          </ModalFooter>
+        </ModalDialog>
+      )}
+    </>
   );
 }

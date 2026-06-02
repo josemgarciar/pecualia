@@ -5,6 +5,8 @@ namespace Pecualia.Api.Services;
 
 internal static class DomainValidators
 {
+    internal static readonly DateOnly MinimumBirthDate = new(1900, 1, 1);
+
     private const string DniLetters = "TRWAGMYFPDXBNJZSQVHLCKE";
     private const string CifControlLetters = "JABCDEFGHI";
     private const int OfficialAnimalIdentificationDigits = 12;
@@ -17,6 +19,7 @@ internal static class DomainValidators
     private static readonly Regex NieRegex = new("^[XYZ]\\d{7}[A-Z]$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex SpecialNifRegex = new("^[KLM]\\d{7}[A-Z]$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex CompanyTaxIdentifierRegex = new("^[ABCDEFGHJNPQRSUVW]\\d{7}[0-9A-J]$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex NumericValueRegex = new("^\\d+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     internal static string NormalizeRegaCode(string value) => value.Trim().ToUpperInvariant();
 
@@ -69,6 +72,16 @@ internal static class DomainValidators
         return personType == PersonType.Company
             ? IsValidCompanyTaxIdentifier(normalizedValue)
             : IsValidIndividualTaxIdentifier(normalizedValue);
+    }
+
+    internal static bool IsValidBirthDate(DateOnly value, DateOnly today)
+    {
+        return value >= MinimumBirthDate && value <= today;
+    }
+
+    internal static bool IsValidZipCode(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) || NumericValueRegex.IsMatch(value.Trim());
     }
 
     private static bool IsValidIndividualTaxIdentifier(string value)

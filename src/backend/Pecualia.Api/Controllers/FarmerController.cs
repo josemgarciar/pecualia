@@ -29,6 +29,16 @@ public static class FarmerController
                 resent = await service.ResendActivationAsync(user.GetUserId(), farmerId, cancellationToken)
             }));
 
+        group.MapDelete("/{farmerId:long}", async (ClaimsPrincipal user, long farmerId, IFarmerService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(async () =>
+            {
+                await service.DeleteManagedFarmerAsync(user.GetUserId(), farmerId, cancellationToken);
+                return new
+                {
+                    deleted = true
+                };
+            }));
+
         group.MapDelete("/{farmerId:long}/manager-link", async (ClaimsPrincipal user, long farmerId, IFarmerService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(async () =>
             {

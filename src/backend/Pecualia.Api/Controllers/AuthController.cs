@@ -72,6 +72,15 @@ public static class AuthController
             await ControllerResults.ExecuteAsync(() => service.UpdateCurrentUserSettingsAsync(user.GetUserId(), request, cancellationToken)))
             .RequireAuthorization();
 
+        group.MapDelete("/me", async (HttpContext httpContext, ClaimsPrincipal user, IAuthService service, IAuthCookieService authCookieService, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(async () =>
+            {
+                var response = await service.DeleteCurrentUserAsync(user.GetUserId(), cancellationToken);
+                authCookieService.ClearAuthCookie(httpContext);
+                return response;
+            }))
+            .RequireAuthorization();
+
         group.MapGet("/task-reminder-settings", async (ClaimsPrincipal user, ITaskReminderSettingsService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetCurrentUserSettingsAsync(user.GetUserId(), cancellationToken)))
             .RequireAuthorization();

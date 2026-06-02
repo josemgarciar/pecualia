@@ -35,7 +35,7 @@ export function AuthProvider({ children }) {
     }
 
     setUser(null);
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   const refreshProfile = async () => {
@@ -43,8 +43,14 @@ export function AuthProvider({ children }) {
     setUser(profile);
   };
 
+  const deleteAccount = async () => {
+    await apiRequest('/api/auth/me', { method: 'DELETE' });
+    setUser(null);
+    navigate('/login', { replace: true });
+  };
+
   const value = useMemo(
-    () => ({ user, bootstrapped, login, logout, refreshProfile }),
+    () => ({ user, bootstrapped, login, logout, refreshProfile, deleteAccount }),
     [user, bootstrapped]
   );
 

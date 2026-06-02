@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using Pecualia.Api.Configuration;
 using Pecualia.Api.Contracts.Auth;
 using Pecualia.Api.Data;
@@ -30,6 +31,8 @@ public interface IAuthService
     Task<UserProfileResponse?> GetCurrentUserAsync(long userId, CancellationToken cancellationToken);
 
     Task<UserProfileResponse> UpdateCurrentUserSettingsAsync(long userId, UpdateUserSettingsRequest request, CancellationToken cancellationToken);
+
+    Task<DeleteAccountResponse> DeleteCurrentUserAsync(long userId, CancellationToken cancellationToken);
 }
 
 public sealed record AuthSessionResult(string Token, UserProfileResponse User);
@@ -104,11 +107,20 @@ public sealed class AuthService(
         await EnsureUniqueIdentityAsync(request.Email, request.Username, cancellationToken);
         ValidatePasswordOrThrow(request.Password);
 
+        var normalizedNifCif = DomainValidators.NormalizeTaxIdentifier(request.NifCif);
+
         if (!DomainValidators.IsValidTaxIdentifier(request.PersonType, request.NifCif))
         {
             throw new DomainException(request.PersonType == PersonType.Company
                 ? "El NIF de la persona jurídica no es válido."
                 : "El DNI/NIF de la persona física no es válido.");
+        }
+
+        ValidateBirthDateAndZipCode(request.BirthDate, request.ZipCode, DateOnly.FromDateTime(clock.UtcNow.UtcDateTime));
+
+        if (await dbContext.Farmers.AnyAsync(entity => entity.NifCif == normalizedNifCif, cancellationToken))
+        {
+            throw new DomainException("Ya existe un ganadero con ese NIF/CIF.");
         }
 
         var manager = await ResolveManagerAsync(request.ManagerInvitationCode, request.ManagerEmail, cancellationToken);
@@ -135,7 +147,7 @@ public sealed class AuthService(
         {
             User = user,
             ManagerId = manager?.UserId,
-            NifCif = DomainValidators.NormalizeTaxIdentifier(request.NifCif),
+            NifCif = normalizedNifCif,
             PhoneNumber = CleanOptional(request.PhoneNumber),
             Residence = CleanOptional(request.Residence),
             Town = CleanOptional(request.Town),
@@ -148,7 +160,14 @@ public sealed class AuthService(
 
         dbContext.Users.Add(user);
         dbContext.Farmers.Add(farmer);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsDuplicateFarmerNifConstraintViolation(exception))
+        {
+            throw new DomainException("Ya existe un ganadero con ese NIF/CIF.");
+        }
 
         return new AuthSessionResult(jwtTokenService.CreateToken(user), MapProfile(user));
     }
@@ -316,6 +335,70 @@ public sealed class AuthService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return MapProfile(user);
+    }
+
+    public async Task<DeleteAccountResponse> DeleteCurrentUserAsync(long userId, CancellationToken cancellationToken)
+    {
+        var user = await dbContext.Users
+            .Include(entity => entity.Manager)
+            .Include(entity => entity.Farmer)
+            .Include(entity => entity.Subscription)
+            .SingleOrDefaultAsync(entity => entity.Id == userId, cancellationToken);
+
+        if (user is null)
+        {
+            throw new DomainException("Usuario no encontrado.");
+        }
+
+        if (user.Role == UserRole.Manager)
+        {
+            var linkedFarmers = await dbContext.Farmers
+                .Include(entity => entity.User)
+                .Where(entity => entity.ManagerId == userId)
+                .ToListAsync(cancellationToken);
+
+            foreach (var activeFarmer in linkedFarmers.Where(entity => entity.User.IsActive))
+            {
+                activeFarmer.ManagerId = null;
+            }
+
+            await UserDeletionSupport.DeleteFarmerAccountsAsync(
+                dbContext,
+                linkedFarmers
+                    .Where(entity => !entity.User.IsActive)
+                    .ToList(),
+                cancellationToken);
+        }
+
+        await UserDeletionSupport.DeleteUserArtifactsAsync(dbContext, userId, cancellationToken);
+
+        if (user.Manager is not null)
+        {
+            dbContext.Managers.Remove(user.Manager);
+        }
+
+        if (user.Farmer is not null)
+        {
+            dbContext.Farmers.Remove(user.Farmer);
+        }
+
+        if (user.Subscription is not null)
+        {
+            dbContext.Subscriptions.Remove(user.Subscription);
+        }
+
+        dbContext.Users.Remove(user);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            throw new DomainException("No se puede eliminar la cuenta porque tiene información relacionada que debe resolverse antes.");
+        }
+
+        return new DeleteAccountResponse("Cuenta eliminada correctamente.");
     }
 
     public async Task<string> CreateActivationAsync(AppUser user, long? createdByUserId, CancellationToken cancellationToken)
@@ -705,5 +788,32 @@ public sealed class AuthService(
     private static string ComputeTokenHash(string plainToken)
     {
         return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(plainToken)));
+    }
+
+    private static bool IsDuplicateFarmerNifConstraintViolation(DbUpdateException exception)
+    {
+        return exception.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: "farmer_nif_cif_key"
+        };
+    }
+
+    private static void ValidateBirthDateAndZipCode(DateOnly? birthDate, string? zipCode, DateOnly today)
+    {
+        if (birthDate.HasValue && birthDate.Value < DomainValidators.MinimumBirthDate)
+        {
+            throw new DomainException("La fecha de nacimiento no puede ser anterior al 1 de enero de 1900.");
+        }
+
+        if (birthDate.HasValue && birthDate.Value > today)
+        {
+            throw new DomainException("La fecha de nacimiento no puede ser posterior a hoy.");
+        }
+
+        if (!DomainValidators.IsValidZipCode(zipCode))
+        {
+            throw new DomainException("El código postal solo puede contener números.");
+        }
     }
 }

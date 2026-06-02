@@ -42,6 +42,7 @@ public sealed class DatabaseBootstrapperTests
         var expectedLocations = new[]
         {
             Path.Combine("pecualia", "db"),
+            Path.Combine("Pecualia.Test", "bin", "Debug", "net8.0", "db"),
             Path.Combine("Pecualia.Test", "bin", "Release", "net8.0", "db")
         };
 

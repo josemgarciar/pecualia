@@ -6,6 +6,7 @@ import { useAuth } from '../../shared/auth/AuthContext';
 import { isValidTaxIdentifier, normalizeTaxIdentifier } from '../../shared/validation/identifiers';
 
 const MIN_PASSWORD_LENGTH = 10;
+const MIN_BIRTH_DATE = '1900-01-01';
 const STEPS = [
   { label: 'Acceso' },
   { label: 'Información' },
@@ -36,6 +37,10 @@ function RequiredLabel({ children }) {
   );
 }
 
+function isNumericValue(value) {
+  return /^\d*$/.test(value);
+}
+
 export function RegisterFarmerPage() {
   const { login } = useAuth();
   const [form, setForm] = useState(initialForm);
@@ -43,8 +48,12 @@ export function RegisterFarmerPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const maxBirthDate = new Date().toISOString().slice(0, 10);
 
-  const set = (field) => (event) => setForm({ ...form, [field]: event.target.value });
+  const set = (field) => (event) => {
+    const nextValue = field === 'zipCode' ? event.target.value.replace(/\D/g, '') : event.target.value;
+    setForm({ ...form, [field]: nextValue });
+  };
 
   const validateStep = (targetStep) => {
     setError('');
@@ -60,6 +69,18 @@ export function RegisterFarmerPage() {
       if (!form.nifCif.trim()) { setError('El NIF/CIF es obligatorio.'); return false; }
       if (!isValidTaxIdentifier(form.personType, form.nifCif)) {
         setError(form.personType === 'Company' ? 'El NIF indicado no es válido.' : 'El DNI/NIF indicado no es válido.');
+        return false;
+      }
+      if (form.birthDate && form.birthDate < MIN_BIRTH_DATE) {
+        setError('La fecha de nacimiento no puede ser anterior al 1 de enero de 1900.');
+        return false;
+      }
+      if (form.birthDate && form.birthDate > maxBirthDate) {
+        setError('La fecha de nacimiento no puede ser posterior a hoy.');
+        return false;
+      }
+      if (!isNumericValue(form.zipCode)) {
+        setError('El código postal solo puede contener números.');
         return false;
       }
     }
@@ -190,11 +211,11 @@ export function RegisterFarmerPage() {
           </label>
           <label>
             <span>Código postal</span>
-            <input value={form.zipCode} onChange={set('zipCode')} placeholder="06400" />
+            <input value={form.zipCode} onChange={set('zipCode')} placeholder="06400" inputMode="numeric" />
           </label>
           <label className="form-full">
             <span>Fecha de nacimiento</span>
-            <input type="date" value={form.birthDate} onChange={set('birthDate')} />
+            <input type="date" min={MIN_BIRTH_DATE} max={maxBirthDate} value={form.birthDate} onChange={set('birthDate')} />
           </label>
         </div>
       )}
