@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ArrowLeftRight,
   BarChart3,
@@ -20,6 +21,7 @@ import {
   isValidAnimalIdentification,
   isValidRegaCode
 } from '../../shared/validation/identifiers';
+import { FarmAnimalImportPanel } from './FarmAnimalImportPanel';
 
 export const speciesToneMap = {
   Ovine: { bg: '#DDEBDF', color: '#2F6B4F', label: 'Ovino' },
@@ -297,6 +299,7 @@ export function createAnimalDetailForm(animal) {
   return {
     identification: animal?.identification ?? '',
     birthYear: animal?.birthYear != null ? String(animal.birthYear) : '',
+    birthDate: animal?.birthDate ?? '',
     breed: animal?.breed ?? '',
     sex: animal?.sex ?? '',
     registrationDate: animal?.registrationDate ?? '',
@@ -305,6 +308,7 @@ export function createAnimalDetailForm(animal) {
     genotyping: animal?.ovinoCaprino?.genotyping ?? '',
     dominantAllele: animal?.ovinoCaprino?.dominantAllele ?? '',
     lowAllele: animal?.ovinoCaprino?.lowAllele ?? '',
+    ovinoIdentificationDate: animal?.ovinoCaprino?.identificationDate ?? '',
     animalType: animal?.porcino?.animalType ?? '',
     identificationDate: animal?.porcino?.identificationDate ?? '',
     pigRegistrationNumber: animal?.porcino?.pigRegistrationNumber ?? '',
@@ -537,7 +541,11 @@ export function BirthDetailModal({ birth, farmName, onClose, onEdit, onDelete })
   );
 }
 
-export function FarmSettingsModal({ farm, form, errors, requestError, submitting, onChange, onClose, onSubmit }) {
+export function FarmSettingsModal({ farm, form, errors, requestError, submitting, onChange, onClose, onSubmit, onAnimalsImported }) {
+  const supportsAnimalImport = farm.livestockSpecies === 'Ovine' || farm.livestockSpecies === 'Caprine';
+  const [activeSettingsTab, setActiveSettingsTab] = useState('data');
+  const [importDocument, setImportDocument] = useState(null);
+
   return (
     <ModalDialog size="wide">
       <ModalHeader
@@ -546,31 +554,56 @@ export function FarmSettingsModal({ farm, form, errors, requestError, submitting
         subtitle={`Edita los datos administrativos y operativos de ${farm.name}.`}
         onClose={onClose}
       />
+      {supportsAnimalImport && (
+        <div className="farm-settings-tabs" role="tablist" aria-label="Ajustes de la explotación">
+          <button
+            className={activeSettingsTab === 'data' ? 'farm-settings-tab farm-settings-tab-active' : 'farm-settings-tab'}
+            type="button"
+            role="tab"
+            aria-selected={activeSettingsTab === 'data'}
+            onClick={() => setActiveSettingsTab('data')}
+          >
+            Datos
+          </button>
+          <button
+            className={activeSettingsTab === 'animals' ? 'farm-settings-tab farm-settings-tab-active' : 'farm-settings-tab'}
+            type="button"
+            role="tab"
+            aria-selected={activeSettingsTab === 'animals'}
+            onClick={() => setActiveSettingsTab('animals')}
+            data-testid="farm-settings-import-tab"
+          >
+            Importar animales
+          </button>
+        </div>
+      )}
       <ModalBody className="farm-settings-body">
-        {requestError && <div className="error-banner">{requestError}</div>}
+        {activeSettingsTab === 'data' ? (
+          <>
+            {requestError && <div className="error-banner">{requestError}</div>}
 
-        <div className="farm-settings-grid">
+            <div className="farm-settings-grid">
           <div className="farm-form-field">
             <span className="farm-field-label">NOMBRE DE LA EXPLOTACIÓN <span className="farm-field-label-required">*</span></span>
-            <input className={errors.name ? 'farm-input farm-input-error' : 'farm-input'} value={form.name} onChange={(event) => onChange('name', event.target.value)} />
+            <input name="farmName" className={errors.name ? 'farm-input farm-input-error' : 'farm-input'} value={form.name} onChange={(event) => onChange('name', event.target.value)} />
             {errors.name && <p className="farm-field-error">{errors.name}</p>}
           </div>
 
           <div className="farm-form-field">
             <span className="farm-field-label">CÓDIGO REGA <span className="farm-field-label-required">*</span></span>
-            <input className={errors.regaCode ? 'farm-input farm-input-error' : 'farm-input'} value={form.regaCode} onChange={(event) => onChange('regaCode', event.target.value)} />
+            <input name="farmRegaCode" className={errors.regaCode ? 'farm-input farm-input-error' : 'farm-input'} value={form.regaCode} onChange={(event) => onChange('regaCode', event.target.value)} />
             {errors.regaCode && <p className="farm-field-error">{errors.regaCode}</p>}
           </div>
 
           <div className="farm-form-field">
             <span className="farm-field-label">ESPECIE</span>
-            <input className="farm-input" value={speciesToneMap[farm.livestockSpecies]?.label ?? farm.livestockSpecies} disabled />
+            <input name="farmSpecies" className="farm-input" value={speciesToneMap[farm.livestockSpecies]?.label ?? farm.livestockSpecies} disabled />
           </div>
 
           <div className="farm-form-field">
             <span className="farm-field-label">RÉGIMEN <span className="farm-field-label-required">*</span></span>
             <div className="select-wrapper">
-              <select className={errors.regime ? 'farm-input farm-input-error' : 'farm-input'} value={form.regime} onChange={(event) => onChange('regime', event.target.value)}>
+              <select name="farmRegime" className={errors.regime ? 'farm-input farm-input-error' : 'farm-input'} value={form.regime} onChange={(event) => onChange('regime', event.target.value)}>
                 <option value="">Selecciona régimen</option>
                 {regimeOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -584,18 +617,18 @@ export function FarmSettingsModal({ farm, form, errors, requestError, submitting
             <>
               <div className="farm-form-field">
                 <span className="farm-field-label">Nº REGISTRO PORCINO <span className="farm-field-label-required">*</span></span>
-                <input className={errors.porcineRegistryNumber ? 'farm-input farm-input-error' : 'farm-input'} value={form.porcineRegistryNumber} onChange={(event) => onChange('porcineRegistryNumber', event.target.value)} />
+                <input name="farmPorcineRegistryNumber" className={errors.porcineRegistryNumber ? 'farm-input farm-input-error' : 'farm-input'} value={form.porcineRegistryNumber} onChange={(event) => onChange('porcineRegistryNumber', event.target.value)} />
                 {errors.porcineRegistryNumber && <p className="farm-field-error">{errors.porcineRegistryNumber}</p>}
               </div>
               <div className="farm-form-field">
                 <span className="farm-field-label">CAPACIDAD MÁXIMA MADRES</span>
-                <input type="number" min="0" className={errors.porcineMothersCapacity ? 'farm-input farm-input-error' : 'farm-input'} value={form.porcineMothersCapacity} onChange={(event) => onChange('porcineMothersCapacity', event.target.value)} />
+                <input name="farmPorcineMothersCapacity" type="number" min="0" className={errors.porcineMothersCapacity ? 'farm-input farm-input-error' : 'farm-input'} value={form.porcineMothersCapacity} onChange={(event) => onChange('porcineMothersCapacity', event.target.value)} />
                 {errors.porcineMothersCapacity && <p className="farm-field-error">{errors.porcineMothersCapacity}</p>}
               </div>
 
               <div className="farm-form-field">
                 <span className="farm-field-label">CAPACIDAD MÁXIMA CEBO</span>
-                <input type="number" min="0" className={errors.porcineFatteningCapacity ? 'farm-input farm-input-error' : 'farm-input'} value={form.porcineFatteningCapacity} onChange={(event) => onChange('porcineFatteningCapacity', event.target.value)} />
+                <input name="farmPorcineFatteningCapacity" type="number" min="0" className={errors.porcineFatteningCapacity ? 'farm-input farm-input-error' : 'farm-input'} value={form.porcineFatteningCapacity} onChange={(event) => onChange('porcineFatteningCapacity', event.target.value)} />
                 {errors.porcineFatteningCapacity && <p className="farm-field-error">{errors.porcineFatteningCapacity}</p>}
               </div>
             </>
@@ -603,34 +636,34 @@ export function FarmSettingsModal({ farm, form, errors, requestError, submitting
 
           <div className="farm-form-field">
             <span className="farm-field-label">RESPONSABLE</span>
-            <input className="farm-input" value={form.responsible} onChange={(event) => onChange('responsible', event.target.value)} />
+            <input name="farmResponsible" className="farm-input" value={form.responsible} onChange={(event) => onChange('responsible', event.target.value)} />
           </div>
 
           <div className="farm-form-field">
             <span className="farm-field-label">TIPO DE EXPLOTACIÓN</span>
-            <input className="farm-input" value={form.livestockType} onChange={(event) => onChange('livestockType', event.target.value)} />
+            <input name="farmLivestockType" className="farm-input" value={form.livestockType} onChange={(event) => onChange('livestockType', event.target.value)} />
           </div>
 
           <div className="farm-form-field">
             <span className="farm-field-label">CLASIFICACIÓN ZOOTÉCNICA</span>
-            <input className="farm-input" value={form.zootechnicClassification} onChange={(event) => onChange('zootechnicClassification', event.target.value)} />
+            <input name="farmZootechnicClassification" className="farm-input" value={form.zootechnicClassification} onChange={(event) => onChange('zootechnicClassification', event.target.value)} />
           </div>
 
           <div className="farm-form-field farm-settings-grid-full">
             <span className="farm-field-label">DIRECCIÓN / PARAJE</span>
-            <input className="farm-input" value={form.address} onChange={(event) => onChange('address', event.target.value)} />
+            <input name="farmAddress" className="farm-input" value={form.address} onChange={(event) => onChange('address', event.target.value)} />
           </div>
 
           <div className="farm-form-field">
             <span className="farm-field-label">LOCALIDAD <span className="farm-field-label-required">*</span></span>
-            <input className={errors.town ? 'farm-input farm-input-error' : 'farm-input'} value={form.town} onChange={(event) => onChange('town', event.target.value)} />
+            <input name="farmTown" className={errors.town ? 'farm-input farm-input-error' : 'farm-input'} value={form.town} onChange={(event) => onChange('town', event.target.value)} />
             {errors.town && <p className="farm-field-error">{errors.town}</p>}
           </div>
 
           <div className="farm-form-field">
             <span className="farm-field-label">PROVINCIA <span className="farm-field-label-required">*</span></span>
             <div className="select-wrapper">
-              <select className={errors.province ? 'farm-input farm-input-error' : 'farm-input'} value={form.province} onChange={(event) => onChange('province', event.target.value)}>
+              <select name="farmProvince" className={errors.province ? 'farm-input farm-input-error' : 'farm-input'} value={form.province} onChange={(event) => onChange('province', event.target.value)}>
                 <option value="">Selecciona una provincia</option>
                 {provinceOptions.map((province) => (
                   <option key={province} value={province}>{province}</option>
@@ -642,35 +675,61 @@ export function FarmSettingsModal({ farm, form, errors, requestError, submitting
 
           <div className="farm-form-field">
             <span className="farm-field-label">CÓDIGO POSTAL</span>
-            <input className="farm-input" value={form.zipCode} onChange={(event) => onChange('zipCode', event.target.value)} />
+            <input name="farmZipCode" className="farm-input" value={form.zipCode} onChange={(event) => onChange('zipCode', event.target.value)} />
           </div>
 
           <div className="farm-form-field">
             <span className="farm-field-label">HUSO</span>
-            <input type="number" min="1" className={errors.spindle ? 'farm-input farm-input-error' : 'farm-input'} value={form.spindle} onChange={(event) => onChange('spindle', event.target.value)} />
+            <input name="farmSpindle" type="number" min="1" className={errors.spindle ? 'farm-input farm-input-error' : 'farm-input'} value={form.spindle} onChange={(event) => onChange('spindle', event.target.value)} />
             {errors.spindle && <p className="farm-field-error">{errors.spindle}</p>}
           </div>
 
           <div className="farm-form-field">
             <span className="farm-field-label">COORDENADA X</span>
-            <input className={errors.xCoordinate ? 'farm-input farm-input-error' : 'farm-input'} value={form.xCoordinate} onChange={(event) => onChange('xCoordinate', event.target.value)} />
+            <input name="farmXCoordinate" className={errors.xCoordinate ? 'farm-input farm-input-error' : 'farm-input'} value={form.xCoordinate} onChange={(event) => onChange('xCoordinate', event.target.value)} />
             {errors.xCoordinate && <p className="farm-field-error">{errors.xCoordinate}</p>}
           </div>
 
           <div className="farm-form-field">
             <span className="farm-field-label">COORDENADA Y</span>
-            <input className={errors.yCoordinate ? 'farm-input farm-input-error' : 'farm-input'} value={form.yCoordinate} onChange={(event) => onChange('yCoordinate', event.target.value)} />
+            <input name="farmYCoordinate" className={errors.yCoordinate ? 'farm-input farm-input-error' : 'farm-input'} value={form.yCoordinate} onChange={(event) => onChange('yCoordinate', event.target.value)} />
             {errors.yCoordinate && <p className="farm-field-error">{errors.yCoordinate}</p>}
           </div>
-        </div>
+            </div>
+          </>
+        ) : (
+          <div className="stack">
+            <div className="farm-import-intro">
+              <h3>Importar animales en {farm.name}</h3>
+              <p>
+                Solo se incorporarán animales cuyo REGA de pertenencia y ubicación coincida con {farm.regaCode}.
+                Las filas con errores se mostrarán y quedarán fuera de la importación.
+              </p>
+            </div>
+            <FarmAnimalImportPanel
+              species={farm.livestockSpecies}
+              regaCode={farm.regaCode}
+              farmId={farm.id}
+              document={importDocument}
+              onDocumentChange={setImportDocument}
+              onImported={onAnimalsImported}
+            />
+          </div>
+        )}
       </ModalBody>
 
-      <ModalFooter align="end">
-        <button className="secondary-button" type="button" onClick={onClose}>Cancelar</button>
-        <button className="primary-button" type="button" onClick={onSubmit} disabled={submitting}>
-          {submitting ? 'Guardando...' : 'Guardar cambios'}
-        </button>
-      </ModalFooter>
+      {activeSettingsTab === 'data' ? (
+        <ModalFooter align="end">
+          <button className="secondary-button" type="button" onClick={onClose}>Cancelar</button>
+          <button className="primary-button" type="button" onClick={onSubmit} disabled={submitting}>
+            {submitting ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </ModalFooter>
+      ) : (
+        <ModalFooter align="end">
+          <button className="secondary-button" type="button" onClick={onClose}>Cerrar</button>
+        </ModalFooter>
+      )}
     </ModalDialog>
   );
 }
@@ -734,11 +793,18 @@ export function AnimalDetailModal({
                   <ChevronDown size={16} />
                 </div>
               </label>
-              <label className="farm-form-field">
-                <ModalFieldLabel>Año nacimiento</ModalFieldLabel>
-                <input type="number" min="1900" max="2100" value={form.birthYear} onChange={(event) => onChange('birthYear', event.target.value)} />
-                {errors.birthYear && <span className="farm-inline-error">{errors.birthYear}</span>}
-              </label>
+              {animal.livestockSpecies === 'Porcine' ? (
+                <label className="farm-form-field">
+                  <ModalFieldLabel>Año nacimiento</ModalFieldLabel>
+                  <input type="number" min="1900" max="2100" value={form.birthYear} onChange={(event) => onChange('birthYear', event.target.value)} />
+                  {errors.birthYear && <span className="farm-inline-error">{errors.birthYear}</span>}
+                </label>
+              ) : (
+                <label className="farm-form-field">
+                  <ModalFieldLabel>Fecha de nacimiento</ModalFieldLabel>
+                  <input type="date" value={form.birthDate} onChange={(event) => onChange('birthDate', event.target.value)} />
+                </label>
+              )}
               <label className="farm-form-field">
                 <ModalFieldLabel>Fecha alta</ModalFieldLabel>
                 <input type="date" value={form.registrationDate} onChange={(event) => onChange('registrationDate', event.target.value)} />
@@ -783,6 +849,10 @@ export function AnimalDetailModal({
                   <label className="farm-form-field">
                     <ModalFieldLabel>Alelo bajo</ModalFieldLabel>
                     <input value={form.lowAllele} onChange={(event) => onChange('lowAllele', event.target.value)} />
+                  </label>
+                  <label className="farm-form-field">
+                    <ModalFieldLabel>Fecha de identificación</ModalFieldLabel>
+                    <input type="date" value={form.ovinoIdentificationDate} onChange={(event) => onChange('ovinoIdentificationDate', event.target.value)} />
                   </label>
                 </div>
               </div>

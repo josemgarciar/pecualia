@@ -212,6 +212,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITaskReminderSettingsService, TaskReminderSettingsService>();
 builder.Services.AddScoped<IFarmerService, FarmerService>();
 builder.Services.AddScoped<IFarmService, FarmService>();
+builder.Services.AddScoped<IFarmAnimalImportService, FarmAnimalImportService>();
 builder.Services.AddScoped<IFarmOperationService, FarmOperationService>();
 builder.Services.AddScoped<IFarmCensusProjectionService, FarmCensusProjectionService>();
 builder.Services.AddScoped<IAnimalService, AnimalService>();

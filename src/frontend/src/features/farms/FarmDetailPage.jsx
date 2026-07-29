@@ -183,6 +183,23 @@ export function FarmDetailPage() {
     }
   }
 
+  async function refreshFarmAfterAnimalImport() {
+    if (!farm) {
+      return;
+    }
+
+    const [farmResult, censusResult] = await Promise.allSettled([
+      apiRequest(`/api/farms/${farm.id}`),
+      apiRequest(`/api/farms/${farm.id}/census?year=${currentYear}`)
+    ]);
+    if (farmResult.status === 'fulfilled') {
+      setFarm(farmResult.value);
+    }
+    if (censusResult.status === 'fulfilled') {
+      setSummaryCensus(censusResult.value);
+    }
+  }
+
   const occupancy = useMemo(() => {
     if (farm?.livestockSpecies !== 'Porcine' || !farm?.authorisedCapacity) {
       return null;
@@ -374,6 +391,7 @@ export function FarmDetailPage() {
           onChange={updateSettingsField}
           onClose={closeSettingsModal}
           onSubmit={submitSettingsForm}
+          onAnimalsImported={refreshFarmAfterAnimalImport}
         />
       )}
 

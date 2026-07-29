@@ -79,7 +79,7 @@ public sealed class DatabaseBootstrapperTests
         var ids = scripts.Select(GetScriptId).ToList();
 
         ids.First().Should().Be("003_animal_birth_farm_id.sql");
-        ids.Last().Should().Be("022_drop_farmer_second_surname.sql");
+        ids.Last().Should().Be("024_normalize_animal_sex.sql");
     }
 
     [Fact]

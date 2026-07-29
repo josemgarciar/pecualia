@@ -252,3 +252,42 @@
   - `vaccination`: 3
   - `movement_certificate`: 4
   - `inspection`: 2
+
+## 2026-07-29 - Importación de animales pertenecientes
+
+- Añadido lector seguro del `.xls` HTML/XML de “Animales pertenecientes”, limitado a 5 MB y 1.000 filas.
+- Añadidos preview y confirmación para explotaciones ovinas/caprinas existentes, además de alta atómica de
+  explotación con importación inicial.
+- Implementada importación parcial con estados por fila y control estricto del REGA destino, duplicados y
+  conflictos entre explotaciones.
+- Persistidas las fechas exactas de nacimiento e identificación; nueva migración
+  `023_ovine_caprine_identification_date.sql`.
+- Añadido paso opcional al asistente de alta y pestaña en ajustes solo para ovino/caprino. La interfaz porcina
+  no incorpora controles de importación.
+- El libro ovino/caprino utiliza la fecha real de identificación con compatibilidad hacia registros antiguos.
+- Incorporadas pruebas del servicio, incluida la lectura de los 499 animales del documento aportado.
+
+## 2026-07-29 - Tolerancia de suscripción e idempotencia del alta
+
+- Corregida la resolución del plan efectivo: una suscripción activa con renovación automática conserva su plan
+  aunque la fecha de expiración local todavía no se haya sincronizado.
+- El periodo ya abonado conserva sus prestaciones hasta su fecha de fin aunque el cobro posterior esté pendiente
+  o la renovación se haya cancelado.
+- El código REGA se usa como clave natural idempotente en el alta: repetir exactamente la misma petición devuelve
+  la explotación existente sin consumir de nuevo el límite del plan.
+- Un REGA existente con distinto titular o datos diferentes continúa rechazándose como conflicto, respaldado por
+  la restricción única de base de datos.
+- Los reintentos de importación tratan los animales ya incorporados a la misma explotación como éxito sin cambios;
+  también se reconcilian las carreras entre dos peticiones concurrentes y se evita devolver errores técnicos.
+- Añadidas pruebas de regresión para cuenta Max con expiración local atrasada, unicidad de REGA e idempotencia del
+  alta y de la importación.
+
+## 2026-07-29 - Normalización del sexo en la importación
+
+- Corregida la conversión de `Hembra` y `Macho` del informe `.xls` a los valores canónicos de la aplicación:
+  `Female` y `Male`.
+- Se aceptan también mayúsculas, espacios, las abreviaturas `H`/`M` y los valores ingleses para tolerar variantes
+  del documento.
+- La migración `024_normalize_animal_sex.sql` repara de forma idempotente los animales que ya se importaron con
+  valores en minúsculas.
+- El preview mantiene compatibilidad visual con respuestas antiguas y nuevas.

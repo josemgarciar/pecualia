@@ -55,14 +55,19 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock, IFarm
             throw new DomainException("El código REGA no es válido. Debe seguir el formato ES seguido de 12 dígitos.");
         }
 
-        if (await dbContext.Farms.AnyAsync(entity => entity.RegaCode == normalizedRegaCode, cancellationToken))
+        if (string.IsNullOrWhiteSpace(request.Name))
         {
-            throw new DomainException("Ya existe una explotación con ese código REGA.");
+            throw new DomainException("El nombre de la explotación es obligatorio.");
         }
 
         if (request.LivestockSpecies is not (LivestockSpecies.Ovine or LivestockSpecies.Caprine or LivestockSpecies.Porcine))
         {
             throw new DomainException("La especie indicada no está soportada en esta versión.");
+        }
+
+        if (request.Regime is not (FarmRegime.Extensive or FarmRegime.SemiExtensive or FarmRegime.Intensive))
+        {
+            throw new DomainException("El régimen indicado no es válido.");
         }
 
         if (request.LivestockSpecies == LivestockSpecies.Porcine && string.IsNullOrWhiteSpace(request.PorcineRegistryNumber))
@@ -91,6 +96,12 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock, IFarm
         else if (request.FarmerId != userId)
         {
             throw new DomainException("No puedes crear explotaciones para otro ganadero.");
+        }
+
+        var existingFarm = await FindFarmByRegaAsync(normalizedRegaCode, cancellationToken);
+        if (existingFarm is not null)
+        {
+            return await ResolveIdempotentCreationAsync(existingFarm, request, cancellationToken);
         }
 
         await EnsureFarmPlanCapacityAsync(userId, role, cancellationToken);
@@ -123,7 +134,25 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock, IFarm
         };
 
         dbContext.Farms.Add(farm);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            dbContext.Entry(farm).State = EntityState.Detached;
+
+            if (dbContext.Database.CurrentTransaction is null)
+            {
+                var concurrentlyCreatedFarm = await FindFarmByRegaAsync(normalizedRegaCode, cancellationToken);
+                if (concurrentlyCreatedFarm is not null)
+                {
+                    return await ResolveIdempotentCreationAsync(concurrentlyCreatedFarm, request, cancellationToken);
+                }
+            }
+
+            throw new DomainException("Otra solicitud está registrando esta explotación. Vuelve a intentarlo; el reintento es seguro.");
+        }
 
         var createdFarm = await dbContext.Farms
             .Include(entity => entity.Farmer)
@@ -331,6 +360,62 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock, IFarm
         {
             throw new DomainException(SubscriptionPlanSupport.BuildFarmLimitError(role, planType, farmLimit.Value));
         }
+    }
+
+    private Task<LivestockFarm?> FindFarmByRegaAsync(string regaCode, CancellationToken cancellationToken) =>
+        dbContext.Farms
+            .AsNoTracking()
+            .Include(entity => entity.Farmer)
+            .ThenInclude(entity => entity.User)
+            .SingleOrDefaultAsync(entity => entity.RegaCode == regaCode, cancellationToken);
+
+    private async Task<FarmListItemResponse> ResolveIdempotentCreationAsync(
+        LivestockFarm existingFarm,
+        CreateFarmRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!MatchesCreateRequest(existingFarm, request))
+        {
+            throw new DomainException(
+                "Ya existe una explotación con ese código REGA, pero pertenece a otro titular o sus datos no coinciden.");
+        }
+
+        return await MapAsync(
+            existingFarm,
+            DateOnly.FromDateTime(clock.UtcNow.UtcDateTime),
+            cancellationToken);
+    }
+
+    private static bool MatchesCreateRequest(LivestockFarm farm, CreateFarmRequest request)
+    {
+        var isPorcine = request.LivestockSpecies == LivestockSpecies.Porcine;
+        var porcineMothersCapacity = isPorcine ? request.PorcineMothersCapacity : null;
+        var porcineFatteningCapacity = isPorcine ? request.PorcineFatteningCapacity : null;
+        var authorisedCapacity = isPorcine
+            ? (porcineMothersCapacity ?? 0) + (porcineFatteningCapacity ?? 0)
+            : (int?)null;
+        var porcineRegistryNumber = isPorcine
+            ? Normalize(request.PorcineRegistryNumber).ToUpperInvariant()
+            : string.Empty;
+
+        return farm.FarmerId == request.FarmerId &&
+               farm.Name == request.Name.Trim() &&
+               farm.LivestockSpecies == request.LivestockSpecies &&
+               farm.Regime == request.Regime &&
+               Normalize(farm.Town) == Normalize(request.Town) &&
+               Normalize(farm.Province) == Normalize(request.Province) &&
+               Normalize(farm.Address) == Normalize(request.Address) &&
+               Normalize(farm.ZipCode) == Normalize(request.ZipCode) &&
+               farm.AuthorisedCapacity == authorisedCapacity &&
+               Normalize(farm.PorcineRegistryNumber).ToUpperInvariant() == porcineRegistryNumber &&
+               Normalize(farm.LivestockType) == Normalize(request.LivestockType) &&
+               farm.PorcineMothersCapacity == porcineMothersCapacity &&
+               farm.PorcineFatteningCapacity == porcineFatteningCapacity &&
+               Normalize(farm.Responsible) == Normalize(request.Responsible) &&
+               Normalize(farm.ZootechnicClassification) == Normalize(request.ZootechnicClassification) &&
+               farm.Spindle == request.Spindle &&
+               farm.XCoordinate == request.XCoordinate &&
+               farm.YCoordinate == request.YCoordinate;
     }
 
     private async Task<FarmListItemResponse> MapAsync(LivestockFarm farm, DateOnly asOfDate, CancellationToken cancellationToken)

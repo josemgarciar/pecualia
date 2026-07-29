@@ -220,6 +220,7 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
         ovinoCaprino.Property(entity => entity.AnimalId).HasColumnName("animal_id");
         ovinoCaprino.Property(entity => entity.DominantAllele).HasColumnName("dominant_allele").HasMaxLength(80);
         ovinoCaprino.Property(entity => entity.Genotyping).HasColumnName("genotyping").HasMaxLength(120);
+        ovinoCaprino.Property(entity => entity.IdentificationDate).HasColumnName("identification_date");
         ovinoCaprino.Property(entity => entity.LowAllele).HasColumnName("low_allele").HasMaxLength(80);
         ovinoCaprino.Property(entity => entity.SpeciesType)
             .HasColumnName("species_type")

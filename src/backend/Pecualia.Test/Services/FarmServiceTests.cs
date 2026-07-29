@@ -1,4 +1,5 @@
 using Pecualia.Api.Contracts.Farms;
+using Pecualia.Api.Models.Entities;
 using Pecualia.Api.Models.Enums;
 using Pecualia.Api.Services;
 using Pecualia.Test.Testing;
@@ -170,6 +171,105 @@ public sealed class FarmServiceTests
     }
 
     [Fact]
+    public async Task CreateFarmAsync_KeepsMaxCapacity_WhenActiveAutorenewExpirationIsStale()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 07, 29, 10, 0, 0, TimeSpan.Zero));
+        var censusProjectionService = new FarmCensusProjectionService(dbContext, clock);
+        var service = new FarmService(dbContext, clock, censusProjectionService);
+
+        var managerUser = ServiceTestData.CreateUser(70, UserRole.Manager, "Max", "Gestora", email: "max-manager@test.local");
+        var manager = ServiceTestData.CreateManager(managerUser.Id, managerUser);
+        var farmerUser = ServiceTestData.CreateUser(71, UserRole.Farmer, "Eva", "Ganadera", email: "max-farmer@test.local");
+        var farmer = ServiceTestData.CreateFarmer(farmerUser.Id, farmerUser, managerId: managerUser.Id, nifCif: "00000014D");
+        var farm1 = ServiceTestData.CreateFarm(170, farmer.UserId, LivestockSpecies.Ovine, "Max 1", "ES410010000070");
+        var farm2 = ServiceTestData.CreateFarm(171, farmer.UserId, LivestockSpecies.Caprine, "Max 2", "ES410010000071");
+        var subscription = new Subscription
+        {
+            Id = 70,
+            UserId = managerUser.Id,
+            User = managerUser,
+            PlanType = PlanType.Enterprise,
+            State = SubscriptionState.Active,
+            Autorenew = true,
+            InitialDate = new DateOnly(2026, 05, 09),
+            ExpirationDate = new DateOnly(2026, 06, 09)
+        };
+
+        dbContext.Users.AddRange(managerUser, farmerUser);
+        dbContext.Managers.Add(manager);
+        dbContext.Farmers.Add(farmer);
+        dbContext.Subscriptions.Add(subscription);
+        dbContext.Farms.AddRange(farm1, farm2);
+        await dbContext.SaveChangesAsync();
+
+        var created = await service.CreateFarmAsync(managerUser.Id, UserRole.Manager, CreateOvineRequest(
+            farmer.UserId,
+            "Max 3",
+            "ES410010000072"), CancellationToken.None);
+
+        created.Name.Should().Be("Max 3");
+        dbContext.Farms.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task CreateFarmAsync_ReturnsSameFarm_WhenIdenticalRequestIsRetriedAtPlanLimit()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 07, 29, 10, 0, 0, TimeSpan.Zero));
+        var censusProjectionService = new FarmCensusProjectionService(dbContext, clock);
+        var service = new FarmService(dbContext, clock, censusProjectionService);
+
+        var user = ServiceTestData.CreateUser(72, UserRole.Farmer, "Ida", "Ganadera", email: "idempotent-farmer@test.local");
+        var farmer = ServiceTestData.CreateFarmer(user.Id, user, nifCif: "00000015E");
+        var existingFarm = ServiceTestData.CreateFarm(172, farmer.UserId, LivestockSpecies.Caprine, "Previa", "ES410010000073");
+        dbContext.Users.Add(user);
+        dbContext.Farmers.Add(farmer);
+        dbContext.Farms.Add(existingFarm);
+        await dbContext.SaveChangesAsync();
+        var request = CreateOvineRequest(farmer.UserId, "Reintentable", "ES410010000074");
+
+        var first = await service.CreateFarmAsync(user.Id, UserRole.Farmer, request, CancellationToken.None);
+        var retry = await service.CreateFarmAsync(user.Id, UserRole.Farmer, request, CancellationToken.None);
+
+        retry.Id.Should().Be(first.Id);
+        dbContext.Farms.Should().HaveCount(2);
+        dbContext.Farms.Should().ContainSingle(entity => entity.RegaCode == request.RegaCode);
+    }
+
+    [Fact]
+    public async Task CreateFarmAsync_RejectsSameRega_WhenRetryPayloadDoesNotMatch()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 07, 29, 10, 0, 0, TimeSpan.Zero));
+        var censusProjectionService = new FarmCensusProjectionService(dbContext, clock);
+        var service = new FarmService(dbContext, clock, censusProjectionService);
+
+        var user = ServiceTestData.CreateUser(73, UserRole.Farmer, "Única", "Ganadera", email: "unique-farmer@test.local");
+        var farmer = ServiceTestData.CreateFarmer(user.Id, user, nifCif: "00000016F");
+        dbContext.Users.Add(user);
+        dbContext.Farmers.Add(farmer);
+        await dbContext.SaveChangesAsync();
+        const string regaCode = "ES410010000075";
+
+        await service.CreateFarmAsync(
+            user.Id,
+            UserRole.Farmer,
+            CreateOvineRequest(farmer.UserId, "Nombre original", regaCode),
+            CancellationToken.None);
+
+        var action = () => service.CreateFarmAsync(
+            user.Id,
+            UserRole.Farmer,
+            CreateOvineRequest(farmer.UserId, "Nombre diferente", regaCode),
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<DomainException>()
+            .WithMessage("*sus datos no coinciden*");
+        dbContext.Farms.Should().ContainSingle(entity => entity.RegaCode == regaCode);
+    }
+
+    [Fact]
     public async Task UpdateFarmAsync_UpdatesPorcineCapacitiesAndMetadata()
     {
         await using var dbContext = ServiceTestDbFactory.CreateContext();
@@ -236,4 +336,26 @@ public sealed class FarmServiceTests
         summary.AuthorisedCapacity.Should().Be(12);
         summary.AnimalCount.Should().Be(2);
     }
+
+    private static CreateFarmRequest CreateOvineRequest(long farmerId, string name, string regaCode) =>
+        new(
+            farmerId,
+            name,
+            regaCode,
+            LivestockSpecies.Ovine,
+            FarmRegime.Intensive,
+            "Sevilla",
+            "Sevilla",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            30,
+            null,
+            null);
 }

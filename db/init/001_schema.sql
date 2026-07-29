@@ -124,6 +124,7 @@ CREATE TABLE ovino_caprino (
     animal_id BIGINT PRIMARY KEY REFERENCES animal(id) ON DELETE CASCADE,
     dominant_allele VARCHAR(80),
     genotyping VARCHAR(120),
+    identification_date DATE,
     low_allele VARCHAR(80),
     species_type VARCHAR(40) NOT NULL,
     CONSTRAINT ovino_caprino_species_type_chk CHECK (species_type IN ('ovine', 'caprine'))

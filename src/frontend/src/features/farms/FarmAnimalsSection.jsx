@@ -309,6 +309,7 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
         body: {
           identification: normalizeAnimalIdentification(animalForm.identification),
           birthYear: animalForm.birthYear === '' ? null : Number(animalForm.birthYear),
+          birthDate: selectedAnimal.livestockSpecies === 'Porcine' ? null : (animalForm.birthDate || null),
           breed: emptyToNull(animalForm.breed),
           sex: emptyToNull(animalForm.sex),
           registrationDate: animalForm.registrationDate || null,
@@ -319,7 +320,8 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
                 speciesType: selectedAnimal.ovinoCaprino.speciesType,
                 genotyping: emptyToNull(animalForm.genotyping),
                 dominantAllele: emptyToNull(animalForm.dominantAllele),
-                lowAllele: emptyToNull(animalForm.lowAllele)
+                lowAllele: emptyToNull(animalForm.lowAllele),
+                identificationDate: animalForm.ovinoIdentificationDate || null
               }
             : null,
           porcino: selectedAnimal.porcino

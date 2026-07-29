@@ -42,6 +42,47 @@ public sealed class ApiIntegrationFlowTests : IClassFixture<ApiWebApplicationFac
     }
 
     [Fact]
+    public async Task FarmAnimalImportEndpoints_PreviewAndCommitOvineDocument()
+    {
+        const long userId = 9900;
+        const long farmId = 9901;
+        const string regaCode = "ES061600009900";
+        await _factory.SeedAsync(dbContext =>
+        {
+            var user = ServiceTestData.CreateUser(userId, UserRole.Farmer, "Import", "HTTP", email: "import-http@test.local");
+            var farmer = ServiceTestData.CreateFarmer(userId, user, nifCif: "00000000T");
+            var farm = ServiceTestData.CreateFarm(farmId, userId, LivestockSpecies.Ovine, "Ovina HTTP", regaCode);
+            dbContext.Users.Add(user);
+            dbContext.Farmers.Add(farmer);
+            dbContext.Farms.Add(farm);
+            return Task.CompletedTask;
+        });
+
+        using var client = _factory.CreateClient();
+        SetTestAuth(client, userId, UserRole.Farmer);
+        var document = BuildAnimalImportDocument(regaCode);
+        var request = new FarmAnimalImportDocumentRequest("AnimalesPertenecientes.xls", document);
+
+        var previewResponse = await client.PostAsJsonAsync($"/api/farms/{farmId}/animal-imports/preview", request, JsonOptions);
+        previewResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var preview = await previewResponse.Content.ReadFromJsonAsync<FarmAnimalImportPreviewResponse>(JsonOptions);
+        preview!.Summary.ProcessableRows.Should().Be(1);
+
+        var commitResponse = await client.PostAsJsonAsync($"/api/farms/{farmId}/animal-imports/commit", request, JsonOptions);
+        commitResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await commitResponse.Content.ReadFromJsonAsync<FarmAnimalImportCommitResponse>(JsonOptions);
+        result!.CreatedAnimals.Should().Be(1);
+
+        var animalsResponse = await client.GetAsync($"/api/farms/{farmId}/animals");
+        animalsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var animals = await animalsResponse.Content.ReadFromJsonAsync<AnimalPageResponse>(JsonOptions);
+        animals!.Items.Should().ContainSingle(item =>
+            item.Identification == "ES060000009900" &&
+            item.BirthDate == new DateOnly(2024, 2, 1) &&
+            item.IdentificationDate == new DateOnly(2024, 2, 10));
+    }
+
+    [Fact]
     public async Task AuthEndpoints_SupportManagerProfileAndSettingsFlow()
     {
         using var client = _factory.CreateClient();
@@ -604,6 +645,26 @@ public sealed class ApiIntegrationFlowTests : IClassFixture<ApiWebApplicationFac
         client.DefaultRequestHeaders.Add("X-Test-UserId", userId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Role", role.ToString());
     }
+
+    private static string BuildAnimalImportDocument(string regaCode) =>
+        $$"""
+          <?xml version="1.0" encoding="UTF-8"?>
+          <html xmlns="http://www.w3.org/1999/xhtml"><body><table>
+            <tr>
+              <th></th><th>Crotal</th><th>Código Explotación Pertenencia</th>
+              <th>Código Explotación Ubicación</th><th>Código Explotación Nacimiento</th>
+              <th>Raza</th><th>Sexo</th><th>Fecha Nacimiento</th>
+              <th>Fecha Inicio Explotación Pertenencia</th><th>Fecha Inicio Explotación Ubicación</th>
+              <th>Fecha Crotalización</th><th>Fecha Comunicación Crotalización</th>
+              <th>Fecha Baja</th><th>Fecha Comunicación Baja</th>
+            </tr>
+            <tr>
+              <td></td><td>ES060000009900</td><td>{{regaCode}}</td><td>{{regaCode}}</td><td>{{regaCode}}</td>
+              <td>Merina</td><td>Hembra</td><td>01/02/2024</td><td>01/03/2024</td><td>01/03/2024</td>
+              <td>10/02/2024</td><td>11/02/2024</td><td></td><td></td>
+            </tr>
+          </table></body></html>
+          """;
 
     private static async Task<long> RegisterManagerAsync(HttpClient client, string email, string username)
     {
