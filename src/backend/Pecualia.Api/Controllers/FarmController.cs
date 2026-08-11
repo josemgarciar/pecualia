@@ -112,6 +112,32 @@ public static class FarmController
                 request,
                 cancellationToken)));
 
+        group.MapPost("/{farmId:long}/animals/bulk-update/preview", async (
+            ClaimsPrincipal user,
+            long farmId,
+            PreviewAnimalBulkUpdateRequest request,
+            IFarmAnimalBulkUpdateService service,
+            CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.PreviewAsync(
+                user.GetUserId(),
+                user.GetRole(),
+                farmId,
+                request,
+                cancellationToken)));
+
+        group.MapPost("/{farmId:long}/animals/bulk-update/commit", async (
+            ClaimsPrincipal user,
+            long farmId,
+            CommitAnimalBulkUpdateRequest request,
+            IFarmAnimalBulkUpdateService service,
+            CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.CommitAsync(
+                user.GetUserId(),
+                user.GetRole(),
+                farmId,
+                request,
+                cancellationToken)));
+
         group.MapGet("/{farmId:long}/births", async (ClaimsPrincipal user, long farmId, IFarmOperationService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetBirthsAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
 

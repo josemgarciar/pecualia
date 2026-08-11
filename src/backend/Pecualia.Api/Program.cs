@@ -216,6 +216,7 @@ builder.Services.AddScoped<IFarmAnimalImportService, FarmAnimalImportService>();
 builder.Services.AddScoped<IFarmOperationService, FarmOperationService>();
 builder.Services.AddScoped<IFarmCensusProjectionService, FarmCensusProjectionService>();
 builder.Services.AddScoped<IAnimalService, AnimalService>();
+builder.Services.AddScoped<IFarmAnimalBulkUpdateService, FarmAnimalBulkUpdateService>();
 builder.Services.AddScoped<IMovementService, MovementService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IPendingTaskQueryService, PendingTaskQueryService>();

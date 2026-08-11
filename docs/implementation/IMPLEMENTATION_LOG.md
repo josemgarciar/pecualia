@@ -291,3 +291,34 @@
 - La migración `024_normalize_animal_sex.sql` repara de forma idempotente los animales que ya se importaron con
   valores en minúsculas.
 - El preview mantiene compatibilidad visual con respuestas antiguas y nuevas.
+
+## 2026-07-29 - Modificación masiva de animales
+
+- Añadida selección tipo correo en la tabla de animales: selección por fila/página, persistencia entre páginas,
+  selección de todos los resultados filtrados, exclusiones y límite de 10.000 animales.
+- Incorporado un asistente obligatorio de configuración, previsualización y resultado para modificar causas y
+  fechas de alta/baja con semántica `Sin cambios`, `Establecer` o `Borrar`.
+- Las parejas causa/fecha se validan sobre el estado resultante. Borrar causa y fecha de baja reactiva al animal.
+- Añadida gestión histórica de una guía oficial por operación: crear/reutilizar entrada o salida y desvincular la
+  última guía de cada dirección, sin mover de explotación ni generar balances o censos.
+- La creación/reutilización exige coherencia entre guía, causa y fecha; una guía pendiente idéntica se confirma y
+  una guía con el mismo REMO/serie pero datos distintos se rechaza.
+- La operación usa preview con huella de estado, commit atómico y UUID idempotente. Los reintentos completados
+  devuelven el mismo resultado y una previsualización obsoleta no escribe cambios.
+- La migración `025_animal_bulk_update.sql` añade el registro de operaciones y los índices únicos normalizados de
+  REMO/serie por explotación y dirección.
+- Añadidas pruebas de preview sin escritura, conflictos, filtros/exclusiones, idempotencia, guía nueva/reutilizada,
+  desvinculación de la última guía y ausencia de efectos sobre censos/balances.
+
+## 2026-08-11 - Endurecimiento E2E de la modificación masiva
+
+- Validado con Playwright MCP el flujo real de selección explícita y filtrada, exclusiones, previsualización,
+  confirmación, restauración, guías, autorización, conflictos y estado obsoleto.
+- Corregido un error 500 ante selecciones o listas de identificadores nulas: ahora se devuelve un error de dominio
+  JSON controlado sin exponer la traza del servidor.
+- La interfaz valida antes de llamar a la API las operaciones vacías, valores obligatorios y datos/fechas de guía,
+  y traduce los errores de conexión y las respuestas inesperadas a mensajes accionables.
+- Se bloquean el cierre y la cancelación mientras una petición está en curso para evitar que el resultado quede
+  oculto al usuario.
+- Verificada la concurrencia idempotente: dos commits simultáneos con el mismo UUID producen una sola escritura y
+  el segundo resultado se devuelve como repetición.

@@ -32,6 +32,8 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
 
     public DbSet<MovementCertificateAnimal> MovementCertificateAnimals => Set<MovementCertificateAnimal>();
 
+    public DbSet<AnimalBulkUpdateOperation> AnimalBulkUpdateOperations => Set<AnimalBulkUpdateOperation>();
+
     public DbSet<Balance> Balances => Set<Balance>();
 
     public DbSet<BalanceOvinoCaprino> BalanceOvinoCaprino => Set<BalanceOvinoCaprino>();
@@ -354,6 +356,19 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
             .WithMany(entity => entity.MovementCertificates)
             .HasForeignKey(entity => entity.AnimalId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        var animalBulkUpdateOperation = modelBuilder.Entity<AnimalBulkUpdateOperation>();
+        animalBulkUpdateOperation.ToTable("animal_bulk_update_operation");
+        animalBulkUpdateOperation.HasKey(entity => entity.Id);
+        animalBulkUpdateOperation.Property(entity => entity.Id).HasColumnName("id");
+        animalBulkUpdateOperation.Property(entity => entity.UserId).HasColumnName("user_id");
+        animalBulkUpdateOperation.Property(entity => entity.FarmId).HasColumnName("farm_id");
+        animalBulkUpdateOperation.Property(entity => entity.RequestHash).HasColumnName("request_hash").HasMaxLength(64).IsRequired();
+        animalBulkUpdateOperation.Property(entity => entity.State).HasColumnName("state").HasMaxLength(24).IsRequired();
+        animalBulkUpdateOperation.Property(entity => entity.ResultJson).HasColumnName("result_json").HasColumnType("jsonb");
+        animalBulkUpdateOperation.Property(entity => entity.CreatedAt).HasColumnName("created_at");
+        animalBulkUpdateOperation.Property(entity => entity.CompletedAt).HasColumnName("completed_at");
+        animalBulkUpdateOperation.HasIndex(entity => new { entity.UserId, entity.FarmId, entity.CreatedAt });
 
         var balance = modelBuilder.Entity<Balance>();
         balance.ToTable("balance");

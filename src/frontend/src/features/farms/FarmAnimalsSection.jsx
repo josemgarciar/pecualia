@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Tag } from 'lucide-react';
+import { PencilLine, Plus, Search, Tag } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { normalizeAnimalIdentification, normalizeRegaCode } from '../../shared/validation/identifiers';
 import {
@@ -18,6 +18,7 @@ import {
   validateAutorrepositionForm,
   validateManualPorcineAnimalForm
 } from './FarmDetailShared';
+import { FarmAnimalBulkUpdateModal } from './FarmAnimalBulkUpdateModal';
 
 export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter }) {
   const canUseAutorreposition = farm.livestockSpecies !== 'Porcine';
@@ -55,6 +56,11 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
   const [loadingAutorrepositionBirths, setLoadingAutorrepositionBirths] = useState(false);
   const [breedOptions, setBreedOptions] = useState([]);
   const [loadingBreedOptions, setLoadingBreedOptions] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [selectionMode, setSelectionMode] = useState('Explicit');
+  const [excludedIds, setExcludedIds] = useState(() => new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkCommitted, setBulkCommitted] = useState(false);
   const isInitialLoading = loading && animals.length === 0 && !error;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const visiblePageNumbers = useMemo(() => {
@@ -65,6 +71,15 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
   }, [page, totalPages]);
   const currentRangeStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const currentRangeEnd = totalCount === 0 ? 0 : Math.min(page * pageSize, totalCount);
+  const selectedCount = selectionMode === 'Filtered'
+    ? Math.max(0, totalCount - excludedIds.size)
+    : selectedIds.size;
+  const isAnimalSelected = (animalId) => selectionMode === 'Filtered'
+    ? !excludedIds.has(animalId)
+    : selectedIds.has(animalId);
+  const selectedOnPage = animals.filter((animal) => isAnimalSelected(animal.id)).length;
+  const allPageSelected = animals.length > 0 && selectedOnPage === animals.length;
+  const somePageSelected = selectedOnPage > 0 && !allPageSelected;
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -80,6 +95,10 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
   useEffect(() => {
     setPage(1);
   }, [movementFilter?.movementId]);
+
+  useEffect(() => {
+    clearSelection();
+  }, [farm.id, search, movementFilter?.movementId]);
 
   useEffect(() => {
     setAutorrepositionForm(createAutorrepositionForm(farm));
@@ -164,10 +183,19 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
       params.set('pageSize', String(pageSize));
 
       const response = await apiRequest(`/api/farms/${farm.id}/animals${params.toString() ? `?${params}` : ''}`);
-      setAnimals(response.items);
-      setTotalCount(response.totalCount);
-      setActiveCount(response.activeCount);
-      setPage(response.page);
+      const responseItems = Array.isArray(response?.items)
+        ? response.items
+        : Array.isArray(response)
+          ? response
+          : [];
+      setAnimals(responseItems);
+      setTotalCount(Number.isFinite(response?.totalCount) ? response.totalCount : responseItems.length);
+      setActiveCount(Number.isFinite(response?.activeCount)
+        ? response.activeCount
+        : responseItems.filter((animal) => !animal.dischargeDate).length);
+      if (Number.isFinite(response?.page)) {
+        setPage(response.page);
+      }
     } catch (requestError) {
       setError(requestError.message);
       setAnimals([]);
@@ -176,6 +204,115 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
     } finally {
       setLoading(false);
     }
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+    setExcludedIds(new Set());
+    setSelectionMode('Explicit');
+    setBulkOpen(false);
+    setBulkCommitted(false);
+  }
+
+  function toggleAnimalSelection(animalId) {
+    if (selectionMode === 'Filtered') {
+      setExcludedIds((current) => {
+        const next = new Set(current);
+        if (next.has(animalId)) {
+          next.delete(animalId);
+        } else {
+          next.add(animalId);
+        }
+        return next;
+      });
+      return;
+    }
+
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(animalId)) {
+        next.delete(animalId);
+      } else {
+        next.add(animalId);
+      }
+      return next;
+    });
+  }
+
+  function toggleCurrentPage() {
+    const pageIds = animals.map((animal) => animal.id);
+    if (selectionMode === 'Filtered') {
+      setExcludedIds((current) => {
+        const next = new Set(current);
+        pageIds.forEach((id) => {
+          if (allPageSelected) {
+            next.add(id);
+          } else {
+            next.delete(id);
+          }
+        });
+        return next;
+      });
+      return;
+    }
+
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      pageIds.forEach((id) => {
+        if (allPageSelected) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+      });
+      return next;
+    });
+  }
+
+  function selectAllFiltered() {
+    if (totalCount > 10000) {
+      setError('La modificación masiva admite un máximo de 10.000 animales. Acota primero la búsqueda.');
+      return;
+    }
+    setSelectionMode('Filtered');
+    setSelectedIds(new Set());
+    setExcludedIds(new Set());
+  }
+
+  function buildBulkSelection() {
+    return selectionMode === 'Filtered'
+      ? {
+          mode: 'Filtered',
+          animalIds: null,
+          search: debouncedSearch || null,
+          movementId: movementFilter?.movementId ?? null,
+          sex: null,
+          status: null,
+          excludedAnimalIds: Array.from(excludedIds)
+        }
+      : {
+          mode: 'Explicit',
+          animalIds: Array.from(selectedIds),
+          search: null,
+          movementId: null,
+          sex: null,
+          status: null,
+          excludedAnimalIds: null
+        };
+  }
+
+  function handleBulkCommitted(response) {
+    setSuccess(`Se han actualizado ${response.updatedAnimals} animales correctamente.`);
+    setBulkCommitted(true);
+    setReloadKey((current) => current + 1);
+  }
+
+  function closeBulkModal() {
+    if (bulkCommitted) {
+      clearSelection();
+      return;
+    }
+    setBulkOpen(false);
   }
 
   function updateAnimalField(field, value) {
@@ -473,8 +610,17 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
         <div>
           <p>{loading && !isInitialLoading ? 'Actualizando animales...' : `${activeCount} activos · ${totalCount} en total`}</p>
         </div>
-        {(canUseAutorreposition || canCreateManualPorcineAnimal) && (
+        {(canUseAutorreposition || canCreateManualPorcineAnimal || selectedCount > 0) && (
           <div className="movement-toolbar-actions">
+            {selectedCount > 0 && (
+              <button className="secondary-button bulk-edit-button" type="button" onClick={() => {
+                setBulkCommitted(false);
+                setBulkOpen(true);
+              }}>
+                <PencilLine size={16} />
+                Modificar {selectedCount.toLocaleString('es-ES')}
+              </button>
+            )}
             {canCreateManualPorcineAnimal && (
               <button className="primary-button" type="button" onClick={openManualPorcineModal}>
                 <Plus size={16} />
@@ -508,9 +654,24 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
       <div className="animal-filters farm-animals-filters">
         <div className="animal-search">
           <Search size={14} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Buscar identificación o raza...`} />
+          <input name="farm-animal-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Buscar identificación o raza...`} />
         </div>
       </div>
+
+      {selectedCount > 0 && (
+        <div className="animal-selection-bar">
+          <span><strong>{selectedCount.toLocaleString('es-ES')}</strong> animales seleccionados</span>
+          <div>
+            {selectionMode === 'Explicit' && allPageSelected && selectedCount < totalCount && (
+              <button type="button" onClick={selectAllFiltered}>
+                Seleccionar los {totalCount.toLocaleString('es-ES')} resultados
+              </button>
+            )}
+            {selectionMode === 'Filtered' && <span>Todos los resultados filtrados están seleccionados.</span>}
+            <button type="button" onClick={clearSelection}>Limpiar selección</button>
+          </div>
+        </div>
+      )}
 
       {isInitialLoading ? (
         <div className="empty-state">Cargando animales de la explotación...</div>
@@ -525,6 +686,19 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
             <table className="animal-table">
               <thead>
                 <tr>
+                  <th className="animal-selection-cell">
+                    <input
+                      type="checkbox"
+                      aria-label="Seleccionar animales de esta página"
+                      checked={allPageSelected}
+                      ref={(node) => {
+                        if (node) {
+                          node.indeterminate = somePageSelected;
+                        }
+                      }}
+                      onChange={toggleCurrentPage}
+                    />
+                  </th>
                   {['Identificación', 'Año', 'Raza', 'Sexo', 'Causa alta', 'Procedencia', 'Causa baja', 'Destino', 'Guía entrada/salida'].map((header) => (
                     <th key={header}>{header}</th>
                   ))}
@@ -541,7 +715,19 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
                     : '—';
 
                   return (
-                    <tr key={animal.id} onClick={() => openAnimalModal(animal.id)}>
+                    <tr
+                      key={animal.id}
+                      className={isAnimalSelected(animal.id) ? 'animal-row-selected' : ''}
+                      onClick={() => openAnimalModal(animal.id)}
+                    >
+                      <td className="animal-selection-cell" onClick={(event) => event.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Seleccionar ${animal.identification}`}
+                          checked={isAnimalSelected(animal.id)}
+                          onChange={() => toggleAnimalSelection(animal.id)}
+                        />
+                      </td>
                       <td>
                         <div className="animal-identification-cell">
                           <Tag size={13} />
@@ -567,7 +753,7 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
             <div className="animal-pagination">
               <label className="animal-pagination-size">
                 <span>Filas</span>
-                <select value={pageSize} onChange={(event) => {
+                <select name="farm-animal-page-size" value={pageSize} onChange={(event) => {
                   setPage(1);
                   setPageSize(Number(event.target.value));
                 }}>
@@ -610,6 +796,16 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
           onClose={closeAnimalModal}
           onSave={saveAnimalChanges}
           onDelete={deleteAnimal}
+        />
+      )}
+
+      {bulkOpen && selectedCount > 0 && (
+        <FarmAnimalBulkUpdateModal
+          farm={farm}
+          selectedCount={selectedCount}
+          selection={buildBulkSelection()}
+          onClose={closeBulkModal}
+          onCommitted={handleBulkCommitted}
         />
       )}
 
