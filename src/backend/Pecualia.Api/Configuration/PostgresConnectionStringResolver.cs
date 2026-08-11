@@ -6,10 +6,10 @@ internal static class PostgresConnectionStringResolver
 {
     public static string RequireNormalized(IConfiguration configuration)
     {
-        var rawValue =
-            configuration.GetConnectionString("Postgres") ??
-            configuration["ConnectionStrings:Postgres"] ??
-            configuration["DATABASE_URL"];
+        var rawValue = FirstNonEmpty(
+            configuration["DATABASE_URL"],
+            configuration.GetConnectionString("Postgres"),
+            configuration["ConnectionStrings:Postgres"]);
 
         if (string.IsNullOrWhiteSpace(rawValue))
         {
@@ -18,6 +18,9 @@ internal static class PostgresConnectionStringResolver
 
         return Normalize(rawValue);
     }
+
+    private static string? FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 
     public static string Normalize(string rawValue)
     {

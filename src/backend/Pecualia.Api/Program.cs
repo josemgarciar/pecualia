@@ -224,6 +224,7 @@ builder.Services.AddScoped<ITaskReminderProcessor, TaskReminderProcessor>();
 builder.Services.AddScoped<IBookService, BookService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddSingleton<IDatabaseBootstrapper, DatabaseBootstrapper>();
+builder.Services.AddSingleton<DatabaseBootstrapState>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddHostedService<TaskReminderWorker>();
 
@@ -243,12 +244,6 @@ else
 }
 
 var app = builder.Build();
-
-using (var scope = app.Services.CreateScope())
-{
-    var bootstrapper = scope.ServiceProvider.GetRequiredService<IDatabaseBootstrapper>();
-    await bootstrapper.BootstrapAsync(CancellationToken.None);
-}
 
 app.UseForwardedHeaders();
 app.UseSwagger();
@@ -271,8 +266,20 @@ app.MapGet("/health/live", () => Results.Ok(new
     service = "pecualia-api",
     utc = DateTimeOffset.UtcNow
 }));
-app.MapGet("/health/ready", async (PecualiaDbContext dbContext, CancellationToken cancellationToken) =>
+app.MapGet("/health/ready", async (DatabaseBootstrapState bootstrapState, PecualiaDbContext dbContext, CancellationToken cancellationToken) =>
 {
+    if (!bootstrapState.IsReady)
+    {
+        return Results.Json(
+            new
+            {
+                status = "initializing",
+                service = "pecualia-api",
+                utc = DateTimeOffset.UtcNow
+            },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
     var canConnect = await dbContext.Database.CanConnectAsync(cancellationToken);
     return canConnect
         ? Results.Ok(new
@@ -290,8 +297,20 @@ app.MapGet("/health/ready", async (PecualiaDbContext dbContext, CancellationToke
             },
             statusCode: StatusCodes.Status503ServiceUnavailable);
 });
-app.MapGet("/health", async (PecualiaDbContext dbContext, CancellationToken cancellationToken) =>
+app.MapGet("/health", async (DatabaseBootstrapState bootstrapState, PecualiaDbContext dbContext, CancellationToken cancellationToken) =>
 {
+    if (!bootstrapState.IsReady)
+    {
+        return Results.Json(
+            new
+            {
+                status = "initializing",
+                service = "pecualia-api",
+                utc = DateTimeOffset.UtcNow
+            },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
     var canConnect = await dbContext.Database.CanConnectAsync(cancellationToken);
     return canConnect
         ? Results.Ok(new
@@ -323,7 +342,25 @@ if (hasFrontendBuild)
     app.MapFallbackToFile("index.html");
 }
 
-app.Run();
+await app.StartAsync();
+try
+{
+    using var scope = app.Services.CreateScope();
+    var bootstrapper = scope.ServiceProvider.GetRequiredService<IDatabaseBootstrapper>();
+    await bootstrapper.BootstrapAsync(app.Lifetime.ApplicationStopping);
+    app.Services.GetRequiredService<DatabaseBootstrapState>().MarkReady();
+}
+catch (OperationCanceledException) when (app.Lifetime.ApplicationStopping.IsCancellationRequested)
+{
+    // Normal shutdown while the database connection is still being retried.
+}
+catch
+{
+    await app.StopAsync(CancellationToken.None);
+    throw;
+}
+
+await app.WaitForShutdownAsync();
 
 static void ApplyRenderDerivedConfiguration(IConfiguration configuration)
 {

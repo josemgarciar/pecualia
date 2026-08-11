@@ -336,3 +336,16 @@
 - La interfaz incorpora una zona de peligro en Ajustes y exige escribir el REGA exacto antes de habilitar la
   confirmación definitiva.
 - Añadidas pruebas de borrado en cascada, preservación de guías compartidas, autorización e idempotencia.
+
+## 2026-08-11 - Tolerancia del arranque en Render
+
+- El Blueprint inyecta ahora la conexión administrada de Render mediante `DATABASE_URL`; esta fuente tiene
+  prioridad sobre cadenas antiguas que puedan seguir almacenadas en el servicio.
+- La resolución de configuración ignora valores vacíos y mantiene compatibilidad con
+  `ConnectionStrings__Postgres` para desarrollo local y otros proveedores.
+- Kestrel abre el puerto antes de ejecutar el bootstrap SQL, permitiendo que Render detecte el servicio mientras
+  PostgreSQL termina de estar disponible.
+- Los fallos transitorios de DNS, socket y timeout se reintentan de forma acotada con espera progresiva; los
+  errores persistentes o no transitorios continúan deteniendo el despliegue con un diagnóstico explícito.
+- El worker de recordatorios espera a que el esquema esté listo y los healthchecks separan correctamente
+  liveness (`200`) de readiness (`503` durante la inicialización).

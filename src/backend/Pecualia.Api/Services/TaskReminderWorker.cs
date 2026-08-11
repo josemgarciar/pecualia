@@ -5,6 +5,7 @@ namespace Pecualia.Api.Services;
 
 public sealed class TaskReminderWorker(
     IServiceScopeFactory scopeFactory,
+    DatabaseBootstrapState databaseBootstrapState,
     IOptions<TaskReminderWorkerOptions> options,
     ILogger<TaskReminderWorker> logger) : BackgroundService
 {
@@ -16,6 +17,20 @@ public sealed class TaskReminderWorker(
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            if (!databaseBootstrapState.IsReady)
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
             try
             {
                 using var scope = scopeFactory.CreateScope();

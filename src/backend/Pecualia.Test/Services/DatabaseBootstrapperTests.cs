@@ -12,6 +12,39 @@ namespace Pecualia.Test.Services;
 public sealed class DatabaseBootstrapperTests
 {
     [Fact]
+    public void ConnectionStringResolver_PrefersRenderDatabaseUrl_OverStaleConnectionString()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DATABASE_URL"] = "postgresql://render_user:render_password@render-internal-host:5432/livestock",
+            ["ConnectionStrings:Postgres"] = "Host=stale-host;Database=old;Username=old;Password=old"
+        }).Build();
+
+        var normalized = PostgresConnectionStringResolver.RequireNormalized(configuration);
+        var parsed = new Npgsql.NpgsqlConnectionStringBuilder(normalized);
+
+        parsed.Host.Should().Be("render-internal-host");
+        parsed.Database.Should().Be("livestock");
+        parsed.Username.Should().Be("render_user");
+    }
+
+    [Fact]
+    public void ConnectionStringResolver_IgnoresBlankDatabaseUrl_AndUsesLocalConnectionString()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DATABASE_URL"] = " ",
+            ["ConnectionStrings:Postgres"] = "Host=127.0.0.1;Database=livestock;Username=local;Password=local"
+        }).Build();
+
+        var normalized = PostgresConnectionStringResolver.RequireNormalized(configuration);
+        var parsed = new Npgsql.NpgsqlConnectionStringBuilder(normalized);
+
+        parsed.Host.Should().Be("127.0.0.1");
+        parsed.Database.Should().Be("livestock");
+    }
+
+    [Fact]
     public async Task BootstrapAsync_ReturnsImmediately_WhenBootstrapIsDisabled()
     {
         var service = new DatabaseBootstrapper(
@@ -88,6 +121,15 @@ public sealed class DatabaseBootstrapperTests
         InvokePrivateStatic<bool>("IsSeedScript", "002_seed_demo.sql").Should().BeTrue();
         InvokePrivateStatic<bool>("IsSeedScript", "005_seed_demo_porcine.sql").Should().BeTrue();
         InvokePrivateStatic<bool>("IsSeedScript", "010_password_reset_token.sql").Should().BeFalse();
+    }
+
+    [Fact]
+    public void TransientConnectionDetection_RecognizesDnsFailuresIncludingInnerExceptions()
+    {
+        var dnsFailure = new InvalidOperationException("outer", new System.Net.Sockets.SocketException());
+
+        InvokePrivateStatic<bool>("IsTransientConnectionFailure", dnsFailure).Should().BeTrue();
+        InvokePrivateStatic<bool>("IsTransientConnectionFailure", new InvalidOperationException("configuration error")).Should().BeFalse();
     }
 
     private static T InvokePrivateStatic<T>(string methodName, params object[] arguments)
