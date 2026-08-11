@@ -309,6 +309,75 @@
   color: #2f6b4f;
 }
 
+.farm-settings-danger-zone {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 14px;
+  margin-top: 8px;
+  padding: 18px;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  background: #fffafa;
+}
+
+.farm-settings-danger-zone h3,
+.farm-settings-danger-zone p {
+  margin: 0;
+}
+
+.farm-settings-danger-zone h3 {
+  color: #991b1b;
+  font-size: 1rem;
+}
+
+.farm-settings-danger-zone > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.farm-settings-danger-zone > div:first-child p {
+  color: #7f1d1d;
+  font-size: 0.86rem;
+}
+
+.farm-settings-danger-zone > .danger-button {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.farm-delete-confirmation {
+  display: grid;
+  gap: 14px;
+}
+
+.farm-delete-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
+.farm-delete-warning svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.farm-delete-warning p {
+  line-height: 1.5;
+}
+
+.farm-delete-confirm-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 .farm-import-panel {
   display: grid;
   gap: 16px;

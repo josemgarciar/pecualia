@@ -1,4 +1,6 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Pecualia.Api.Contracts.Farms;
 using Pecualia.Api.Data;
 using Pecualia.Api.Models.Entities;
@@ -13,6 +15,8 @@ public interface IFarmService
     Task<FarmListItemResponse> CreateFarmAsync(long userId, UserRole role, CreateFarmRequest request, CancellationToken cancellationToken);
 
     Task<FarmDetailResponse> UpdateFarmAsync(long userId, UserRole role, long farmId, UpdateFarmRequest request, CancellationToken cancellationToken);
+
+    Task<DeleteFarmResponse> DeleteFarmAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
 
     Task<FarmSummaryResponse> GetSummaryAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
 
@@ -259,6 +263,151 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock, IFarm
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return await GetDetailAsync(userId, role, farmId, cancellationToken);
+    }
+
+    public async Task<DeleteFarmResponse> DeleteFarmAsync(
+        long userId,
+        UserRole role,
+        long farmId,
+        CancellationToken cancellationToken)
+    {
+        IDbContextTransaction? transaction = null;
+        try
+        {
+            if (dbContext.Database.IsRelational())
+            {
+                transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+            }
+
+            var farm = await BuildAccessibleQuery(userId, role)
+                .Include(entity => entity.Animals)
+                .SingleOrDefaultAsync(entity => entity.Id == farmId, cancellationToken);
+
+            if (farm is null)
+            {
+                var farmStillExists = await dbContext.Farms
+                    .AsNoTracking()
+                    .AnyAsync(entity => entity.Id == farmId, cancellationToken);
+
+                if (farmStillExists)
+                {
+                    throw new DomainException("Explotación no encontrada.");
+                }
+
+                if (transaction is not null)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                }
+
+                return new DeleteFarmResponse(farmId, 0, true);
+            }
+
+            var animalIds = farm.Animals.Select(entity => entity.Id).ToArray();
+            var deletedAnimals = animalIds.Length;
+
+            if (animalIds.Length > 0)
+            {
+                var movementAnimals = await dbContext.MovementCertificateAnimals
+                    .Where(entity => animalIds.Contains(entity.AnimalId))
+                    .ToListAsync(cancellationToken);
+                dbContext.MovementCertificateAnimals.RemoveRange(movementAnimals);
+
+                var vaccinations = await dbContext.Vaccinations
+                    .Where(entity => animalIds.Contains(entity.AnimalId))
+                    .ToListAsync(cancellationToken);
+                dbContext.Vaccinations.RemoveRange(vaccinations);
+
+                var ovineCaprineAnimals = await dbContext.OvinoCaprinoAnimals
+                    .Where(entity => animalIds.Contains(entity.AnimalId))
+                    .ToListAsync(cancellationToken);
+                dbContext.OvinoCaprinoAnimals.RemoveRange(ovineCaprineAnimals);
+
+                var porcineAnimals = await dbContext.PorcinoAnimals
+                    .Where(entity => animalIds.Contains(entity.AnimalId))
+                    .ToListAsync(cancellationToken);
+                dbContext.PorcinoAnimals.RemoveRange(porcineAnimals);
+
+                var externalIncidents = await dbContext.Incidents
+                    .Where(entity => entity.LivestockFarmId != farmId && entity.AnimalId != null && animalIds.Contains(entity.AnimalId.Value))
+                    .ToListAsync(cancellationToken);
+                foreach (var incident in externalIncidents)
+                {
+                    incident.AnimalId = null;
+                }
+            }
+
+            var relatedMovements = await dbContext.MovementCertificates
+                .Include(entity => entity.Animals)
+                .Where(entity => entity.OriginLivestockId == farmId || entity.DestinationLivestockId == farmId)
+                .ToListAsync(cancellationToken);
+
+            foreach (var movement in relatedMovements)
+            {
+                var hasAnotherInternalFarm =
+                    movement.OriginLivestockId is not null && movement.OriginLivestockId != farmId ||
+                    movement.DestinationLivestockId is not null && movement.DestinationLivestockId != farmId;
+
+                if (!hasAnotherInternalFarm)
+                {
+                    dbContext.MovementCertificates.Remove(movement);
+                    continue;
+                }
+
+                if (movement.OriginLivestockId == farmId)
+                {
+                    movement.OriginLivestockId = null;
+                    movement.OriginFarm = null;
+                    movement.OriginExternalCode = farm.RegaCode;
+                    movement.OriginExternalName = farm.Name;
+                }
+
+                if (movement.DestinationLivestockId == farmId)
+                {
+                    movement.DestinationLivestockId = null;
+                    movement.DestinationFarm = null;
+                    movement.DestinationExternalCode = farm.RegaCode;
+                    movement.DestinationExternalName = farm.Name;
+                }
+            }
+
+            dbContext.Farms.Remove(farm);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+
+            return new DeleteFarmResponse(farmId, deletedAnimals, false);
+        }
+        catch (DbUpdateException)
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                await transaction.DisposeAsync();
+                transaction = null;
+            }
+
+            dbContext.ChangeTracker.Clear();
+            var farmStillExists = await dbContext.Farms
+                .AsNoTracking()
+                .AnyAsync(entity => entity.Id == farmId, cancellationToken);
+
+            if (!farmStillExists)
+            {
+                return new DeleteFarmResponse(farmId, 0, true);
+            }
+
+            throw new DomainException("No se ha podido eliminar la explotación de forma segura. Puedes volver a intentarlo.");
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
+        }
     }
 
     public async Task<FarmSummaryResponse> GetSummaryAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken)

@@ -92,3 +92,8 @@ public sealed record FarmDetailResponse(
     int? Spindle,
     double? XCoordinate,
     double? YCoordinate);
+
+public sealed record DeleteFarmResponse(
+    long FarmId,
+    int DeletedAnimals,
+    bool AlreadyDeleted);

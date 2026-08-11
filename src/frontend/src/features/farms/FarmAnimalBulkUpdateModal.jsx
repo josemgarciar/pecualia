@@ -25,6 +25,12 @@ const GUIDE_ACTIONS = [
 ];
 
 const REGA_PATTERN = /^ES\d{12}$/;
+const PAIRED_MODE_FIELDS = {
+  registrationCauseMode: 'registrationDateMode',
+  registrationDateMode: 'registrationCauseMode',
+  dischargeCauseMode: 'dischargeDateMode',
+  dischargeDateMode: 'dischargeCauseMode'
+};
 
 function nowLocal() {
   const now = new Date();
@@ -248,6 +254,10 @@ export function FarmAnimalBulkUpdateModal({
   function update(field, value) {
     setForm((current) => {
       const next = { ...current, [field]: value };
+      const pairedModeField = PAIRED_MODE_FIELDS[field];
+      if (pairedModeField) {
+        next[pairedModeField] = value;
+      }
       if (field === 'guideAction' && value === 'SetEntry') {
         next.registrationCauseMode = 'Set';
         next.registrationCause = 'Entrada';
@@ -360,7 +370,7 @@ export function FarmAnimalBulkUpdateModal({
             <section className="bulk-section">
               <div>
                 <h3>Datos de alta y baja</h3>
-                <p>Cada campo puede conservarse, establecerse o borrarse. Causa y fecha deben quedar completas.</p>
+                <p>Causa y fecha se modifican juntas automáticamente: pueden conservarse, establecerse o borrarse.</p>
               </div>
               <div className="bulk-change-grid">
                 <ChangeField

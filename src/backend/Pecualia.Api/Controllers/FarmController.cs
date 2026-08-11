@@ -45,6 +45,9 @@ public static class FarmController
         group.MapPut("/{farmId:long}", async (ClaimsPrincipal user, long farmId, UpdateFarmRequest request, IFarmService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.UpdateFarmAsync(user.GetUserId(), user.GetRole(), farmId, request, cancellationToken)));
 
+        group.MapDelete("/{farmId:long}", async (ClaimsPrincipal user, long farmId, IFarmService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.DeleteFarmAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
+
         group.MapPost("/{farmId:long}/animal-imports/preview", async (
             ClaimsPrincipal user,
             long farmId,

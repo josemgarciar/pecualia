@@ -83,6 +83,46 @@ public sealed class ApiIntegrationFlowTests : IClassFixture<ApiWebApplicationFac
     }
 
     [Fact]
+    public async Task DeleteFarmEndpoint_DeletesAnimals_AndIsIdempotent()
+    {
+        const long userId = 9910;
+        const long farmId = 9911;
+        const long animalId = 9912;
+        await _factory.SeedAsync(dbContext =>
+        {
+            var user = ServiceTestData.CreateUser(userId, UserRole.Farmer, "Delete", "HTTP", email: "delete-http@test.local");
+            var farmer = ServiceTestData.CreateFarmer(userId, user, nifCif: "00000020K");
+            var farm = ServiceTestData.CreateFarm(farmId, userId, LivestockSpecies.Ovine, "Ovina para borrar", "ES061600009910");
+            var animal = ServiceTestData.CreateAnimal(animalId, farmId, "ES060000009912", new DateOnly(2026, 1, 1));
+            dbContext.Users.Add(user);
+            dbContext.Farmers.Add(farmer);
+            dbContext.Farms.Add(farm);
+            dbContext.Animals.Add(animal);
+            return Task.CompletedTask;
+        });
+
+        using var client = _factory.CreateClient();
+        SetTestAuth(client, userId, UserRole.Farmer);
+
+        var response = await client.DeleteAsync($"/api/farms/{farmId}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<DeleteFarmResponse>(JsonOptions);
+        result.Should().Be(new DeleteFarmResponse(farmId, 1, false));
+
+        var retryResponse = await client.DeleteAsync($"/api/farms/{farmId}");
+        retryResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var retry = await retryResponse.Content.ReadFromJsonAsync<DeleteFarmResponse>(JsonOptions);
+        retry.Should().Be(new DeleteFarmResponse(farmId, 0, true));
+
+        var farmResponse = await client.GetAsync($"/api/farms/{farmId}");
+        farmResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var animalsResponse = await client.GetAsync($"/api/farms/{farmId}/animals");
+        animalsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var animals = await animalsResponse.Content.ReadFromJsonAsync<AnimalPageResponse>(JsonOptions);
+        animals!.Items.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task AuthEndpoints_SupportManagerProfileAndSettingsFlow()
     {
         using var client = _factory.CreateClient();

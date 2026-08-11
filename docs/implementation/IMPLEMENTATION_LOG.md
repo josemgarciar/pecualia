@@ -320,5 +320,19 @@
   y traduce los errores de conexión y las respuestas inesperadas a mensajes accionables.
 - Se bloquean el cierre y la cancelación mientras una petición está en curso para evitar que el resultado quede
   oculto al usuario.
+- Los modos de causa y fecha de alta/baja quedan acoplados en la interfaz: establecer, borrar o conservar uno
+  aplica automáticamente el mismo modo a su pareja y evita configuraciones incompletas.
 - Verificada la concurrencia idempotente: dos commits simultáneos con el mismo UUID producen una sola escritura y
   el segundo resultado se devuelve como repetición.
+
+## 2026-08-11 - Eliminación segura de explotaciones
+
+- Añadido `DELETE /api/farms/{farmId}` con autorización por titular o gestor vinculado, transacción serializable y
+  respuesta idempotente para reintentos sobre una explotación ya eliminada.
+- El borrado elimina todos los animales de la explotación junto con sus subtipos, vacunaciones y vínculos a guías;
+  los registros propios de la explotación se eliminan mediante las relaciones en cascada del esquema.
+- Las guías que no implican otra explotación interna se eliminan. Si existe otra explotación interna, la guía se
+  conserva y el REGA/nombre de la explotación eliminada queda como referencia externa histórica.
+- La interfaz incorpora una zona de peligro en Ajustes y exige escribir el REGA exacto antes de habilitar la
+  confirmación definitiva.
+- Añadidas pruebas de borrado en cascada, preservación de guías compartidas, autorización e idempotencia.

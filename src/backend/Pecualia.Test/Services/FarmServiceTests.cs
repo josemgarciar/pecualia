@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Pecualia.Api.Contracts.Farms;
 using Pecualia.Api.Models.Entities;
 using Pecualia.Api.Models.Enums;
@@ -335,6 +336,111 @@ public sealed class FarmServiceTests
         summary.FarmerName.Should().Be("Clara Titular");
         summary.AuthorisedCapacity.Should().Be(12);
         summary.AnimalCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task DeleteFarmAsync_DeletesAnimalsAndOwnMovements_ButPreservesSharedMovementHistory()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 08, 11, 10, 0, 0, TimeSpan.Zero));
+        var censusProjectionService = new FarmCensusProjectionService(dbContext, clock);
+        var service = new FarmService(dbContext, clock, censusProjectionService);
+
+        var user = ServiceTestData.CreateUser(80, UserRole.Farmer, "Elena", "Titular", email: "farm-delete@test.local");
+        var farmer = ServiceTestData.CreateFarmer(user.Id, user, nifCif: "00000017G");
+        var deletedFarm = ServiceTestData.CreateFarm(180, farmer.UserId, LivestockSpecies.Ovine, "Ovina eliminable", "ES410010000080");
+        var survivingFarm = ServiceTestData.CreateFarm(181, farmer.UserId, LivestockSpecies.Ovine, "Ovina destino", "ES410010000081");
+        var deletedAnimal = ServiceTestData.CreateAnimal(1800, deletedFarm.Id, "ES060000581800", new DateOnly(2026, 1, 1));
+        var survivingAnimal = ServiceTestData.CreateAnimal(1801, survivingFarm.Id, "ES060000581801", new DateOnly(2026, 1, 1));
+        var subtype = ServiceTestData.CreateOvinoCaprinoAnimal(deletedAnimal.Id, LivestockSpecies.Ovine);
+        var vaccination = new Vaccination
+        {
+            Id = 1800,
+            AnimalId = deletedAnimal.Id,
+            VaccinationDate = new DateOnly(2026, 2, 1),
+            VaccinationType = "Lengua azul"
+        };
+        var sharedMovement = new MovementCertificate
+        {
+            Id = 1800,
+            OriginLivestockId = deletedFarm.Id,
+            DestinationLivestockId = survivingFarm.Id,
+            DepartureDate = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc),
+            Status = MovementStatus.Confirmed,
+            NumberOfAnimals = 2,
+            Specie = LivestockSpecies.Ovine.ToString()
+        };
+        var ownMovement = new MovementCertificate
+        {
+            Id = 1801,
+            OriginLivestockId = deletedFarm.Id,
+            DestinationExternalCode = "ES410010999999",
+            DepartureDate = new DateTime(2026, 3, 2, 0, 0, 0, DateTimeKind.Utc),
+            Status = MovementStatus.Confirmed,
+            NumberOfAnimals = 1,
+            Specie = LivestockSpecies.Ovine.ToString()
+        };
+
+        dbContext.Users.Add(user);
+        dbContext.Farmers.Add(farmer);
+        dbContext.Farms.AddRange(deletedFarm, survivingFarm);
+        dbContext.Animals.AddRange(deletedAnimal, survivingAnimal);
+        dbContext.OvinoCaprinoAnimals.Add(subtype);
+        dbContext.Vaccinations.Add(vaccination);
+        dbContext.MovementCertificates.AddRange(sharedMovement, ownMovement);
+        dbContext.MovementCertificateAnimals.AddRange(
+            new MovementCertificateAnimal { Id = 1800, MovementCertificateId = sharedMovement.Id, AnimalId = deletedAnimal.Id },
+            new MovementCertificateAnimal { Id = 1801, MovementCertificateId = sharedMovement.Id, AnimalId = survivingAnimal.Id },
+            new MovementCertificateAnimal { Id = 1802, MovementCertificateId = ownMovement.Id, AnimalId = deletedAnimal.Id });
+        await dbContext.SaveChangesAsync();
+
+        var result = await service.DeleteFarmAsync(user.Id, UserRole.Farmer, deletedFarm.Id, CancellationToken.None);
+
+        result.Should().Be(new DeleteFarmResponse(deletedFarm.Id, 1, false));
+        dbContext.Farms.Should().ContainSingle(entity => entity.Id == survivingFarm.Id);
+        dbContext.Animals.Should().ContainSingle(entity => entity.Id == survivingAnimal.Id);
+        dbContext.OvinoCaprinoAnimals.Should().BeEmpty();
+        dbContext.Vaccinations.Should().BeEmpty();
+        dbContext.MovementCertificates.Should().ContainSingle(entity => entity.Id == sharedMovement.Id);
+        dbContext.MovementCertificateAnimals.Should().ContainSingle(entity => entity.AnimalId == survivingAnimal.Id);
+
+        var preservedMovement = await dbContext.MovementCertificates.SingleAsync();
+        preservedMovement.OriginLivestockId.Should().BeNull();
+        preservedMovement.OriginExternalCode.Should().Be(deletedFarm.RegaCode);
+        preservedMovement.OriginExternalName.Should().Be(deletedFarm.Name);
+        preservedMovement.DestinationLivestockId.Should().Be(survivingFarm.Id);
+
+        var retry = await service.DeleteFarmAsync(user.Id, UserRole.Farmer, deletedFarm.Id, CancellationToken.None);
+        retry.Should().Be(new DeleteFarmResponse(deletedFarm.Id, 0, true));
+        dbContext.Farms.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task DeleteFarmAsync_DoesNotDeleteFarmOwnedByAnotherFarmer()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 08, 11, 10, 0, 0, TimeSpan.Zero));
+        var censusProjectionService = new FarmCensusProjectionService(dbContext, clock);
+        var service = new FarmService(dbContext, clock, censusProjectionService);
+
+        var ownerUser = ServiceTestData.CreateUser(82, UserRole.Farmer, "Sara", "Dueña", email: "farm-owner@test.local");
+        var owner = ServiceTestData.CreateFarmer(ownerUser.Id, ownerUser, nifCif: "00000018H");
+        var otherUser = ServiceTestData.CreateUser(83, UserRole.Farmer, "Raúl", "Ajeno", email: "farm-other@test.local");
+        var other = ServiceTestData.CreateFarmer(otherUser.Id, otherUser, nifCif: "00000019J");
+        var farm = ServiceTestData.CreateFarm(182, owner.UserId, LivestockSpecies.Caprine, "Caprina privada", "ES410010000082");
+        var animal = ServiceTestData.CreateAnimal(1820, farm.Id, "ES060000581820", new DateOnly(2026, 1, 1));
+
+        dbContext.Users.AddRange(ownerUser, otherUser);
+        dbContext.Farmers.AddRange(owner, other);
+        dbContext.Farms.Add(farm);
+        dbContext.Animals.Add(animal);
+        await dbContext.SaveChangesAsync();
+
+        var action = () => service.DeleteFarmAsync(otherUser.Id, UserRole.Farmer, farm.Id, CancellationToken.None);
+
+        await action.Should().ThrowAsync<DomainException>().WithMessage("Explotación no encontrada.");
+        dbContext.Farms.Should().ContainSingle(entity => entity.Id == farm.Id);
+        dbContext.Animals.Should().ContainSingle(entity => entity.Id == animal.Id);
     }
 
     private static CreateFarmRequest CreateOvineRequest(long farmerId, string name, string regaCode) =>

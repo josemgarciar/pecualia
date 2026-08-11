@@ -541,10 +541,13 @@ export function BirthDetailModal({ birth, farmName, onClose, onEdit, onDelete })
   );
 }
 
-export function FarmSettingsModal({ farm, form, errors, requestError, submitting, onChange, onClose, onSubmit, onAnimalsImported }) {
+export function FarmSettingsModal({ farm, form, errors, requestError, submitting, deleting, onChange, onClose, onSubmit, onDelete, onAnimalsImported }) {
   const supportsAnimalImport = farm.livestockSpecies === 'Ovine' || farm.livestockSpecies === 'Caprine';
   const [activeSettingsTab, setActiveSettingsTab] = useState('data');
   const [importDocument, setImportDocument] = useState(null);
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const deletionConfirmed = deleteConfirmation.trim() === farm.regaCode;
 
   return (
     <ModalDialog size="wide">
@@ -553,6 +556,7 @@ export function FarmSettingsModal({ farm, form, errors, requestError, submitting
         title="Ajustes de la explotación"
         subtitle={`Edita los datos administrativos y operativos de ${farm.name}.`}
         onClose={onClose}
+        closeDisabled={submitting || deleting}
       />
       {supportsAnimalImport && (
         <div className="farm-settings-tabs" role="tablist" aria-label="Ajustes de la explotación">
@@ -696,6 +700,49 @@ export function FarmSettingsModal({ farm, form, errors, requestError, submitting
             {errors.yCoordinate && <p className="farm-field-error">{errors.yCoordinate}</p>}
           </div>
             </div>
+
+            <section className="farm-settings-danger-zone" aria-labelledby="farm-delete-title">
+              <div>
+                <h3 id="farm-delete-title">Eliminar explotación</h3>
+                <p>Elimina permanentemente esta explotación, sus animales y sus registros propios.</p>
+              </div>
+              {!deleteConfirmationOpen ? (
+                <button
+                  className="danger-button"
+                  type="button"
+                  onClick={() => setDeleteConfirmationOpen(true)}
+                  disabled={submitting || deleting}
+                  data-testid="farm-delete-open"
+                >
+                  <Trash2 size={15} />
+                  Eliminar explotación
+                </button>
+              ) : (
+                <div className="farm-delete-confirmation">
+                  <div className="farm-delete-warning">
+                    <TriangleAlert size={20} aria-hidden="true" />
+                    <p>
+                      Esta acción no se puede deshacer. Las guías compartidas con otra explotación se conservarán
+                      como histórico, pero se eliminarán todos los animales de <strong>{farm.name}</strong>.
+                    </p>
+                  </div>
+                  <label className="farm-form-field" htmlFor="farm-delete-confirmation">
+                    <span className="farm-field-label">
+                      Escribe <strong>{farm.regaCode}</strong> para confirmar
+                    </span>
+                    <input
+                      id="farm-delete-confirmation"
+                      className="farm-input"
+                      value={deleteConfirmation}
+                      onChange={(event) => setDeleteConfirmation(event.target.value)}
+                      autoComplete="off"
+                      disabled={deleting}
+                      data-testid="farm-delete-confirmation"
+                    />
+                  </label>
+                </div>
+              )}
+            </section>
           </>
         ) : (
           <div className="stack">
@@ -720,10 +767,38 @@ export function FarmSettingsModal({ farm, form, errors, requestError, submitting
 
       {activeSettingsTab === 'data' ? (
         <ModalFooter align="end">
-          <button className="secondary-button" type="button" onClick={onClose}>Cancelar</button>
-          <button className="primary-button" type="button" onClick={onSubmit} disabled={submitting}>
-            {submitting ? 'Guardando...' : 'Guardar cambios'}
-          </button>
+          {deleteConfirmationOpen ? (
+            <>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmationOpen(false);
+                  setDeleteConfirmation('');
+                }}
+                disabled={deleting}
+              >
+                Cancelar eliminación
+              </button>
+              <button
+                className="danger-button farm-delete-confirm-button"
+                type="button"
+                onClick={onDelete}
+                disabled={!deletionConfirmed || deleting}
+                data-testid="farm-delete-confirm"
+              >
+                <Trash2 size={15} />
+                {deleting ? 'Eliminando...' : 'Eliminar definitivamente'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="secondary-button" type="button" onClick={onClose} disabled={submitting}>Cancelar</button>
+              <button className="primary-button" type="button" onClick={onSubmit} disabled={submitting}>
+                {submitting ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </>
+          )}
         </ModalFooter>
       ) : (
         <ModalFooter align="end">
