@@ -147,7 +147,7 @@ internal static class OvineBookDocumentComposer
                 index + 1,
                 animal.Identification,
                 animal.BirthYear?.ToString(),
-                BookDocumentSupport.FormatDate(animal.RegistrationDate),
+                BookDocumentSupport.FormatDate(animal.OvinoCaprino?.IdentificationDate ?? animal.RegistrationDate),
                 BookDocumentSupport.MapBreedCode(aggregate.Farm.LivestockSpecies, animal.Breed),
                 BookDocumentSupport.MapSexCode(animal.Sex),
                 BookDocumentSupport.EmptyToNull(animal.OvinoCaprino?.Genotyping),

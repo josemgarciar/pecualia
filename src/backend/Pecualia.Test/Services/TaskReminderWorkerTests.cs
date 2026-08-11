@@ -16,6 +16,7 @@ public sealed class TaskReminderWorkerTests
         await using var provider = BuildProvider(processor);
         var worker = new TaskReminderWorker(
             provider.GetRequiredService<IServiceScopeFactory>(),
+            CreateReadyBootstrapState(),
             Options.Create(new TaskReminderWorkerOptions
             {
                 PollIntervalMinutes = 1
@@ -36,6 +37,7 @@ public sealed class TaskReminderWorkerTests
         await using var provider = BuildProvider(processor);
         var worker = new TaskReminderWorker(
             provider.GetRequiredService<IServiceScopeFactory>(),
+            CreateReadyBootstrapState(),
             Options.Create(new TaskReminderWorkerOptions
             {
                 PollIntervalMinutes = 1
@@ -57,6 +59,13 @@ public sealed class TaskReminderWorkerTests
         return new ServiceCollection()
             .AddScoped(_ => processor)
             .BuildServiceProvider();
+    }
+
+    private static DatabaseBootstrapState CreateReadyBootstrapState()
+    {
+        var state = new DatabaseBootstrapState();
+        state.MarkReady();
+        return state;
     }
 
     private sealed class RecordingTaskReminderProcessor(Action onProcessed) : ITaskReminderProcessor

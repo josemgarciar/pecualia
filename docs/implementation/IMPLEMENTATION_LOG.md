@@ -252,3 +252,100 @@
   - `vaccination`: 3
   - `movement_certificate`: 4
   - `inspection`: 2
+
+## 2026-07-29 - Importación de animales pertenecientes
+
+- Añadido lector seguro del `.xls` HTML/XML de “Animales pertenecientes”, limitado a 5 MB y 1.000 filas.
+- Añadidos preview y confirmación para explotaciones ovinas/caprinas existentes, además de alta atómica de
+  explotación con importación inicial.
+- Implementada importación parcial con estados por fila y control estricto del REGA destino, duplicados y
+  conflictos entre explotaciones.
+- Persistidas las fechas exactas de nacimiento e identificación; nueva migración
+  `023_ovine_caprine_identification_date.sql`.
+- Añadido paso opcional al asistente de alta y pestaña en ajustes solo para ovino/caprino. La interfaz porcina
+  no incorpora controles de importación.
+- El libro ovino/caprino utiliza la fecha real de identificación con compatibilidad hacia registros antiguos.
+- Incorporadas pruebas del servicio, incluida la lectura de los 499 animales del documento aportado.
+
+## 2026-07-29 - Tolerancia de suscripción e idempotencia del alta
+
+- Corregida la resolución del plan efectivo: una suscripción activa con renovación automática conserva su plan
+  aunque la fecha de expiración local todavía no se haya sincronizado.
+- El periodo ya abonado conserva sus prestaciones hasta su fecha de fin aunque el cobro posterior esté pendiente
+  o la renovación se haya cancelado.
+- El código REGA se usa como clave natural idempotente en el alta: repetir exactamente la misma petición devuelve
+  la explotación existente sin consumir de nuevo el límite del plan.
+- Un REGA existente con distinto titular o datos diferentes continúa rechazándose como conflicto, respaldado por
+  la restricción única de base de datos.
+- Los reintentos de importación tratan los animales ya incorporados a la misma explotación como éxito sin cambios;
+  también se reconcilian las carreras entre dos peticiones concurrentes y se evita devolver errores técnicos.
+- Añadidas pruebas de regresión para cuenta Max con expiración local atrasada, unicidad de REGA e idempotencia del
+  alta y de la importación.
+
+## 2026-07-29 - Normalización del sexo en la importación
+
+- Corregida la conversión de `Hembra` y `Macho` del informe `.xls` a los valores canónicos de la aplicación:
+  `Female` y `Male`.
+- Se aceptan también mayúsculas, espacios, las abreviaturas `H`/`M` y los valores ingleses para tolerar variantes
+  del documento.
+- La migración `024_normalize_animal_sex.sql` repara de forma idempotente los animales que ya se importaron con
+  valores en minúsculas.
+- El preview mantiene compatibilidad visual con respuestas antiguas y nuevas.
+
+## 2026-07-29 - Modificación masiva de animales
+
+- Añadida selección tipo correo en la tabla de animales: selección por fila/página, persistencia entre páginas,
+  selección de todos los resultados filtrados, exclusiones y límite de 10.000 animales.
+- Incorporado un asistente obligatorio de configuración, previsualización y resultado para modificar causas y
+  fechas de alta/baja con semántica `Sin cambios`, `Establecer` o `Borrar`.
+- Las parejas causa/fecha se validan sobre el estado resultante. Borrar causa y fecha de baja reactiva al animal.
+- Añadida gestión histórica de una guía oficial por operación: crear/reutilizar entrada o salida y desvincular la
+  última guía de cada dirección, sin mover de explotación ni generar balances o censos.
+- La creación/reutilización exige coherencia entre guía, causa y fecha; una guía pendiente idéntica se confirma y
+  una guía con el mismo REMO/serie pero datos distintos se rechaza.
+- La operación usa preview con huella de estado, commit atómico y UUID idempotente. Los reintentos completados
+  devuelven el mismo resultado y una previsualización obsoleta no escribe cambios.
+- La migración `025_animal_bulk_update.sql` añade el registro de operaciones y los índices únicos normalizados de
+  REMO/serie por explotación y dirección.
+- Añadidas pruebas de preview sin escritura, conflictos, filtros/exclusiones, idempotencia, guía nueva/reutilizada,
+  desvinculación de la última guía y ausencia de efectos sobre censos/balances.
+
+## 2026-08-11 - Endurecimiento E2E de la modificación masiva
+
+- Validado con Playwright MCP el flujo real de selección explícita y filtrada, exclusiones, previsualización,
+  confirmación, restauración, guías, autorización, conflictos y estado obsoleto.
+- Corregido un error 500 ante selecciones o listas de identificadores nulas: ahora se devuelve un error de dominio
+  JSON controlado sin exponer la traza del servidor.
+- La interfaz valida antes de llamar a la API las operaciones vacías, valores obligatorios y datos/fechas de guía,
+  y traduce los errores de conexión y las respuestas inesperadas a mensajes accionables.
+- Se bloquean el cierre y la cancelación mientras una petición está en curso para evitar que el resultado quede
+  oculto al usuario.
+- Los modos de causa y fecha de alta/baja quedan acoplados en la interfaz: establecer, borrar o conservar uno
+  aplica automáticamente el mismo modo a su pareja y evita configuraciones incompletas.
+- Verificada la concurrencia idempotente: dos commits simultáneos con el mismo UUID producen una sola escritura y
+  el segundo resultado se devuelve como repetición.
+
+## 2026-08-11 - Eliminación segura de explotaciones
+
+- Añadido `DELETE /api/farms/{farmId}` con autorización por titular o gestor vinculado, transacción serializable y
+  respuesta idempotente para reintentos sobre una explotación ya eliminada.
+- El borrado elimina todos los animales de la explotación junto con sus subtipos, vacunaciones y vínculos a guías;
+  los registros propios de la explotación se eliminan mediante las relaciones en cascada del esquema.
+- Las guías que no implican otra explotación interna se eliminan. Si existe otra explotación interna, la guía se
+  conserva y el REGA/nombre de la explotación eliminada queda como referencia externa histórica.
+- La interfaz incorpora una zona de peligro en Ajustes y exige escribir el REGA exacto antes de habilitar la
+  confirmación definitiva.
+- Añadidas pruebas de borrado en cascada, preservación de guías compartidas, autorización e idempotencia.
+
+## 2026-08-11 - Tolerancia del arranque en Render
+
+- El Blueprint inyecta ahora la conexión administrada de Render mediante `DATABASE_URL`; esta fuente tiene
+  prioridad sobre cadenas antiguas que puedan seguir almacenadas en el servicio.
+- La resolución de configuración ignora valores vacíos y mantiene compatibilidad con
+  `ConnectionStrings__Postgres` para desarrollo local y otros proveedores.
+- Kestrel abre el puerto antes de ejecutar el bootstrap SQL, permitiendo que Render detecte el servicio mientras
+  PostgreSQL termina de estar disponible.
+- Los fallos transitorios de DNS, socket y timeout se reintentan de forma acotada con espera progresiva; los
+  errores persistentes o no transitorios continúan deteniendo el despliegue con un diagnóstico explícito.
+- El worker de recordatorios espera a que el esquema esté listo y los healthchecks separan correctamente
+  liveness (`200`) de readiness (`503` durante la inicialización).

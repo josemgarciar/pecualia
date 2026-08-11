@@ -194,6 +194,14 @@ Mientras no se amplíe la estrategia, se considerará aceptable que un cambio qu
 - añade test de integración HTTP cuando introduce o altera contratos de endpoint;
 - añade test de rendimiento si cambia consultas o agregaciones en rutas ya sensibles.
 
+### Cobertura de importación XLS ovino/caprino
+
+`FarmAnimalImportServiceTests` cubre el fichero real de `info/` (499 animales), formato incorrecto,
+previsualización de filas válidas, avisos, duplicados y REGA distinto, importación parcial y persistencia de
+fechas exactas, así como el rechazo explícito de porcino. La validación de interfaz se realiza a 1200×664 y
+390×844 con rutas API controladas, comprobando también que los controles de importación no aparecen en
+porcino.
+
 ## 9. Próximos incrementos recomendados
 Prioridad alta:
 

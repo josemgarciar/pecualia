@@ -133,9 +133,39 @@
   .summary-grid,
   .detail-grid,
   .farm-settings-grid,
+  .farm-import-summary,
   .quick-actions-grid,
   .porcine-transition-layout {
     grid-template-columns: 1fr;
+  }
+
+  .farm-import-file,
+  .farm-import-toolbar,
+  .farm-import-commit {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bulk-change-grid,
+  .bulk-guide-grid,
+  .bulk-preview-summary,
+  .bulk-change-field {
+    grid-template-columns: 1fr;
+  }
+
+  .animal-selection-bar,
+  .animal-selection-bar > div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .animal-bulk-modal .farm-modal-header {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .farm-settings-tabs {
+    padding-inline: 18px;
   }
 
   .reg-stepper {
@@ -201,6 +231,30 @@
 
   .farm-stepper-connector {
     display: none;
+  }
+
+  .farm-import-wizard-shell .farm-modal-header {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .farm-import-wizard-shell .farm-stepper {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 4px;
+    padding: 12px 10px;
+  }
+
+  .farm-import-wizard-shell .farm-stepper-item {
+    width: auto;
+  }
+
+  .farm-import-wizard-shell .farm-stepper-marker {
+    width: 28px;
+    height: 28px;
+  }
+
+  .farm-import-wizard-shell .farm-stepper-label {
+    font-size: 0.66rem;
   }
 
   .farm-list-meta {

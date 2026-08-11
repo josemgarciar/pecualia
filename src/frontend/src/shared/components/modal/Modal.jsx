@@ -35,6 +35,7 @@ export function ModalHeader({
   subtitle,
   onClose,
   closeLabel = 'Cerrar modal',
+  closeDisabled = false,
   actions
 }) {
   return (
@@ -47,7 +48,7 @@ export function ModalHeader({
         </div>
       </div>
       {actions ?? (
-        <button className="farm-modal-close" type="button" onClick={onClose} aria-label={closeLabel}>
+        <button className="farm-modal-close" type="button" onClick={onClose} aria-label={closeLabel} disabled={closeDisabled}>
           <X size={18} />
         </button>
       )}

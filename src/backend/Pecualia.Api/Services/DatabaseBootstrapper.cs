@@ -2,12 +2,22 @@ using Npgsql;
 using Microsoft.Extensions.Options;
 using Pecualia.Api.Configuration;
 using System.Data;
+using System.Net.Sockets;
 
 namespace Pecualia.Api.Services;
 
 public interface IDatabaseBootstrapper
 {
     Task BootstrapAsync(CancellationToken cancellationToken);
+}
+
+public sealed class DatabaseBootstrapState
+{
+    private int _isReady;
+
+    public bool IsReady => Volatile.Read(ref _isReady) == 1;
+
+    public void MarkReady() => Volatile.Write(ref _isReady, 1);
 }
 
 public sealed class DatabaseBootstrapper(
@@ -18,6 +28,7 @@ public sealed class DatabaseBootstrapper(
 {
     private const long AdvisoryLockKey = 482_001_337;
     private const string MigrationsTableName = "_pecualia_sql_migrations";
+    private const int MaxConnectionAttempts = 8;
 
     public async Task BootstrapAsync(CancellationToken cancellationToken)
     {
@@ -35,8 +46,7 @@ public sealed class DatabaseBootstrapper(
         var allScripts = initScripts.Concat(migrationScripts).ToList();
         var executableScripts = BuildExecutableScripts(dbDirectory, options.Value.SeedDemoData);
 
-        await using var connection = new NpgsqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionWithRetryAsync(connectionString, cancellationToken);
 
         await AcquireAdvisoryLockAsync(connection, cancellationToken);
         try
@@ -83,6 +93,67 @@ public sealed class DatabaseBootstrapper(
         {
             await ReleaseAdvisoryLockAsync(connection, cancellationToken);
         }
+    }
+
+    private async Task<NpgsqlConnection> OpenConnectionWithRetryAsync(
+        string connectionString,
+        CancellationToken cancellationToken)
+    {
+        var host = new NpgsqlConnectionStringBuilder(connectionString).Host;
+
+        for (var attempt = 1; attempt <= MaxConnectionAttempts; attempt++)
+        {
+            var connection = new NpgsqlConnection(connectionString);
+            try
+            {
+                await connection.OpenAsync(cancellationToken);
+                if (attempt > 1)
+                {
+                    logger.LogInformation(
+                        "PostgreSQL connection to host {DatabaseHost} recovered on attempt {Attempt}.",
+                        host,
+                        attempt);
+                }
+
+                return connection;
+            }
+            catch (Exception exception) when (
+                !cancellationToken.IsCancellationRequested &&
+                IsTransientConnectionFailure(exception) &&
+                attempt < MaxConnectionAttempts)
+            {
+                await connection.DisposeAsync();
+                var delay = TimeSpan.FromSeconds(Math.Min(2 * attempt, 10));
+                logger.LogWarning(
+                    "PostgreSQL host {DatabaseHost} is not available ({FailureType}, attempt {Attempt}/{MaxAttempts}). Retrying in {DelaySeconds} seconds.",
+                    host,
+                    exception.GetType().Name,
+                    attempt,
+                    MaxConnectionAttempts,
+                    delay.TotalSeconds);
+                await Task.Delay(delay, cancellationToken);
+            }
+            catch
+            {
+                await connection.DisposeAsync();
+                throw;
+            }
+        }
+
+        throw new InvalidOperationException("No se ha podido establecer la conexión con PostgreSQL.");
+    }
+
+    private static bool IsTransientConnectionFailure(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is NpgsqlException or SocketException or TimeoutException)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static IReadOnlyList<SqlScript> BuildInitScripts(string dbDirectory)

@@ -302,12 +302,24 @@ graph TB
 
 ## 7. Métricas de Éxito
 
+### Importación inicial de animales ovinos y caprinos
+
+Como ganadero o gestor, se puede adjuntar el informe `.xls` de “Animales pertenecientes” tanto al crear una
+explotación como desde sus ajustes. La funcionalidad está limitada a ovino y caprino; porcino queda
+explícitamente fuera del alcance. Antes de guardar se muestra una previsualización por fila con válidas,
+avisos, duplicados, animales existentes, conflictos, REGA distinto y errores. La confirmación crea solo las
+filas importables y comunica el número de registros creados y rechazados.
+
+La creación conjunta de explotación y animales es atómica: si la importación no puede completarse, tampoco
+se conserva la explotación. Los documentos no se almacenan después de procesarlos.
+
 | Métrica | Objetivo |
 |---|---|
 | **Cobertura de tests** | ≥ 80% en backend |
 | **Tiempo de respuesta** | < 2s para consultas |
 | **Generación de libro** | < 10s para exportación PDF |
 | **Importación TXT** | Previsualización clara de hasta 1.000 crotales y resumen de errores antes de confirmar |
+| **Importación XLS de pertenencia** | Previsualización e importación parcial de hasta 1.000 animales ovinos/caprinos en menos de 5 segundos |
 | **Disponibilidad** | 99.5% uptime |
 | **Requisitos cubiertos** | 11/11 RF implementados |
 

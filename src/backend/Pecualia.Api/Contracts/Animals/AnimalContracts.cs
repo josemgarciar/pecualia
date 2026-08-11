@@ -12,7 +12,8 @@ public sealed record CreateAnimalRequest(
     AnimalRegistrationCause? RegistrationCause,
     string? OriginCode,
     OvinoCaprinoAnimalRequest? OvinoCaprino,
-    PorcinoAnimalRequest? Porcino);
+    PorcinoAnimalRequest? Porcino,
+    DateOnly? BirthDate = null);
 
 public sealed record CreateAnimalsAutorrepositionRequest(
     string StartIdentification,
@@ -37,7 +38,8 @@ public sealed record OvinoCaprinoAnimalRequest(
     LivestockSpecies SpeciesType,
     string? Genotyping,
     string? DominantAllele,
-    string? LowAllele);
+    string? LowAllele,
+    DateOnly? IdentificationDate = null);
 
 public sealed record PorcinoAnimalRequest(
     string AnimalType,
@@ -54,7 +56,8 @@ public sealed record UpdateAnimalRequest(
     AnimalRegistrationCause? RegistrationCause,
     string? OriginCode,
     OvinoCaprinoAnimalRequest? OvinoCaprino,
-    PorcinoAnimalRequest? Porcino);
+    PorcinoAnimalRequest? Porcino,
+    DateOnly? BirthDate = null);
 
 public sealed record AnimalListItemResponse(
     long Id,
@@ -78,7 +81,8 @@ public sealed record AnimalListItemResponse(
     string? DestinationCode,
     string? EntryGuideSerie,
     string? ExitGuideSerie,
-    string Status);
+    string Status,
+    DateOnly? BirthDate = null);
 
 public sealed record AnimalPageResponse(
     IReadOnlyList<AnimalListItemResponse> Items,
@@ -109,13 +113,15 @@ public sealed record AnimalDetailResponse(
     string? DestinationCode,
     string Status,
     OvinoCaprinoAnimalResponse? OvinoCaprino,
-    PorcinoAnimalResponse? Porcino);
+    PorcinoAnimalResponse? Porcino,
+    DateOnly? BirthDate = null);
 
 public sealed record OvinoCaprinoAnimalResponse(
     string SpeciesType,
     string? Genotyping,
     string? DominantAllele,
-    string? LowAllele);
+    string? LowAllele,
+    DateOnly? IdentificationDate = null);
 
 public sealed record PorcinoAnimalResponse(
     string AnimalType,

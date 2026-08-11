@@ -181,6 +181,23 @@ La plataforma se enmarca dentro del ecosistema normativo español de trazabilida
 
 ## 5. Modelo de Datos
 
+### RF-12 — Importación de “Animales pertenecientes”
+
+- El sistema debe aceptar exclusivamente el `.xls` HTML/XML exportado por el informe “Animales
+  pertenecientes”, con un máximo de 5 MB y 1.000 filas.
+- El flujo debe estar disponible durante el alta y en los ajustes de explotaciones ovinas y caprinas. No debe
+  aparecer ni aceptar operaciones para porcino.
+- Deben validarse identificación, raza oficial de la especie, sexo, fechas, estado de baja y códigos REGA. Los
+  REGA de pertenencia y ubicación deben coincidir estrictamente con el de la explotación destino.
+- Se deben detectar duplicados en el documento, animales existentes en el destino y crotales registrados en
+  otra explotación.
+- La importación debe ser parcial: se crean las filas válidas o con avisos y se rechazan las demás.
+- Se persisten crotal, fecha exacta y año de nacimiento, raza, sexo, explotación de origen, fecha de alta,
+  causa `Entrada` y fecha de identificación/crotalización.
+- La previsualización y la confirmación deben revalidar el documento. La creación conjunta de explotación e
+  importación debe ejecutarse en una transacción.
+- El contenido del fichero no debe conservarse tras finalizar la petición.
+
 El modelo de datos completo se encuentra documentado en el archivo `diagrama_entidades.md`, que incluye:
 
 - **20 entidades** organizadas en 4 jerarquías de herencia

@@ -20,8 +20,59 @@ public static class FarmController
         group.MapPost("/", async (ClaimsPrincipal user, CreateFarmRequest request, IFarmService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.CreateFarmAsync(user.GetUserId(), user.GetRole(), request, cancellationToken)));
 
+        group.MapPost("/animal-imports/preview", async (
+            ClaimsPrincipal user,
+            PreviewNewFarmAnimalImportRequest request,
+            IFarmAnimalImportService service,
+            CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.PreviewNewFarmAsync(
+                user.GetUserId(),
+                user.GetRole(),
+                request,
+                cancellationToken)));
+
+        group.MapPost("/with-animal-import", async (
+            ClaimsPrincipal user,
+            CreateFarmWithAnimalImportRequest request,
+            IFarmAnimalImportService service,
+            CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.CreateFarmWithImportAsync(
+                user.GetUserId(),
+                user.GetRole(),
+                request,
+                cancellationToken)));
+
         group.MapPut("/{farmId:long}", async (ClaimsPrincipal user, long farmId, UpdateFarmRequest request, IFarmService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.UpdateFarmAsync(user.GetUserId(), user.GetRole(), farmId, request, cancellationToken)));
+
+        group.MapDelete("/{farmId:long}", async (ClaimsPrincipal user, long farmId, IFarmService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.DeleteFarmAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
+
+        group.MapPost("/{farmId:long}/animal-imports/preview", async (
+            ClaimsPrincipal user,
+            long farmId,
+            FarmAnimalImportDocumentRequest request,
+            IFarmAnimalImportService service,
+            CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.PreviewExistingFarmAsync(
+                user.GetUserId(),
+                user.GetRole(),
+                farmId,
+                request,
+                cancellationToken)));
+
+        group.MapPost("/{farmId:long}/animal-imports/commit", async (
+            ClaimsPrincipal user,
+            long farmId,
+            FarmAnimalImportDocumentRequest request,
+            IFarmAnimalImportService service,
+            CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.CommitExistingFarmAsync(
+                user.GetUserId(),
+                user.GetRole(),
+                farmId,
+                request,
+                cancellationToken)));
 
         group.MapGet("/{farmId:long}/summary", async (ClaimsPrincipal user, long farmId, IFarmService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetSummaryAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
@@ -58,6 +109,32 @@ public static class FarmController
             IAnimalService service,
             CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.CreateAutorrepositionAnimalsAsync(
+                user.GetUserId(),
+                user.GetRole(),
+                farmId,
+                request,
+                cancellationToken)));
+
+        group.MapPost("/{farmId:long}/animals/bulk-update/preview", async (
+            ClaimsPrincipal user,
+            long farmId,
+            PreviewAnimalBulkUpdateRequest request,
+            IFarmAnimalBulkUpdateService service,
+            CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.PreviewAsync(
+                user.GetUserId(),
+                user.GetRole(),
+                farmId,
+                request,
+                cancellationToken)));
+
+        group.MapPost("/{farmId:long}/animals/bulk-update/commit", async (
+            ClaimsPrincipal user,
+            long farmId,
+            CommitAnimalBulkUpdateRequest request,
+            IFarmAnimalBulkUpdateService service,
+            CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.CommitAsync(
                 user.GetUserId(),
                 user.GetRole(),
                 farmId,

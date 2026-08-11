@@ -10,6 +10,8 @@ public sealed class OvinoCaprinoAnimal
 
     public string? Genotyping { get; set; }
 
+    public DateOnly? IdentificationDate { get; set; }
+
     public string? LowAllele { get; set; }
 
     public LivestockSpecies SpeciesType { get; set; }

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  FileSpreadsheet,
   MapPin,
   Plus,
   Search
@@ -15,6 +16,7 @@ import { apiRequest } from '../../shared/api/client';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader, ModalStepper } from '../../shared/components/modal/Modal';
 import { isValidRegaCode, normalizeRegaCode } from '../../shared/validation/identifiers';
+import { FarmAnimalImportPanel } from './FarmAnimalImportPanel';
 
 const initialForm = {
   farmerId: '',
@@ -58,7 +60,7 @@ const provinceOptions = [
   'Valladolid', 'Vizcaya', 'Zamora', 'Zaragoza'
 ];
 
-const wizardSteps = [
+const baseWizardSteps = [
   { label: 'Datos básicos', icon: Building2 },
   { label: 'Ubicación', icon: MapPin },
   { label: 'Confirmación', icon: CheckCircle2 }
@@ -215,12 +217,26 @@ function FarmModal({
   submitting,
   farmers,
   user,
+  importDocument,
+  importResult,
   onChange,
+  onImportDocumentChange,
   onClose,
   onNext,
   onBack,
   onSubmit
 }) {
+  const supportsAnimalImport = form.livestockSpecies === 'Ovine' || form.livestockSpecies === 'Caprine';
+  const wizardSteps = supportsAnimalImport
+    ? [
+        baseWizardSteps[0],
+        baseWizardSteps[1],
+        { label: 'Animales', icon: FileSpreadsheet },
+        baseWizardSteps[2]
+      ]
+    : baseWizardSteps;
+  const confirmationStep = wizardSteps.length;
+  const hasImportableDocument = !importDocument || importDocument.preview.summary.processableRows > 0;
   const currentStepErrors = showValidation ? buildFarmErrors(form, step, user?.role === 'Manager') : {};
   const selectedFarmer = farmers.find((farmer) => String(farmer.id) === form.farmerId);
   const ownerName = selectedFarmer?.displayName ?? (`${user?.name ?? ''} ${user?.surname ?? ''}`.trim() || '—');
@@ -245,6 +261,9 @@ function FarmModal({
                 <strong>{form.name}</strong> ha sido creada correctamente en el sistema.
               </p>
               <span>Ya puedes seguir gestionando el listado y crear más explotaciones desde esta vista.</span>
+              {importResult && (
+                <span><strong>{importResult.createdAnimals}</strong> animales se han incorporado a la explotación.</span>
+              )}
             </div>
           </div>
         </ModalBody>
@@ -258,7 +277,7 @@ function FarmModal({
   }
 
   return (
-    <ModalDialog size="wide">
+    <ModalDialog size="wide" shellClassName={supportsAnimalImport ? 'farm-import-wizard-shell' : undefined}>
       <ModalHeader
         icon={<Building2 size={18} />}
         title="Nueva explotación"
@@ -436,7 +455,25 @@ function FarmModal({
             </div>
           )}
 
-          {step === 3 && (
+          {supportsAnimalImport && step === 3 && (
+            <div className="stack">
+              <div className="farm-import-intro">
+                <h3>Importar animales (opcional)</h3>
+                <p>
+                  Añade el informe .xls de “Animales pertenecientes”. Comprobaremos crotales, fechas, raza,
+                  sexo y que los códigos de pertenencia y ubicación coincidan con el REGA de esta explotación.
+                </p>
+              </div>
+              <FarmAnimalImportPanel
+                species={form.livestockSpecies}
+                regaCode={form.regaCode}
+                document={importDocument}
+                onDocumentChange={onImportDocumentChange}
+              />
+            </div>
+          )}
+
+          {step === confirmationStep && (
             <div className="stack">
               <div className="confirmation-hero">
                 <div className="confirmation-hero-icon">
@@ -489,6 +526,21 @@ function FarmModal({
                 <CheckCircle2 size={16} />
                 <p>Revisa los datos antes de confirmar. La explotación quedará activa inmediatamente tras guardar.</p>
               </div>
+
+              {supportsAnimalImport && (
+                <div className="farm-summary-card">
+                  <div className="farm-summary-card-header"><p>IMPORTACIÓN DE ANIMALES</p></div>
+                  <div className="summary-list">
+                    <SummaryRow label="Documento" value={importDocument?.fileName ?? 'Sin documento (se puede importar más tarde)'} />
+                    {importDocument && (
+                      <SummaryRow
+                        label="Animales que se crearán"
+                        value={String(importDocument.preview.summary.processableRows)}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
       </ModalBody>
@@ -512,13 +564,13 @@ function FarmModal({
             })}
           </div>
 
-          {step < 3 ? (
+          {step < confirmationStep ? (
             <button className="primary-button" type="button" onClick={onNext}>
               Siguiente
               <ChevronRight size={15} />
             </button>
           ) : (
-            <button className="primary-button" type="button" onClick={onSubmit} disabled={submitting}>
+            <button className="primary-button" type="button" onClick={onSubmit} disabled={submitting || !hasImportableDocument}>
               <CheckCircle2 size={15} />
               {submitting ? 'Guardando...' : 'Guardar explotación'}
             </button>
@@ -544,6 +596,8 @@ export function FarmsPage() {
   const [modalSubmitting, setModalSubmitting] = useState(false);
   const [modalValidationStep, setModalValidationStep] = useState(0);
   const [modalSuccess, setModalSuccess] = useState(false);
+  const [modalImportDocument, setModalImportDocument] = useState(null);
+  const [modalImportResult, setModalImportResult] = useState(null);
   const [error, setError] = useState('');
   const selectedFarmerId = searchParams.get('farmerId') ?? '';
 
@@ -590,6 +644,8 @@ export function FarmsPage() {
     setModalSubmitting(false);
     setModalValidationStep(0);
     setModalSuccess(false);
+    setModalImportDocument(null);
+    setModalImportResult(null);
   };
 
   const openModal = () => {
@@ -602,6 +658,8 @@ export function FarmsPage() {
     setModalSubmitting(false);
     setModalValidationStep(0);
     setModalSuccess(false);
+    setModalImportDocument(null);
+    setModalImportResult(null);
     setModalOpen(true);
   };
 
@@ -615,6 +673,10 @@ export function FarmsPage() {
   }, [location.pathname, location.search, location.state, navigate, selectedFarmerId, user?.id, user?.role]);
 
   const handleModalChange = (field, value) => {
+    if (field === 'livestockSpecies' || field === 'regaCode') {
+      setModalImportDocument(null);
+      setModalImportResult(null);
+    }
     setModalForm((current) => {
       if (field === 'livestockSpecies' && value !== 'Porcine') {
         return {
@@ -660,10 +722,7 @@ export function FarmsPage() {
       ? Number(modalForm.porcineFatteningCapacity)
       : null;
 
-    try {
-      await apiRequest('/api/farms', {
-        method: 'POST',
-        body: {
+    const farmPayload = {
           farmerId: Number(modalForm.farmerId || user.id),
           name: modalForm.name.trim(),
           regaCode: normalizeRegaCode(modalForm.regaCode),
@@ -687,10 +746,25 @@ export function FarmsPage() {
           spindle: modalForm.spindle === '' ? null : Number(modalForm.spindle),
           xCoordinate: modalForm.xCoordinate === '' ? null : Number(modalForm.xCoordinate),
           yCoordinate: modalForm.yCoordinate === '' ? null : Number(modalForm.yCoordinate)
-        }
-      });
+        };
+
+    try {
+      const response = modalImportDocument
+        ? await apiRequest('/api/farms/with-animal-import', {
+            method: 'POST',
+            body: {
+              farm: farmPayload,
+              fileName: modalImportDocument.fileName,
+              content: modalImportDocument.content
+            }
+          })
+        : await apiRequest('/api/farms', {
+            method: 'POST',
+            body: farmPayload
+          });
 
       await loadData();
+      setModalImportResult(response?.import ?? null);
       setModalSuccess(true);
     } catch (requestError) {
       setModalRequestError(requestError.message);
@@ -711,7 +785,10 @@ export function FarmsPage() {
           submitting={modalSubmitting}
           farmers={farmers}
           user={user}
+          importDocument={modalImportDocument}
+          importResult={modalImportResult}
           onChange={handleModalChange}
+          onImportDocumentChange={setModalImportDocument}
           onClose={resetModal}
           onNext={handleNextStep}
           onBack={handlePreviousStep}

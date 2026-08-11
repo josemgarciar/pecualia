@@ -7,14 +7,19 @@ internal static class SubscriptionPlanSupport
 {
     internal static PlanType ResolveEffectivePlanType(Subscription? subscription, DateOnly today)
     {
-        if (subscription is null ||
-            subscription.State != SubscriptionState.Active ||
-            subscription.ExpirationDate < today)
+        if (subscription is null)
         {
             return PlanType.Basic;
         }
 
-        return subscription.PlanType;
+        var isWithinPaidPeriod = subscription.ExpirationDate >= today;
+        var isRenewingActiveSubscription =
+            subscription.State == SubscriptionState.Active &&
+            subscription.Autorenew;
+
+        return isWithinPaidPeriod || isRenewingActiveSubscription
+            ? subscription.PlanType
+            : PlanType.Basic;
     }
 
     internal static int? GetFarmLimit(UserRole role, PlanType planType) => role switch

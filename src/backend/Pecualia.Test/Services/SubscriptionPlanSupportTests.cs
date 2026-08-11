@@ -15,7 +15,7 @@ public sealed class SubscriptionPlanSupportTests
     }
 
     [Fact]
-    public void ResolveEffectivePlanType_ReturnsBasic_WhenSubscriptionIsInactive()
+    public void ResolveEffectivePlanType_KeepsPaidPlan_UntilCurrentPeriodEnds()
     {
         var subscription = new Subscription
         {
@@ -26,7 +26,7 @@ public sealed class SubscriptionPlanSupportTests
 
         var plan = SubscriptionPlanSupport.ResolveEffectivePlanType(subscription, new DateOnly(2026, 05, 10));
 
-        plan.Should().Be(PlanType.Basic);
+        plan.Should().Be(PlanType.Professional);
     }
 
     [Fact]
@@ -42,6 +42,22 @@ public sealed class SubscriptionPlanSupportTests
         var plan = SubscriptionPlanSupport.ResolveEffectivePlanType(subscription, new DateOnly(2026, 05, 10));
 
         plan.Should().Be(PlanType.Basic);
+    }
+
+    [Fact]
+    public void ResolveEffectivePlanType_KeepsRenewingActivePlan_WhenLocalExpirationIsStale()
+    {
+        var subscription = new Subscription
+        {
+            State = SubscriptionState.Active,
+            PlanType = PlanType.Enterprise,
+            Autorenew = true,
+            ExpirationDate = new DateOnly(2026, 05, 09)
+        };
+
+        var plan = SubscriptionPlanSupport.ResolveEffectivePlanType(subscription, new DateOnly(2026, 07, 29));
+
+        plan.Should().Be(PlanType.Enterprise);
     }
 
     [Fact]

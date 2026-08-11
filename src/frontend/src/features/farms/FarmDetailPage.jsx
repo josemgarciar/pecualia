@@ -38,6 +38,7 @@ export function FarmDetailPage() {
   const [settingsErrors, setSettingsErrors] = useState({});
   const [settingsRequestError, setSettingsRequestError] = useState('');
   const [settingsSubmitting, setSettingsSubmitting] = useState(false);
+  const [settingsDeleting, setSettingsDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
   const [movementAnimalFilter, setMovementAnimalFilter] = useState(null);
   const [pendingPorcineTransitions, setPendingPorcineTransitions] = useState([]);
@@ -104,14 +105,20 @@ export function FarmDetailPage() {
     setSettingsErrors({});
     setSettingsRequestError('');
     setSettingsSubmitting(false);
+    setSettingsDeleting(false);
     setSettingsModalOpen(true);
   }
 
   function closeSettingsModal() {
+    if (settingsSubmitting || settingsDeleting) {
+      return;
+    }
+
     setSettingsModalOpen(false);
     setSettingsErrors({});
     setSettingsRequestError('');
     setSettingsSubmitting(false);
+    setSettingsDeleting(false);
   }
 
   function updateSettingsField(field, value) {
@@ -180,6 +187,40 @@ export function FarmDetailPage() {
       setSettingsRequestError(requestError.message);
     } finally {
       setSettingsSubmitting(false);
+    }
+  }
+
+  async function refreshFarmAfterAnimalImport() {
+    if (!farm) {
+      return;
+    }
+
+    const [farmResult, censusResult] = await Promise.allSettled([
+      apiRequest(`/api/farms/${farm.id}`),
+      apiRequest(`/api/farms/${farm.id}/census?year=${currentYear}`)
+    ]);
+    if (farmResult.status === 'fulfilled') {
+      setFarm(farmResult.value);
+    }
+    if (censusResult.status === 'fulfilled') {
+      setSummaryCensus(censusResult.value);
+    }
+  }
+
+  async function deleteFarm() {
+    if (!farm || settingsDeleting) {
+      return;
+    }
+
+    setSettingsDeleting(true);
+    setSettingsRequestError('');
+
+    try {
+      await apiRequest(`/api/farms/${farm.id}`, { method: 'DELETE' });
+      navigate('/app/farms', { replace: true });
+    } catch (requestError) {
+      setSettingsRequestError(requestError.message);
+      setSettingsDeleting(false);
     }
   }
 
@@ -371,9 +412,12 @@ export function FarmDetailPage() {
           errors={settingsErrors}
           requestError={settingsRequestError}
           submitting={settingsSubmitting}
+          deleting={settingsDeleting}
           onChange={updateSettingsField}
           onClose={closeSettingsModal}
           onSubmit={submitSettingsForm}
+          onDelete={deleteFarm}
+          onAnimalsImported={refreshFarmAfterAnimalImport}
         />
       )}
 

@@ -1,4 +1,6 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Pecualia.Api.Contracts.Farms;
 using Pecualia.Api.Data;
 using Pecualia.Api.Models.Entities;
@@ -13,6 +15,8 @@ public interface IFarmService
     Task<FarmListItemResponse> CreateFarmAsync(long userId, UserRole role, CreateFarmRequest request, CancellationToken cancellationToken);
 
     Task<FarmDetailResponse> UpdateFarmAsync(long userId, UserRole role, long farmId, UpdateFarmRequest request, CancellationToken cancellationToken);
+
+    Task<DeleteFarmResponse> DeleteFarmAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
 
     Task<FarmSummaryResponse> GetSummaryAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken);
 
@@ -55,14 +59,19 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock, IFarm
             throw new DomainException("El código REGA no es válido. Debe seguir el formato ES seguido de 12 dígitos.");
         }
 
-        if (await dbContext.Farms.AnyAsync(entity => entity.RegaCode == normalizedRegaCode, cancellationToken))
+        if (string.IsNullOrWhiteSpace(request.Name))
         {
-            throw new DomainException("Ya existe una explotación con ese código REGA.");
+            throw new DomainException("El nombre de la explotación es obligatorio.");
         }
 
         if (request.LivestockSpecies is not (LivestockSpecies.Ovine or LivestockSpecies.Caprine or LivestockSpecies.Porcine))
         {
             throw new DomainException("La especie indicada no está soportada en esta versión.");
+        }
+
+        if (request.Regime is not (FarmRegime.Extensive or FarmRegime.SemiExtensive or FarmRegime.Intensive))
+        {
+            throw new DomainException("El régimen indicado no es válido.");
         }
 
         if (request.LivestockSpecies == LivestockSpecies.Porcine && string.IsNullOrWhiteSpace(request.PorcineRegistryNumber))
@@ -91,6 +100,12 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock, IFarm
         else if (request.FarmerId != userId)
         {
             throw new DomainException("No puedes crear explotaciones para otro ganadero.");
+        }
+
+        var existingFarm = await FindFarmByRegaAsync(normalizedRegaCode, cancellationToken);
+        if (existingFarm is not null)
+        {
+            return await ResolveIdempotentCreationAsync(existingFarm, request, cancellationToken);
         }
 
         await EnsureFarmPlanCapacityAsync(userId, role, cancellationToken);
@@ -123,7 +138,25 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock, IFarm
         };
 
         dbContext.Farms.Add(farm);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            dbContext.Entry(farm).State = EntityState.Detached;
+
+            if (dbContext.Database.CurrentTransaction is null)
+            {
+                var concurrentlyCreatedFarm = await FindFarmByRegaAsync(normalizedRegaCode, cancellationToken);
+                if (concurrentlyCreatedFarm is not null)
+                {
+                    return await ResolveIdempotentCreationAsync(concurrentlyCreatedFarm, request, cancellationToken);
+                }
+            }
+
+            throw new DomainException("Otra solicitud está registrando esta explotación. Vuelve a intentarlo; el reintento es seguro.");
+        }
 
         var createdFarm = await dbContext.Farms
             .Include(entity => entity.Farmer)
@@ -232,6 +265,151 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock, IFarm
         return await GetDetailAsync(userId, role, farmId, cancellationToken);
     }
 
+    public async Task<DeleteFarmResponse> DeleteFarmAsync(
+        long userId,
+        UserRole role,
+        long farmId,
+        CancellationToken cancellationToken)
+    {
+        IDbContextTransaction? transaction = null;
+        try
+        {
+            if (dbContext.Database.IsRelational())
+            {
+                transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+            }
+
+            var farm = await BuildAccessibleQuery(userId, role)
+                .Include(entity => entity.Animals)
+                .SingleOrDefaultAsync(entity => entity.Id == farmId, cancellationToken);
+
+            if (farm is null)
+            {
+                var farmStillExists = await dbContext.Farms
+                    .AsNoTracking()
+                    .AnyAsync(entity => entity.Id == farmId, cancellationToken);
+
+                if (farmStillExists)
+                {
+                    throw new DomainException("Explotación no encontrada.");
+                }
+
+                if (transaction is not null)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                }
+
+                return new DeleteFarmResponse(farmId, 0, true);
+            }
+
+            var animalIds = farm.Animals.Select(entity => entity.Id).ToArray();
+            var deletedAnimals = animalIds.Length;
+
+            if (animalIds.Length > 0)
+            {
+                var movementAnimals = await dbContext.MovementCertificateAnimals
+                    .Where(entity => animalIds.Contains(entity.AnimalId))
+                    .ToListAsync(cancellationToken);
+                dbContext.MovementCertificateAnimals.RemoveRange(movementAnimals);
+
+                var vaccinations = await dbContext.Vaccinations
+                    .Where(entity => animalIds.Contains(entity.AnimalId))
+                    .ToListAsync(cancellationToken);
+                dbContext.Vaccinations.RemoveRange(vaccinations);
+
+                var ovineCaprineAnimals = await dbContext.OvinoCaprinoAnimals
+                    .Where(entity => animalIds.Contains(entity.AnimalId))
+                    .ToListAsync(cancellationToken);
+                dbContext.OvinoCaprinoAnimals.RemoveRange(ovineCaprineAnimals);
+
+                var porcineAnimals = await dbContext.PorcinoAnimals
+                    .Where(entity => animalIds.Contains(entity.AnimalId))
+                    .ToListAsync(cancellationToken);
+                dbContext.PorcinoAnimals.RemoveRange(porcineAnimals);
+
+                var externalIncidents = await dbContext.Incidents
+                    .Where(entity => entity.LivestockFarmId != farmId && entity.AnimalId != null && animalIds.Contains(entity.AnimalId.Value))
+                    .ToListAsync(cancellationToken);
+                foreach (var incident in externalIncidents)
+                {
+                    incident.AnimalId = null;
+                }
+            }
+
+            var relatedMovements = await dbContext.MovementCertificates
+                .Include(entity => entity.Animals)
+                .Where(entity => entity.OriginLivestockId == farmId || entity.DestinationLivestockId == farmId)
+                .ToListAsync(cancellationToken);
+
+            foreach (var movement in relatedMovements)
+            {
+                var hasAnotherInternalFarm =
+                    movement.OriginLivestockId is not null && movement.OriginLivestockId != farmId ||
+                    movement.DestinationLivestockId is not null && movement.DestinationLivestockId != farmId;
+
+                if (!hasAnotherInternalFarm)
+                {
+                    dbContext.MovementCertificates.Remove(movement);
+                    continue;
+                }
+
+                if (movement.OriginLivestockId == farmId)
+                {
+                    movement.OriginLivestockId = null;
+                    movement.OriginFarm = null;
+                    movement.OriginExternalCode = farm.RegaCode;
+                    movement.OriginExternalName = farm.Name;
+                }
+
+                if (movement.DestinationLivestockId == farmId)
+                {
+                    movement.DestinationLivestockId = null;
+                    movement.DestinationFarm = null;
+                    movement.DestinationExternalCode = farm.RegaCode;
+                    movement.DestinationExternalName = farm.Name;
+                }
+            }
+
+            dbContext.Farms.Remove(farm);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+
+            return new DeleteFarmResponse(farmId, deletedAnimals, false);
+        }
+        catch (DbUpdateException)
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                await transaction.DisposeAsync();
+                transaction = null;
+            }
+
+            dbContext.ChangeTracker.Clear();
+            var farmStillExists = await dbContext.Farms
+                .AsNoTracking()
+                .AnyAsync(entity => entity.Id == farmId, cancellationToken);
+
+            if (!farmStillExists)
+            {
+                return new DeleteFarmResponse(farmId, 0, true);
+            }
+
+            throw new DomainException("No se ha podido eliminar la explotación de forma segura. Puedes volver a intentarlo.");
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
+        }
+    }
+
     public async Task<FarmSummaryResponse> GetSummaryAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken)
     {
         var farm = await BuildAccessibleQuery(userId, role)
@@ -331,6 +509,62 @@ public sealed class FarmService(PecualiaDbContext dbContext, IClock clock, IFarm
         {
             throw new DomainException(SubscriptionPlanSupport.BuildFarmLimitError(role, planType, farmLimit.Value));
         }
+    }
+
+    private Task<LivestockFarm?> FindFarmByRegaAsync(string regaCode, CancellationToken cancellationToken) =>
+        dbContext.Farms
+            .AsNoTracking()
+            .Include(entity => entity.Farmer)
+            .ThenInclude(entity => entity.User)
+            .SingleOrDefaultAsync(entity => entity.RegaCode == regaCode, cancellationToken);
+
+    private async Task<FarmListItemResponse> ResolveIdempotentCreationAsync(
+        LivestockFarm existingFarm,
+        CreateFarmRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!MatchesCreateRequest(existingFarm, request))
+        {
+            throw new DomainException(
+                "Ya existe una explotación con ese código REGA, pero pertenece a otro titular o sus datos no coinciden.");
+        }
+
+        return await MapAsync(
+            existingFarm,
+            DateOnly.FromDateTime(clock.UtcNow.UtcDateTime),
+            cancellationToken);
+    }
+
+    private static bool MatchesCreateRequest(LivestockFarm farm, CreateFarmRequest request)
+    {
+        var isPorcine = request.LivestockSpecies == LivestockSpecies.Porcine;
+        var porcineMothersCapacity = isPorcine ? request.PorcineMothersCapacity : null;
+        var porcineFatteningCapacity = isPorcine ? request.PorcineFatteningCapacity : null;
+        var authorisedCapacity = isPorcine
+            ? (porcineMothersCapacity ?? 0) + (porcineFatteningCapacity ?? 0)
+            : (int?)null;
+        var porcineRegistryNumber = isPorcine
+            ? Normalize(request.PorcineRegistryNumber).ToUpperInvariant()
+            : string.Empty;
+
+        return farm.FarmerId == request.FarmerId &&
+               farm.Name == request.Name.Trim() &&
+               farm.LivestockSpecies == request.LivestockSpecies &&
+               farm.Regime == request.Regime &&
+               Normalize(farm.Town) == Normalize(request.Town) &&
+               Normalize(farm.Province) == Normalize(request.Province) &&
+               Normalize(farm.Address) == Normalize(request.Address) &&
+               Normalize(farm.ZipCode) == Normalize(request.ZipCode) &&
+               farm.AuthorisedCapacity == authorisedCapacity &&
+               Normalize(farm.PorcineRegistryNumber).ToUpperInvariant() == porcineRegistryNumber &&
+               Normalize(farm.LivestockType) == Normalize(request.LivestockType) &&
+               farm.PorcineMothersCapacity == porcineMothersCapacity &&
+               farm.PorcineFatteningCapacity == porcineFatteningCapacity &&
+               Normalize(farm.Responsible) == Normalize(request.Responsible) &&
+               Normalize(farm.ZootechnicClassification) == Normalize(request.ZootechnicClassification) &&
+               farm.Spindle == request.Spindle &&
+               farm.XCoordinate == request.XCoordinate &&
+               farm.YCoordinate == request.YCoordinate;
     }
 
     private async Task<FarmListItemResponse> MapAsync(LivestockFarm farm, DateOnly asOfDate, CancellationToken cancellationToken)

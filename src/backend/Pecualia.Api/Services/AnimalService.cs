@@ -71,6 +71,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
         var animals = await BuildFilteredAnimalQuery(userId, role, farmId, movementId, search, species, sex, status)
             .AsNoTracking()
             .Include(entity => entity.LivestockFarm)
+            .Include(entity => entity.OvinoCaprino)
             .Include(entity => entity.Porcino)
             .OrderBy(entity => entity.Identification)
             .ToListAsync(cancellationToken);
@@ -101,6 +102,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
         var animals = await filteredQuery
             .AsNoTracking()
             .Include(entity => entity.LivestockFarm)
+            .Include(entity => entity.OvinoCaprino)
             .Include(entity => entity.Porcino)
             .OrderBy(entity => entity.Identification)
             .Skip((normalizedPage - 1) * normalizedPageSize)
@@ -451,7 +453,8 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
                     request.RegistrationCause,
                     request.OriginCode,
                     request.OvinoCaprino,
-                    null));
+                    null,
+                    request.BirthDate));
             }
             else
             {
@@ -459,6 +462,7 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
                 animal.OvinoCaprino.Genotyping = Normalize(request.OvinoCaprino?.Genotyping);
                 animal.OvinoCaprino.DominantAllele = Normalize(request.OvinoCaprino?.DominantAllele);
                 animal.OvinoCaprino.LowAllele = Normalize(request.OvinoCaprino?.LowAllele);
+                animal.OvinoCaprino.IdentificationDate = request.OvinoCaprino?.IdentificationDate;
             }
         }
 
@@ -600,7 +604,9 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             EmptyToNull(animal.Sex),
             BookDocumentSupport.MapSexCode(animal.Sex),
             FarmCensusProjectionSupport.ResolveBirthYear(animal),
-            animal.LivestockFarm.LivestockSpecies == LivestockSpecies.Porcine ? animal.Porcino?.IdentificationDate ?? animal.RegistrationDate : animal.RegistrationDate,
+            animal.LivestockFarm.LivestockSpecies == LivestockSpecies.Porcine
+                ? animal.Porcino?.IdentificationDate ?? animal.RegistrationDate
+                : animal.OvinoCaprino?.IdentificationDate ?? animal.RegistrationDate,
             animal.RegistrationDate,
             FormatRegistrationCause(animal.RegistrationCause),
             BookDocumentSupport.MapRegistrationCauseCode(animal.RegistrationCause),
@@ -611,7 +617,8 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             EmptyToNull(animal.DestinationCode),
             null,
             null,
-            BuildStatus(animal));
+            BuildStatus(animal),
+            animal.BirthDate);
     }
 
     private async Task<List<AnimalListItemResponse>> PopulateGuideSeriesAsync(
@@ -718,14 +725,16 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
                     ovinoCaprino.SpeciesType.ToString(),
                     EmptyToNull(ovinoCaprino.Genotyping),
                     EmptyToNull(ovinoCaprino.DominantAllele),
-                    EmptyToNull(ovinoCaprino.LowAllele)),
+                    EmptyToNull(ovinoCaprino.LowAllele),
+                    ovinoCaprino.IdentificationDate),
             porcino is null
                 ? null
                 : new PorcinoAnimalResponse(
                     porcino.AnimalType,
                     porcino.IdentificationDate,
                     EmptyToNull(porcino.PigRegistrationNumber),
-                    EmptyToNull(porcino.Tag)));
+                    EmptyToNull(porcino.Tag)),
+            animal.BirthDate);
     }
 
     private static Animal BuildBaseAnimal(LivestockFarm farm, string identification, CreateAnimalRequest request)
@@ -812,7 +821,8 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             SpeciesType = speciesType,
             Genotyping = Normalize(request.OvinoCaprino?.Genotyping),
             DominantAllele = Normalize(request.OvinoCaprino?.DominantAllele),
-            LowAllele = Normalize(request.OvinoCaprino?.LowAllele)
+            LowAllele = Normalize(request.OvinoCaprino?.LowAllele),
+            IdentificationDate = request.OvinoCaprino?.IdentificationDate
         };
     }
 
@@ -855,8 +865,8 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
     {
         animal.LivestockFarmId = farm.Id;
         animal.Identification = identification;
-        animal.BirthYear = request.BirthYear;
-        animal.BirthDate = request.BirthYear is null ? null : new DateOnly(request.BirthYear.Value, 1, 1);
+        animal.BirthYear = request.BirthDate?.Year ?? request.BirthYear;
+        animal.BirthDate = request.BirthDate ?? (request.BirthYear is null ? null : new DateOnly(request.BirthYear.Value, 1, 1));
         animal.Breed = Normalize(request.Breed);
         animal.Sex = Normalize(request.Sex);
         animal.RegistrationDate = request.RegistrationDate;
@@ -870,8 +880,8 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
     {
         animal.LivestockFarmId = farm.Id;
         animal.Identification = identification;
-        animal.BirthYear = request.BirthYear;
-        animal.BirthDate = request.BirthYear is null ? null : new DateOnly(request.BirthYear.Value, 1, 1);
+        animal.BirthYear = request.BirthDate?.Year ?? request.BirthYear;
+        animal.BirthDate = request.BirthDate ?? (request.BirthYear is null ? null : new DateOnly(request.BirthYear.Value, 1, 1));
         animal.Breed = Normalize(request.Breed);
         animal.Sex = Normalize(request.Sex);
         animal.RegistrationDate = request.RegistrationDate;

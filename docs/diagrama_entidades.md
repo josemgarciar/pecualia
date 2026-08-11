@@ -329,6 +329,7 @@ Animal base identificado.
 |---|---|---|
 | `id` | `BIGINT IDENTITY` | PK |
 | `livestock_farm_id` | `BIGINT` | FK a `livestock_farm` |
+| `birth_date` | `DATE` | Fecha exacta de nacimiento |
 | `birth_year` | `INTEGER` | Ano de nacimiento |
 | `breed` | `VARCHAR(80)` | Raza |
 | `destination_code` | `VARCHAR(32)` | Codigo destino |
@@ -349,6 +350,7 @@ Datos especificos de animales ovinos o caprinos.
 | `animal_id` | `BIGINT` | PK y FK a `animal` |
 | `dominant_allele` | `VARCHAR(80)` | Alelo dominante |
 | `genotyping` | `VARCHAR(120)` | Genotipado |
+| `identification_date` | `DATE` | Fecha de identificacion o crotalizacion |
 | `low_allele` | `VARCHAR(80)` | Alelo bajo |
 | `species_type` | `VARCHAR(40)` | `ovine` o `caprine` |
 
