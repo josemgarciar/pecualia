@@ -62,7 +62,7 @@ function initialForm() {
     serie: '',
     departureDate: now,
     arrivalDate: now,
-    solicitationDate: now,
+    solicitationDate: '',
     meansOfTransport: '',
     transportName: '',
     vehicleRegistrationNumber: ''

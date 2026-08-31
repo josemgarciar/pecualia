@@ -350,7 +350,7 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
     serie: '',
     departureDate: currentDateTimeLocalValue(),
     arrivalDate: currentDateTimeLocalValue(),
-    solicitationDate: currentDateTimeLocalValue(),
+    solicitationDate: '',
     meansOfTransport: '',
     transportName: '',
     vehicleRegistrationNumber: '',
@@ -443,6 +443,19 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
 
     if (!isValidRegaCode(config.counterpartyExternalCode)) {
       return 'El código REGA no es válido.';
+    }
+
+    const departure = new Date(config.departureDate);
+    const arrival = new Date(config.arrivalDate);
+    const solicitation = config.solicitationDate ? new Date(config.solicitationDate) : null;
+    if (Number.isNaN(departure.getTime()) || Number.isNaN(arrival.getTime())) {
+      return 'Las fechas de la guía no son válidas.';
+    }
+    if (arrival < departure) {
+      return 'La llegada de la guía no puede ser anterior a la salida.';
+    }
+    if (solicitation && (Number.isNaN(solicitation.getTime()) || solicitation > departure)) {
+      return 'La solicitud de la guía no puede ser posterior a la salida.';
     }
 
     if (isPorcine) {
@@ -757,6 +770,10 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
                 <label className="farm-form-field">
                   <span className="farm-field-label">Fecha de llegada</span>
                   <input type="datetime-local" value={config.arrivalDate} onChange={(event) => updateConfig('arrivalDate', event.target.value)} />
+                </label>
+                <label className="farm-form-field">
+                  <span className="farm-field-label">Fecha de solicitud</span>
+                  <input type="datetime-local" value={config.solicitationDate} onChange={(event) => updateConfig('solicitationDate', event.target.value)} />
                 </label>
                 <label className="farm-form-field">
                   <span className="farm-field-label">Serie <span className="farm-field-label-required">*</span></span>
