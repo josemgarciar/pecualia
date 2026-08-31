@@ -334,6 +334,23 @@ export function createManualPorcineAnimalForm() {
   };
 }
 
+export function createManualOvineCaprineAnimalForm() {
+  const today = new Date().toISOString().slice(0, 10);
+
+  return {
+    identification: '',
+    birthDate: '',
+    breed: '',
+    sex: '',
+    registrationDate: today,
+    originCode: '',
+    identificationDate: today,
+    genotyping: '',
+    dominantAllele: '',
+    lowAllele: ''
+  };
+}
+
 export function validateManualPorcineAnimalForm(form) {
   const errors = {};
 
@@ -356,6 +373,22 @@ export function validateManualPorcineAnimalForm(form) {
     if (!Number.isInteger(birthYear) || birthYear < 1900 || birthYear > 2100) {
       errors.birthYear = 'Debe ser un año válido';
     }
+  }
+
+  return errors;
+}
+
+export function validateManualOvineCaprineAnimalForm(form, species) {
+  const errors = {};
+
+  if (!form.identification.trim()) {
+    errors.identification = 'Campo obligatorio';
+  } else if (!isValidAnimalIdentification(species, form.identification)) {
+    errors.identification = getAnimalIdentificationFormatMessage(species);
+  }
+
+  if (form.originCode.trim() && !isValidRegaCode(form.originCode)) {
+    errors.originCode = 'Código REGA inválido';
   }
 
   return errors;
@@ -850,8 +883,8 @@ export function AnimalDetailModal({
             <div className="grid-form">
               <label className="farm-form-field">
                 <ModalFieldLabel>Identificación / crotal</ModalFieldLabel>
-                <input value={form.identification} onChange={(event) => onChange('identification', event.target.value)} />
-                {errors.identification && <span className="farm-inline-error">{errors.identification}</span>}
+                <input className={errors.identification ? 'farm-input farm-input-error' : 'farm-input'} value={form.identification} onChange={(event) => onChange('identification', event.target.value)} />
+                {errors.identification && <p className="farm-field-error">{errors.identification}</p>}
               </label>
               <label className="farm-form-field">
                 <ModalFieldLabel>Raza</ModalFieldLabel>
@@ -871,8 +904,8 @@ export function AnimalDetailModal({
               {animal.livestockSpecies === 'Porcine' ? (
                 <label className="farm-form-field">
                   <ModalFieldLabel>Año nacimiento</ModalFieldLabel>
-                  <input type="number" min="1900" max="2100" value={form.birthYear} onChange={(event) => onChange('birthYear', event.target.value)} />
-                  {errors.birthYear && <span className="farm-inline-error">{errors.birthYear}</span>}
+                  <input className={errors.birthYear ? 'farm-input farm-input-error' : 'farm-input'} type="number" min="1900" max="2100" value={form.birthYear} onChange={(event) => onChange('birthYear', event.target.value)} />
+                  {errors.birthYear && <p className="farm-field-error">{errors.birthYear}</p>}
                 </label>
               ) : (
                 <label className="farm-form-field">
@@ -897,8 +930,8 @@ export function AnimalDetailModal({
               </label>
               <label className="farm-form-field">
                 <ModalFieldLabel>Procedencia</ModalFieldLabel>
-                <input value={form.originCode} onChange={(event) => onChange('originCode', event.target.value)} />
-                {errors.originCode && <span className="farm-inline-error">{errors.originCode}</span>}
+                <input className={errors.originCode ? 'farm-input farm-input-error' : 'farm-input'} value={form.originCode} onChange={(event) => onChange('originCode', event.target.value)} />
+                {errors.originCode && <p className="farm-field-error">{errors.originCode}</p>}
               </label>
               <label className="farm-form-field form-full">
                 <ModalFieldLabel>Serie guía entrada / salida</ModalFieldLabel>
@@ -939,8 +972,8 @@ export function AnimalDetailModal({
                 <div className="grid-form">
                   <label className="farm-form-field">
                     <ModalFieldLabel>Tipo de animal</ModalFieldLabel>
-                    <input value={form.animalType} onChange={(event) => onChange('animalType', event.target.value)} />
-                    {errors.animalType && <span className="farm-inline-error">{errors.animalType}</span>}
+                    <input className={errors.animalType ? 'farm-input farm-input-error' : 'farm-input'} value={form.animalType} onChange={(event) => onChange('animalType', event.target.value)} />
+                    {errors.animalType && <p className="farm-field-error">{errors.animalType}</p>}
                   </label>
                   <label className="farm-form-field">
                     <ModalFieldLabel>Fecha identificación</ModalFieldLabel>
@@ -1033,18 +1066,18 @@ export function AnimalAutorrepositionModal({
         <div className="grid-form">
           <label className="farm-form-field">
             <span className="farm-field-label">Identificación inicial <span className="farm-field-label-required">*</span></span>
-            <input value={form.startIdentification} onChange={(event) => onChange('startIdentification', event.target.value)} placeholder="ES100003542349" required />
-            {errors.startIdentification && <span className="farm-inline-error">{errors.startIdentification}</span>}
+            <input className={errors.startIdentification ? 'farm-input farm-input-error' : 'farm-input'} value={form.startIdentification} onChange={(event) => onChange('startIdentification', event.target.value)} placeholder="ES100003542349" required />
+            {errors.startIdentification && <p className="farm-field-error">{errors.startIdentification}</p>}
           </label>
           <label className="farm-form-field">
             <span className="farm-field-label">Número de animales <span className="farm-field-label-required">*</span></span>
-            <input type="number" min="1" step="1" value={form.quantity} onChange={(event) => onChange('quantity', event.target.value)} required />
-            {errors.quantity && <span className="farm-inline-error">{errors.quantity}</span>}
+            <input className={errors.quantity ? 'farm-input farm-input-error' : 'farm-input'} type="number" min="1" step="1" value={form.quantity} onChange={(event) => onChange('quantity', event.target.value)} required />
+            {errors.quantity && <p className="farm-field-error">{errors.quantity}</p>}
           </label>
           <label className="farm-form-field">
             <span className="farm-field-label">Raza <span className="farm-field-label-required">*</span></span>
             <div className="select-wrapper">
-              <select value={form.breed} onChange={(event) => onChange('breed', event.target.value)} disabled={loadingBreedOptions} required>
+              <select className={errors.breed ? 'farm-input farm-input-error' : 'farm-input'} value={form.breed} onChange={(event) => onChange('breed', event.target.value)} disabled={loadingBreedOptions} required>
                 <option value="">{loadingBreedOptions ? 'Cargando razas...' : 'Selecciona una raza'}</option>
                 {breedOptions.map((option) => (
                   <option key={option.name} value={option.name}>
@@ -1054,24 +1087,24 @@ export function AnimalAutorrepositionModal({
               </select>
               <ChevronDown size={16} />
             </div>
-            {errors.breed && <span className="farm-inline-error">{errors.breed}</span>}
+            {errors.breed && <p className="farm-field-error">{errors.breed}</p>}
           </label>
           <label className="farm-form-field">
             <span className="farm-field-label">Sexo <span className="farm-field-label-required">*</span></span>
             <div className="select-wrapper">
-              <select value={form.sex} onChange={(event) => onChange('sex', event.target.value)} required>
+              <select className={errors.sex ? 'farm-input farm-input-error' : 'farm-input'} value={form.sex} onChange={(event) => onChange('sex', event.target.value)} required>
                 <option value="">Selecciona sexo</option>
                 <option value="Female">Hembra</option>
                 <option value="Male">Macho</option>
               </select>
               <ChevronDown size={16} />
             </div>
-            {errors.sex && <span className="farm-inline-error">{errors.sex}</span>}
+            {errors.sex && <p className="farm-field-error">{errors.sex}</p>}
           </label>
           <label className="farm-form-field">
             <span className="farm-field-label">Fecha alta <span className="farm-field-label-required">*</span></span>
-            <input type="date" value={form.registrationDate} onChange={(event) => onChange('registrationDate', event.target.value)} required />
-            {errors.registrationDate && <span className="farm-inline-error">{errors.registrationDate}</span>}
+            <input className={errors.registrationDate ? 'farm-input farm-input-error' : 'farm-input'} type="date" value={form.registrationDate} onChange={(event) => onChange('registrationDate', event.target.value)} required />
+            {errors.registrationDate && <p className="farm-field-error">{errors.registrationDate}</p>}
           </label>
         </div>
 
@@ -1107,8 +1140,8 @@ export function AnimalAutorrepositionModal({
             <div className="grid-form">
               <label className="farm-form-field">
                 <ModalFieldLabel>Tipo de animal</ModalFieldLabel>
-                <input value={form.animalType} onChange={(event) => onChange('animalType', event.target.value)} />
-                {errors.animalType && <span className="farm-inline-error">{errors.animalType}</span>}
+                <input className={errors.animalType ? 'farm-input farm-input-error' : 'farm-input'} value={form.animalType} onChange={(event) => onChange('animalType', event.target.value)} />
+                {errors.animalType && <p className="farm-field-error">{errors.animalType}</p>}
               </label>
               <label className="farm-form-field">
                 <ModalFieldLabel>Fecha identificación</ModalFieldLabel>
@@ -1181,13 +1214,13 @@ export function ManualPorcineAnimalModal({
         <div className="grid-form">
           <label className="farm-form-field">
             <span className="farm-field-label">Identificación individual <span className="farm-field-label-required">*</span></span>
-            <input value={form.identification} onChange={(event) => onChange('identification', event.target.value)} placeholder="GT1800001004" required />
-            {errors.identification && <span className="farm-inline-error">{errors.identification}</span>}
+            <input className={errors.identification ? 'farm-input farm-input-error' : 'farm-input'} value={form.identification} onChange={(event) => onChange('identification', event.target.value)} placeholder="GT1800001004" required />
+            {errors.identification && <p className="farm-field-error">{errors.identification}</p>}
           </label>
           <label className="farm-form-field">
             <span className="farm-field-label">Tipo de animal <span className="farm-field-label-required">*</span></span>
             <div className="select-wrapper">
-              <select value={form.animalType} onChange={(event) => onChange('animalType', event.target.value)} required>
+              <select className={errors.animalType ? 'farm-input farm-input-error' : 'farm-input'} value={form.animalType} onChange={(event) => onChange('animalType', event.target.value)} required>
                 <option value="">Selecciona un tipo</option>
                 {porcineAnimalTypeOptions.map((option) => (
                   <option key={option} value={option}>{option}</option>
@@ -1195,7 +1228,7 @@ export function ManualPorcineAnimalModal({
               </select>
               <ChevronDown size={16} />
             </div>
-            {errors.animalType && <span className="farm-inline-error">{errors.animalType}</span>}
+            {errors.animalType && <p className="farm-field-error">{errors.animalType}</p>}
           </label>
           <label className="farm-form-field">
             <span className="farm-field-label">Raza</span>
@@ -1224,8 +1257,8 @@ export function ManualPorcineAnimalModal({
           </label>
           <label className="farm-form-field">
             <span className="farm-field-label">Año de nacimiento</span>
-            <input type="number" min="1900" max="2100" value={form.birthYear} onChange={(event) => onChange('birthYear', event.target.value)} placeholder="2026" />
-            {errors.birthYear && <span className="farm-inline-error">{errors.birthYear}</span>}
+            <input className={errors.birthYear ? 'farm-input farm-input-error' : 'farm-input'} type="number" min="1900" max="2100" value={form.birthYear} onChange={(event) => onChange('birthYear', event.target.value)} placeholder="2026" />
+            {errors.birthYear && <p className="farm-field-error">{errors.birthYear}</p>}
           </label>
           <label className="farm-form-field">
             <span className="farm-field-label">Fecha de alta</span>
@@ -1243,8 +1276,8 @@ export function ManualPorcineAnimalModal({
           </label>
           <label className="farm-form-field">
             <span className="farm-field-label">Código REGA de origen</span>
-            <input value={form.originCode} onChange={(event) => onChange('originCode', event.target.value)} placeholder="ES061230000145" />
-            {errors.originCode && <span className="farm-inline-error">{errors.originCode}</span>}
+            <input className={errors.originCode ? 'farm-input farm-input-error' : 'farm-input'} value={form.originCode} onChange={(event) => onChange('originCode', event.target.value)} placeholder="ES061230000145" />
+            {errors.originCode && <p className="farm-field-error">{errors.originCode}</p>}
           </label>
           <label className="farm-form-field">
             <span className="farm-field-label">Fecha de identificación</span>
@@ -1258,6 +1291,114 @@ export function ManualPorcineAnimalModal({
             <span className="farm-field-label">Marca / crotal</span>
             <input value={form.tag} onChange={(event) => onChange('tag', event.target.value)} />
           </label>
+        </div>
+      </ModalBody>
+
+      <ModalFooter align="end">
+        <button className="secondary-button" type="button" onClick={onClose}>Cancelar</button>
+        <button className="primary-button" type="submit" disabled={submitting}>
+          {submitting ? 'Guardando...' : 'Registrar animal'}
+        </button>
+      </ModalFooter>
+    </ModalDialog>
+  );
+}
+
+export function ManualOvineCaprineAnimalModal({
+  farm,
+  form,
+  errors,
+  requestError,
+  submitting,
+  breedOptions,
+  loadingBreedOptions,
+  onChange,
+  onClose,
+  onSubmit
+}) {
+  const speciesLabel = farm.livestockSpecies === 'Caprine' ? 'caprino' : 'ovino';
+
+  return (
+    <ModalDialog cardAs="form" size="wide" onSubmit={onSubmit}>
+      <ModalHeader
+        icon={<Tag size={18} />}
+        title={`Registrar ${speciesLabel} individual`}
+        subtitle={`Alta manual de entrada de un animal ${speciesLabel} identificado dentro de ${farm.name}.`}
+        onClose={onClose}
+      />
+      <ModalBody className="operation-modal-body">
+        {requestError && <div className="error-banner">{requestError}</div>}
+
+        <div className="grid-form">
+          <label className="farm-form-field">
+            <span className="farm-field-label">Identificación individual <span className="farm-field-label-required">*</span></span>
+            <input className={errors.identification ? 'farm-input farm-input-error' : 'farm-input'} value={form.identification} onChange={(event) => onChange('identification', event.target.value)} placeholder="ES100003542349" required />
+            {errors.identification && <p className="farm-field-error">{errors.identification}</p>}
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Raza</span>
+            <div className="select-wrapper">
+              <select value={form.breed} onChange={(event) => onChange('breed', event.target.value)} disabled={loadingBreedOptions}>
+                <option value="">{loadingBreedOptions ? 'Cargando razas...' : 'Selecciona una raza'}</option>
+                {breedOptions.map((option) => (
+                  <option key={option.name} value={option.name}>
+                    {option.name} ({option.code})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={16} />
+            </div>
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Sexo</span>
+            <div className="select-wrapper">
+              <select value={form.sex} onChange={(event) => onChange('sex', event.target.value)}>
+                <option value="">No informado</option>
+                <option value="Female">Hembra</option>
+                <option value="Male">Macho</option>
+              </select>
+              <ChevronDown size={16} />
+            </div>
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Fecha de nacimiento</span>
+            <input type="date" value={form.birthDate} onChange={(event) => onChange('birthDate', event.target.value)} />
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Fecha de alta</span>
+            <input type="date" value={form.registrationDate} onChange={(event) => onChange('registrationDate', event.target.value)} />
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Causa de alta</span>
+            <input value="Entrada (E)" disabled />
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Código REGA de origen</span>
+            <input className={errors.originCode ? 'farm-input farm-input-error' : 'farm-input'} value={form.originCode} onChange={(event) => onChange('originCode', event.target.value)} placeholder="ES061230000145" />
+            {errors.originCode && <p className="farm-field-error">{errors.originCode}</p>}
+          </label>
+          <label className="farm-form-field">
+            <span className="farm-field-label">Fecha de identificación</span>
+            <input type="date" value={form.identificationDate} onChange={(event) => onChange('identificationDate', event.target.value)} />
+          </label>
+        </div>
+
+        <div className="animal-specific-block">
+          <h3>Datos ovino/caprino</h3>
+          <div className="grid-form">
+            <label className="farm-form-field">
+              <ModalFieldLabel>Genotipado</ModalFieldLabel>
+              <input value={form.genotyping} onChange={(event) => onChange('genotyping', event.target.value)} />
+            </label>
+            <label className="farm-form-field">
+              <ModalFieldLabel>Alelo dominante</ModalFieldLabel>
+              <input value={form.dominantAllele} onChange={(event) => onChange('dominantAllele', event.target.value)} />
+            </label>
+            <label className="farm-form-field">
+              <ModalFieldLabel>Alelo bajo</ModalFieldLabel>
+              <input value={form.lowAllele} onChange={(event) => onChange('lowAllele', event.target.value)} />
+            </label>
+          </div>
         </div>
       </ModalBody>
 

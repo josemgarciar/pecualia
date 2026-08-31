@@ -15,6 +15,21 @@ public sealed record CreateAnimalRequest(
     PorcinoAnimalRequest? Porcino,
     DateOnly? BirthDate = null);
 
+public sealed record CreateManualOvineCaprineAnimalRequest(
+    string Identification,
+    DateOnly? BirthDate,
+    string? Breed,
+    string? Sex,
+    DateOnly? RegistrationDate,
+    string? OriginCode,
+    ManualOvineCaprineDetailsRequest? OvinoCaprino);
+
+public sealed record ManualOvineCaprineDetailsRequest(
+    string? Genotyping,
+    string? DominantAllele,
+    string? LowAllele,
+    DateOnly? IdentificationDate);
+
 public sealed record CreateAnimalsAutorrepositionRequest(
     string StartIdentification,
     int Quantity,

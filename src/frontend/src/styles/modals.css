@@ -210,22 +210,24 @@
   background: #ffffff;
 }
 
-.farm-input-error {
+.farm-form-field .farm-input-error {
   border-color: #dc2626;
 }
 
-.farm-input-error:focus {
+.farm-form-field .farm-input-error:focus {
   border-color: #dc2626;
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.08);
 }
 
-.farm-field-error {
+.farm-form-field .farm-field-error {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   margin: 0;
   color: #dc2626;
   font-size: 0.75rem;
+  font-weight: 400;
+  line-height: normal;
 }
 
 .farm-form-divider {

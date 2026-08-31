@@ -37,6 +37,13 @@ public interface IAnimalService
 
     Task<AnimalDetailResponse> CreateAnimalAsync(long userId, UserRole role, CreateAnimalRequest request, CancellationToken cancellationToken);
 
+    Task<AnimalDetailResponse> CreateManualOvineCaprineAnimalAsync(
+        long userId,
+        UserRole role,
+        long farmId,
+        CreateManualOvineCaprineAnimalRequest request,
+        CancellationToken cancellationToken);
+
     Task<CreateAnimalsAutorrepositionResponse> CreateAutorrepositionAnimalsAsync(
         long userId,
         UserRole role,
@@ -185,6 +192,45 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return await GetAnimalAsync(userId, role, animal.Id, cancellationToken);
+    }
+
+    public async Task<AnimalDetailResponse> CreateManualOvineCaprineAnimalAsync(
+        long userId,
+        UserRole role,
+        long farmId,
+        CreateManualOvineCaprineAnimalRequest request,
+        CancellationToken cancellationToken)
+    {
+        var farm = await BuildAccessibleFarmQuery(userId, role)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(entity => entity.Id == farmId, cancellationToken);
+
+        if (farm is null)
+        {
+            throw new DomainException("Explotación no encontrada.");
+        }
+
+        EnsureManualOvineCaprineSupportedSpecies(farm.LivestockSpecies);
+
+        var ovineCaprineDetails = request.OvinoCaprino;
+
+        return await CreateAnimalAsync(userId, role, new CreateAnimalRequest(
+            farmId,
+            request.Identification,
+            request.BirthDate?.Year,
+            request.Breed,
+            request.Sex,
+            request.RegistrationDate,
+            AnimalRegistrationCause.Entrada,
+            request.OriginCode,
+            new OvinoCaprinoAnimalRequest(
+                farm.LivestockSpecies,
+                ovineCaprineDetails?.Genotyping,
+                ovineCaprineDetails?.DominantAllele,
+                ovineCaprineDetails?.LowAllele,
+                ovineCaprineDetails?.IdentificationDate),
+            null,
+            request.BirthDate), cancellationToken);
     }
 
     public async Task<CreateAnimalsAutorrepositionResponse> CreateAutorrepositionAnimalsAsync(
@@ -897,6 +943,14 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
         if (species == LivestockSpecies.Porcine)
         {
             throw new DomainException("La autoreposición no está disponible para explotaciones porcinas.");
+        }
+    }
+
+    internal static void EnsureManualOvineCaprineSupportedSpecies(LivestockSpecies species)
+    {
+        if (species is not (LivestockSpecies.Ovine or LivestockSpecies.Caprine))
+        {
+            throw new DomainException("El alta manual individual solo está disponible para explotaciones ovinas y caprinas.");
         }
     }
 

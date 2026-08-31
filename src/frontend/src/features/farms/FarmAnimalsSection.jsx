@@ -10,18 +10,22 @@ import {
   FARM_ANIMALS_SEARCH_DEBOUNCE_MS,
   createAnimalDetailForm,
   createAutorrepositionForm,
+  createManualOvineCaprineAnimalForm,
   createManualPorcineAnimalForm,
   emptyToNull,
   formatAnimalSex,
+  ManualOvineCaprineAnimalModal,
   ManualPorcineAnimalModal,
   validateAnimalDetailForm,
   validateAutorrepositionForm,
+  validateManualOvineCaprineAnimalForm,
   validateManualPorcineAnimalForm
 } from './FarmDetailShared';
 import { FarmAnimalBulkUpdateModal } from './FarmAnimalBulkUpdateModal';
 
 export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter }) {
   const canUseAutorreposition = farm.livestockSpecies !== 'Porcine';
+  const canCreateManualOvineCaprineAnimal = farm.livestockSpecies !== 'Porcine';
   const canCreateManualPorcineAnimal = farm.livestockSpecies === 'Porcine';
   const [animals, setAnimals] = useState([]);
   const [search, setSearch] = useState('');
@@ -47,6 +51,11 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
   const [manualPorcineError, setManualPorcineError] = useState('');
   const [manualPorcineFormErrors, setManualPorcineFormErrors] = useState({});
   const [manualPorcineForm, setManualPorcineForm] = useState(() => createManualPorcineAnimalForm());
+  const [manualOvineCaprineOpen, setManualOvineCaprineOpen] = useState(false);
+  const [manualOvineCaprineSubmitting, setManualOvineCaprineSubmitting] = useState(false);
+  const [manualOvineCaprineError, setManualOvineCaprineError] = useState('');
+  const [manualOvineCaprineFormErrors, setManualOvineCaprineFormErrors] = useState({});
+  const [manualOvineCaprineForm, setManualOvineCaprineForm] = useState(() => createManualOvineCaprineAnimalForm());
   const [autorrepositionOpen, setAutorrepositionOpen] = useState(false);
   const [autorrepositionSubmitting, setAutorrepositionSubmitting] = useState(false);
   const [autorrepositionError, setAutorrepositionError] = useState('');
@@ -106,10 +115,11 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
 
   useEffect(() => {
     setManualPorcineForm(createManualPorcineAnimalForm());
+    setManualOvineCaprineForm(createManualOvineCaprineAnimalForm());
   }, [farm.id]);
 
   useEffect(() => {
-    if (!autorrepositionOpen && !manualPorcineOpen) {
+    if (!autorrepositionOpen) {
       return undefined;
     }
 
@@ -135,6 +145,20 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
       }
     }
 
+    loadAutorrepositionAvailability();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [autorrepositionOpen, farm.id]);
+
+  useEffect(() => {
+    if (!autorrepositionOpen && !manualPorcineOpen && !manualOvineCaprineOpen) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
     async function loadBreedOptions() {
       setLoadingBreedOptions(true);
 
@@ -145,7 +169,13 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
         }
       } catch (requestError) {
         if (!cancelled) {
-          setAutorrepositionError(requestError.message);
+          if (autorrepositionOpen) {
+            setAutorrepositionError(requestError.message);
+          } else if (manualPorcineOpen) {
+            setManualPorcineError(requestError.message);
+          } else {
+            setManualOvineCaprineError(requestError.message);
+          }
           setBreedOptions([]);
         }
       } finally {
@@ -155,13 +185,12 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
       }
     }
 
-    loadAutorrepositionAvailability();
     loadBreedOptions();
 
     return () => {
       cancelled = true;
     };
-  }, [autorrepositionOpen, manualPorcineOpen, farm.id, farm.livestockSpecies]);
+  }, [autorrepositionOpen, manualPorcineOpen, manualOvineCaprineOpen, farm.id, farm.livestockSpecies]);
 
   useEffect(() => {
     loadAnimals();
@@ -358,6 +387,38 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
       return next;
     });
     setManualPorcineError('');
+  }
+
+  function openManualOvineCaprineModal() {
+    if (!canCreateManualOvineCaprineAnimal) {
+      return;
+    }
+
+    setManualOvineCaprineForm(createManualOvineCaprineAnimalForm());
+    setManualOvineCaprineFormErrors({});
+    setManualOvineCaprineError('');
+    setManualOvineCaprineOpen(true);
+  }
+
+  function closeManualOvineCaprineModal() {
+    setManualOvineCaprineOpen(false);
+    setManualOvineCaprineSubmitting(false);
+    setManualOvineCaprineFormErrors({});
+    setManualOvineCaprineError('');
+  }
+
+  function updateManualOvineCaprineField(field, value) {
+    setManualOvineCaprineForm((current) => ({ ...current, [field]: value }));
+    setManualOvineCaprineFormErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setManualOvineCaprineError('');
   }
 
   function openAutorrepositionModal() {
@@ -604,13 +665,57 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
     }
   }
 
+  async function submitManualOvineCaprineAnimal(event) {
+    event.preventDefault();
+
+    const validationErrors = validateManualOvineCaprineAnimalForm(manualOvineCaprineForm, farm.livestockSpecies);
+    if (Object.keys(validationErrors).length > 0) {
+      setManualOvineCaprineFormErrors(validationErrors);
+      return;
+    }
+
+    setManualOvineCaprineSubmitting(true);
+    setManualOvineCaprineError('');
+    setSuccess('');
+
+    try {
+      await apiRequest(`/api/farms/${farm.id}/animals/manual`, {
+        method: 'POST',
+        body: {
+          identification: normalizeAnimalIdentification(manualOvineCaprineForm.identification),
+          birthDate: manualOvineCaprineForm.birthDate || null,
+          breed: emptyToNull(manualOvineCaprineForm.breed),
+          sex: emptyToNull(manualOvineCaprineForm.sex),
+          registrationDate: manualOvineCaprineForm.registrationDate || null,
+          originCode: manualOvineCaprineForm.originCode.trim() ? normalizeRegaCode(manualOvineCaprineForm.originCode) : null,
+          ovinoCaprino: {
+            genotyping: emptyToNull(manualOvineCaprineForm.genotyping),
+            dominantAllele: emptyToNull(manualOvineCaprineForm.dominantAllele),
+            lowAllele: emptyToNull(manualOvineCaprineForm.lowAllele),
+            identificationDate: manualOvineCaprineForm.identificationDate || null
+          }
+        }
+      });
+
+      const speciesLabel = farm.livestockSpecies === 'Caprine' ? 'caprino' : 'ovino';
+      setSuccess(`Animal ${speciesLabel} ${normalizeAnimalIdentification(manualOvineCaprineForm.identification)} registrado correctamente.`);
+      closeManualOvineCaprineModal();
+      setPage(1);
+      setReloadKey((current) => current + 1);
+    } catch (requestError) {
+      setManualOvineCaprineError(requestError.message);
+    } finally {
+      setManualOvineCaprineSubmitting(false);
+    }
+  }
+
   return (
     <section className="panel-card stack">
       <div className="farm-animals-header">
         <div>
           <p>{loading && !isInitialLoading ? 'Actualizando animales...' : `${activeCount} activos · ${totalCount} en total`}</p>
         </div>
-        {(canUseAutorreposition || canCreateManualPorcineAnimal || selectedCount > 0) && (
+        {(canUseAutorreposition || canCreateManualOvineCaprineAnimal || canCreateManualPorcineAnimal || selectedCount > 0) && (
           <div className="movement-toolbar-actions">
             {selectedCount > 0 && (
               <button className="secondary-button bulk-edit-button" type="button" onClick={() => {
@@ -625,6 +730,12 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
               <button className="primary-button" type="button" onClick={openManualPorcineModal}>
                 <Plus size={16} />
                 Registrar porcino
+              </button>
+            )}
+            {canCreateManualOvineCaprineAnimal && (
+              <button className="primary-button" type="button" onClick={openManualOvineCaprineModal}>
+                <Plus size={16} />
+                Registrar animal
               </button>
             )}
             {canUseAutorreposition && (
@@ -821,6 +932,21 @@ export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter
           onChange={updateManualPorcineField}
           onClose={closeManualPorcineModal}
           onSubmit={submitManualPorcineAnimal}
+        />
+      )}
+
+      {canCreateManualOvineCaprineAnimal && manualOvineCaprineOpen && (
+        <ManualOvineCaprineAnimalModal
+          farm={farm}
+          form={manualOvineCaprineForm}
+          errors={manualOvineCaprineFormErrors}
+          requestError={manualOvineCaprineError}
+          submitting={manualOvineCaprineSubmitting}
+          breedOptions={breedOptions}
+          loadingBreedOptions={loadingBreedOptions}
+          onChange={updateManualOvineCaprineField}
+          onClose={closeManualOvineCaprineModal}
+          onSubmit={submitManualOvineCaprineAnimal}
         />
       )}
 

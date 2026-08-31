@@ -115,6 +115,19 @@ public static class FarmController
                 request,
                 cancellationToken)));
 
+        group.MapPost("/{farmId:long}/animals/manual", async (
+            ClaimsPrincipal user,
+            long farmId,
+            CreateManualOvineCaprineAnimalRequest request,
+            IAnimalService service,
+            CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.CreateManualOvineCaprineAnimalAsync(
+                user.GetUserId(),
+                user.GetRole(),
+                farmId,
+                request,
+                cancellationToken)));
+
         group.MapPost("/{farmId:long}/animals/bulk-update/preview", async (
             ClaimsPrincipal user,
             long farmId,

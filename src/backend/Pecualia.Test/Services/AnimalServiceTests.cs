@@ -141,6 +141,72 @@ public sealed class AnimalServiceTests
         persisted.Porcino!.PigRegistrationNumber.Should().Be("PR-55");
     }
 
+    [Theory]
+    [InlineData(LivestockSpecies.Ovine)]
+    [InlineData(LivestockSpecies.Caprine)]
+    public async Task CreateManualOvineCaprineAnimalAsync_CreatesEntryForSupportedSpecies(LivestockSpecies species)
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 16, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock);
+        var userId = species == LivestockSpecies.Ovine ? 131 : 132;
+        var farm = await SeedFarmAsync(dbContext, userId, species, $"ES410010001{userId:000}");
+
+        var created = await service.CreateManualOvineCaprineAnimalAsync(
+            farm.FarmerId,
+            UserRole.Farmer,
+            farm.Id,
+            new CreateManualOvineCaprineAnimalRequest(
+                " es060000583160 ",
+                new DateOnly(2025, 11, 4),
+                " Merina ",
+                " Female ",
+                new DateOnly(2026, 05, 15),
+                " es410010001999 ",
+                new ManualOvineCaprineDetailsRequest(" ARR/ARQ ", " ARR ", " ARQ ", new DateOnly(2025, 11, 10))),
+            CancellationToken.None);
+
+        created.Identification.Should().Be("ES060000583160");
+        created.BirthDate.Should().Be(new DateOnly(2025, 11, 4));
+        created.RegistrationCauseValue.Should().Be(AnimalRegistrationCause.Entrada.ToString());
+        created.OriginCode.Should().Be("ES410010001999");
+        created.OvinoCaprino.Should().NotBeNull();
+        created.OvinoCaprino!.SpeciesType.Should().Be(species.ToString());
+        created.OvinoCaprino.Genotyping.Should().Be("ARR/ARQ");
+
+        var persisted = await dbContext.Animals
+            .Include(entity => entity.OvinoCaprino)
+            .SingleAsync(entity => entity.Id == created.Id);
+        persisted.RegistrationCause.Should().Be(AnimalRegistrationCause.Entrada);
+        persisted.OvinoCaprino!.IdentificationDate.Should().Be(new DateOnly(2025, 11, 10));
+    }
+
+    [Fact]
+    public async Task CreateManualOvineCaprineAnimalAsync_RejectsPorcineFarm()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 16, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock);
+        var farm = await SeedFarmAsync(dbContext, 133, LivestockSpecies.Porcine, "ES410010001133", authorisedCapacity: 20, porcineMothersCapacity: 10, porcineFatteningCapacity: 10);
+
+        var action = () => service.CreateManualOvineCaprineAnimalAsync(
+            farm.FarmerId,
+            UserRole.Farmer,
+            farm.Id,
+            new CreateManualOvineCaprineAnimalRequest(
+                "ES060000583161",
+                null,
+                null,
+                null,
+                new DateOnly(2026, 05, 15),
+                null,
+                null),
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<DomainException>()
+            .WithMessage("El alta manual individual solo está disponible para explotaciones ovinas y caprinas.");
+    }
+
     [Fact]
     public async Task CreateAutorrepositionAnimalsAsync_CreatesAnimalsAndBalance()
     {
