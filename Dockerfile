@@ -21,6 +21,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
 ENV ASPNETCORE_URLS=http://0.0.0.0:10000
+ENV DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false
 EXPOSE 10000
 
 COPY --from=backend-build /app/publish ./
