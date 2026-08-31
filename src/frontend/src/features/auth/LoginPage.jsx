@@ -32,8 +32,8 @@ export function LoginPage() {
 
   return (
     <AuthLayout
-      title="Bienvenido"
-      subtitle="Accede a tu cuenta para gestionar tus explotaciones ganaderas."
+      title="Pecualia"
+      subtitle="Pecualia es una plataforma para la gestión digital de explotaciones ganaderas, animales, movimientos y libros de registro."
       footer={(
         <>
           <Link className="auth-choice-card" to="/register/farmer">
@@ -70,7 +70,12 @@ export function LoginPage() {
               placeholder="••••••••"
               required
             />
-            <button className="password-toggle" type="button" onClick={() => setShowPassword((current) => !current)}>
+            <button
+              className="password-toggle"
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>

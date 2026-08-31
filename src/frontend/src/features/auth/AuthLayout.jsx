@@ -5,7 +5,7 @@ const APP_ICON = '/pecualia_icon.png';
 
 export function AuthLayout({ title, subtitle, children, footer }) {
   const { pathname } = useLocation();
-  const showBackToLogin = pathname !== '/login';
+  const showBackToLogin = pathname !== '/' && pathname !== '/login';
 
   return (
     <div className="auth-layout">
@@ -30,7 +30,7 @@ export function AuthLayout({ title, subtitle, children, footer }) {
         </div>
       </section>
 
-      <section className="auth-panel">
+      <main className="auth-panel">
         <div className="auth-card">
           <div className="auth-panel-copy">
             <h1>{title}</h1>
@@ -39,8 +39,8 @@ export function AuthLayout({ title, subtitle, children, footer }) {
           {children}
           {footer && <div className="auth-footer">{footer}</div>}
         </div>
-        {showBackToLogin && <Link className="link-muted" to="/login">Volver al acceso</Link>}
-      </section>
+        {showBackToLogin && <Link className="link-muted" to="/">Volver al acceso</Link>}
+      </main>
     </div>
   );
 }

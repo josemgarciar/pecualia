@@ -35,7 +35,7 @@ function RequireAuth() {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;
@@ -183,8 +183,8 @@ function AppShell() {
 export function AppRouter() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={<LoginPage />} />
+      <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/register/manager" element={<RegisterManagerPage />} />
       <Route path="/register/farmer" element={<RegisterFarmerPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -204,7 +204,7 @@ export function AppRouter() {
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

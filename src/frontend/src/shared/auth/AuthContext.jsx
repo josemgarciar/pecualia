@@ -35,7 +35,7 @@ export function AuthProvider({ children }) {
     }
 
     setUser(null);
-    navigate('/login', { replace: true });
+    navigate('/', { replace: true });
   };
 
   const refreshProfile = async () => {
@@ -46,7 +46,7 @@ export function AuthProvider({ children }) {
   const deleteAccount = async () => {
     await apiRequest('/api/auth/me', { method: 'DELETE' });
     setUser(null);
-    navigate('/login', { replace: true });
+    navigate('/', { replace: true });
   };
 
   const value = useMemo(

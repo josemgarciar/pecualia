@@ -82,7 +82,7 @@ export function ResetPasswordPage() {
             <h3>Contraseña restablecida</h3>
             <p>Tu contraseña se ha actualizado correctamente. Ya puedes acceder a tu cuenta con la nueva contraseña.</p>
           </div>
-          <Link className="primary-button" to="/login" style={{ textAlign: 'center' }}>
+          <Link className="primary-button" to="/" style={{ textAlign: 'center' }}>
             Iniciar sesión
           </Link>
         </div>
