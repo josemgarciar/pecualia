@@ -95,6 +95,14 @@ internal static class PostgresConnectionStringResolver
                     builder.SslMode = sslMode;
                 }
                 break;
+            case "channel_binding":
+            case "channel binding":
+            case "channelbinding":
+                if (Enum.TryParse<ChannelBinding>(value, true, out var channelBinding))
+                {
+                    builder.ChannelBinding = channelBinding;
+                }
+                break;
             case "pooling":
                 if (bool.TryParse(value, out var pooling))
                 {

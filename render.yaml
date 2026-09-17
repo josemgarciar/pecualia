@@ -9,10 +9,9 @@ services:
     healthCheckPath: /health
     autoDeployTrigger: off
     envVars:
+      # Managed outside Render. Configure this secret in the service dashboard.
       - key: DATABASE_URL
-        fromDatabase:
-          name: pecualia-db
-          property: connectionString
+        sync: false
       - key: Database__BootstrapOnStartup
         value: "true"
       - key: Database__SeedDemoData
@@ -35,11 +34,3 @@ services:
         value: soporte@pecualia.es
       - key: Email__PickupDirectory
         value: App_Data/outbox
-
-databases:
-  - name: pecualia-db
-    plan: free
-    region: frankfurt
-    databaseName: livestock
-    user: livestock
-    ipAllowList: []

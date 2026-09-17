@@ -45,6 +45,18 @@ public sealed class DatabaseBootstrapperTests
     }
 
     [Fact]
+    public void ConnectionStringResolver_PreservesNeonSecurityParameters()
+    {
+        var normalized = PostgresConnectionStringResolver.Normalize(
+            "postgresql://test_user:test_password@example.neon.tech/neondb?sslmode=require&channel_binding=require");
+
+        var parsed = new Npgsql.NpgsqlConnectionStringBuilder(normalized);
+
+        parsed.SslMode.Should().Be(Npgsql.SslMode.Require);
+        parsed.ChannelBinding.Should().Be(Npgsql.ChannelBinding.Require);
+    }
+
+    [Fact]
     public async Task BootstrapAsync_ReturnsImmediately_WhenBootstrapIsDisabled()
     {
         var service = new DatabaseBootstrapper(
