@@ -13,6 +13,7 @@ using Microsoft.OpenApi.Models;
 using Pecualia.Api.Configuration;
 using Pecualia.Api.Controllers;
 using Pecualia.Api.Data;
+using Pecualia.Api.Infrastructure;
 using Pecualia.Api.Infrastructure.Email;
 using Pecualia.Api.Infrastructure.Security;
 using Pecualia.Api.Models.Enums;
@@ -101,6 +102,8 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.AddCors();
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.AddProblemDetails();
 builder.Services.AddOptions<CorsOptions>()
     .Configure<IOptions<FrontendOptions>>((options, frontendOptionsAccessor) =>
     {
@@ -249,6 +252,7 @@ app.UseForwardedHeaders();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors();
+app.UseExceptionHandler();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

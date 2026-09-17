@@ -236,6 +236,9 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
                 AccumulateUnidentifiedMovement(projection, farm.Id, movement);
             }
 
+            // Historical exits can exceed the animals still in this age group.
+            // Clamp only after summing all movements, as with the 4–12 month group.
+            projection.NonReproductiveUnder4Months = Math.Max(0, projection.NonReproductiveUnder4Months);
             projection.NonReproductiveBetween4And12Months = Math.Max(
                 0,
                 projection.NonReproductiveBetween4And12Months - consumedUnidentifiedMovementsByAutorreposition);

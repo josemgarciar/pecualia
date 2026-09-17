@@ -7,6 +7,51 @@ namespace Pecualia.Test.Services;
 
 public sealed class FarmCensusProjectionServiceTests
 {
+    [Theory]
+    [InlineData(LivestockSpecies.Ovine, 0, 20, 0)]
+    [InlineData(LivestockSpecies.Caprine, 0, 20, 0)]
+    [InlineData(LivestockSpecies.Ovine, 25, 20, 5)]
+    [InlineData(LivestockSpecies.Caprine, 25, 20, 5)]
+    public async Task OvineCensus_WithHistoricalUnidentifiedMovements_NeverReturnsNegativeCounts(
+        LivestockSpecies species, int entries, int exits, int expectedUnderFourMonths)
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 9, 17, 10, 0, 0, TimeSpan.Zero));
+        var service = new FarmCensusProjectionService(dbContext, clock);
+        var farm = ServiceTestData.CreateFarm(1, 1, species, "Prueba ficticia", "ES410010000001");
+        dbContext.Farms.Add(farm);
+        // Process the exit first to verify the floor is applied to the final net count.
+        dbContext.MovementCertificates.Add(new MovementCertificate
+        {
+            OriginLivestockId = farm.Id,
+            DepartureDate = new DateTime(2026, 3, 1, 10, 0, 0, DateTimeKind.Utc),
+            NumberOfAnimals = exits,
+            Specie = species.ToString(),
+            UnidentifiedCategory = MovementUnidentifiedCategory.Under4Months
+        });
+        if (entries > 0)
+        {
+            dbContext.MovementCertificates.Add(new MovementCertificate
+            {
+                DestinationLivestockId = farm.Id,
+                DepartureDate = new DateTime(2026, 9, 1, 10, 0, 0, DateTimeKind.Utc),
+                NumberOfAnimals = entries,
+                Specie = species.ToString(),
+                UnidentifiedCategory = MovementUnidentifiedCategory.Under4Months
+            });
+        }
+        await dbContext.SaveChangesAsync();
+
+        var snapshot = await service.BuildSnapshotAsync(farm, new DateOnly(2026, 9, 17), default);
+        var censusResponse = await service.BuildCensusResponseAsync(farm, 2026, new DateOnly(2026, 9, 17), default);
+        var bookCensuses = await service.BuildBookCensusesAsync(farm, default);
+
+        snapshot.NonReproductiveUnder4Months.Should().Be(expectedUnderFourMonths);
+        snapshot.Total.Should().Be(expectedUnderFourMonths);
+        censusResponse.NonReproductiveUnder4Months.Should().Be(expectedUnderFourMonths);
+        bookCensuses.Should().ContainSingle().Which.OvinoCaprino!.NonReproductiveUnder4Months.Should().Be(expectedUnderFourMonths);
+    }
+
     [Fact]
     public async Task BuildSnapshotAsync_MapsResolvedPorcineBirth_ToIntermediateBuckets_BetweenThreeAndSixMonths()
     {
