@@ -185,18 +185,6 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
 
         var projection = new FarmCensusProjection();
 
-        foreach (var animal in animals)
-        {
-            if (farm.LivestockSpecies == LivestockSpecies.Porcine)
-            {
-                AccumulatePorcineAnimal(projection, animal, asOfDate);
-            }
-            else
-            {
-                AccumulateOvineOrCaprineAnimal(projection, animal, asOfDate);
-            }
-        }
-
         foreach (var birth in births)
         {
             var consumed = consumedByBirthId.GetValueOrDefault(birth.Id);
@@ -253,6 +241,20 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
             foreach (var balance in aggregatePorcineDeaths)
             {
                 ApplyStoredPorcineBalance(projection, balance.Porcino, -1);
+            }
+        }
+
+        // Settle unidentified stock before adding individual animals: historical
+        // aggregate exits and replacements must never subtract identified animals.
+        foreach (var animal in animals)
+        {
+            if (farm.LivestockSpecies == LivestockSpecies.Porcine)
+            {
+                AccumulatePorcineAnimal(projection, animal, asOfDate);
+            }
+            else
+            {
+                AccumulateOvineOrCaprineAnimal(projection, animal, asOfDate);
             }
         }
 

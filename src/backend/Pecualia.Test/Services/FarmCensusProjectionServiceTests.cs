@@ -8,6 +8,48 @@ namespace Pecualia.Test.Services;
 public sealed class FarmCensusProjectionServiceTests
 {
     [Theory]
+    [InlineData(LivestockSpecies.Ovine)]
+    [InlineData(LivestockSpecies.Caprine)]
+    public async Task Snapshot_UnlinkedAutorreposition_DoesNotConsumeIdentifiedYoungAnimals(LivestockSpecies species)
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var date = new DateOnly(2026, 9, 17);
+        var service = new FarmCensusProjectionService(dbContext,
+            new TestClock(new DateTimeOffset(2026, 9, 17, 10, 0, 0, TimeSpan.Zero)));
+        var farm = ServiceTestData.CreateFarm(1, 1, species, "Synthetic farm", "ES410010000001");
+        dbContext.Farms.Add(farm);
+        for (var i = 0; i < 7; i++)
+        {
+            dbContext.Animals.Add(new Animal
+            {
+                LivestockFarmId = farm.Id, Identification = $"TEST-YOUNG-{i}", Sex = "Male",
+                BirthDate = new DateOnly(2025, 12, 15), RegistrationDate = new DateOnly(2026, 3, 9),
+                RegistrationCause = AnimalRegistrationCause.Entrada
+            });
+        }
+        for (var i = 0; i < 44; i++)
+        {
+            dbContext.Animals.Add(new Animal
+            {
+                LivestockFarmId = farm.Id, Identification = $"TEST-REPLACEMENT-{i}", Sex = "Female",
+                RegistrationDate = new DateOnly(2026, 3, 1),
+                RegistrationCause = AnimalRegistrationCause.Autorreposicion
+            });
+        }
+        await dbContext.SaveChangesAsync();
+
+        var snapshot = await service.BuildSnapshotAsync(farm, date, default);
+        snapshot.NonReproductiveBetween4And12Months.Should().Be(7);
+        snapshot.ReproductiveFemales.Should().Be(44);
+        snapshot.Total.Should().Be(51);
+        var census = await service.BuildCensusResponseAsync(farm, 2026, date, default);
+        census.Total.Should().Be(51);
+        var book = await service.BuildBookCensusesAsync(farm, default);
+        book.Single(c => c.CensusDate.Year == 2026).OvinoCaprino!
+            .NonReproductiveBetween4And12Months.Should().Be(7);
+    }
+
+    [Theory]
     [InlineData(LivestockSpecies.Ovine, 0, 20, 0)]
     [InlineData(LivestockSpecies.Caprine, 0, 20, 0)]
     [InlineData(LivestockSpecies.Ovine, 25, 20, 5)]
