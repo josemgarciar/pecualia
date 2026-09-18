@@ -546,7 +546,8 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
 
         foreach (var line in parsedLines)
         {
-            var identification = NormalizeIdentification(line.Value);
+            var columns = line.Value.TrimEnd().Split('\t');
+            var identification = NormalizeIdentification(columns[0].TrimStart('\uFEFF'));
             if (!IsIdentificationValid(context.Species, identification))
             {
                 rows.Add(new MovementImportPreviewRowResponse(
@@ -573,14 +574,29 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 continue;
             }
 
-            deduplicated[identification] = new ParsedIdentificationLine(line.LineNumber, identification);
+            SharedAnimalDataRequest? animalData = null;
+            if (columns.Length > 1 && context.Direction == MovementDirection.Entry)
+            {
+                try
+                {
+                    animalData = ParseGuideAnimalData(context, columns);
+                }
+                catch (DomainException exception)
+                {
+                    rows.Add(new MovementImportPreviewRowResponse(line.LineNumber, identification,
+                        "invalid_format", "Excluido", exception.Message, null, null));
+                    continue;
+                }
+            }
+
+            deduplicated[identification] = new ParsedIdentificationLine(line.LineNumber, identification, animalData);
         }
 
         var existingAnimals = await LoadAnimalsByIdentificationAsync(deduplicated.Keys.ToList(), cancellationToken);
         foreach (var parsed in deduplicated.Values.OrderBy(entity => entity.LineNumber))
         {
             existingAnimals.TryGetValue(parsed.Value, out var animal);
-            rows.Add(BuildPreviewRow(context, parsed, animal));
+            rows.Add(BuildPreviewRow(context, parsed, animal) with { AnimalData = parsed.AnimalData });
         }
 
         rows = rows
@@ -599,7 +615,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
 
         return new MovementImportPreviewResponse(
             context.Species.ToString(),
-            context.IsBulkImport && context.Direction == MovementDirection.Entry && rows.Any(entity => entity.Status == "not_found"),
+            context.IsBulkImport && context.Direction == MovementDirection.Entry && rows.Any(entity => entity.Status == "not_found" && entity.AnimalData is null),
             rows,
             summary);
     }
@@ -737,11 +753,13 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         var revalidatedRows = rows
             .Select(entity => new RevalidatedImportRow(entity, animalLookup.GetValueOrDefault(entity.Identification)))
             .ToList();
-        var hasNewAnimals = revalidatedRows.Any(entity => entity.Animal is null);
-
-        if (hasNewAnimals)
+        foreach (var row in revalidatedRows.Where(entity => entity.Animal is null))
         {
-            ValidateSharedAnimalData(context, sharedAnimalData);
+            ValidateSharedAnimalData(context, row.Row.AnimalData ?? sharedAnimalData);
+            if (row.Row.AnimalData?.BirthDate > arrivalDay)
+            {
+                throw new DomainException($"La fecha de nacimiento de {row.Row.Identification} no puede ser posterior a la llegada.");
+            }
         }
 
         foreach (var row in revalidatedRows)
@@ -789,7 +807,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             .Select(entity => BuildNewAnimalForExternalEntry(
                 context,
                 entity.Row.Identification,
-                sharedAnimalData!,
+                entity.Row.AnimalData ?? sharedAnimalData!,
                 departureDay,
                 arrivalDay))
             .ToList();
@@ -816,9 +834,9 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 {
                     AnimalId = entity.Id,
                     SpeciesType = context.Species,
-                    Genotyping = NormalizeNullable(sharedAnimalData!.OvinoCaprino?.Genotyping),
-                    DominantAllele = NormalizeNullable(sharedAnimalData.OvinoCaprino?.DominantAllele),
-                    LowAllele = NormalizeNullable(sharedAnimalData.OvinoCaprino?.LowAllele)
+                    Genotyping = NormalizeNullable(sharedAnimalData?.OvinoCaprino?.Genotyping),
+                    DominantAllele = NormalizeNullable(sharedAnimalData?.OvinoCaprino?.DominantAllele),
+                    LowAllele = NormalizeNullable(sharedAnimalData?.OvinoCaprino?.LowAllele)
                 }));
             }
 
@@ -1958,6 +1976,42 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             .Replace("_", string.Empty);
     }
 
+    private static SharedAnimalDataRequest ParseGuideAnimalData(MovementContext context, string[] columns)
+    {
+        if (columns.Length < 4)
+        {
+            throw new DomainException("La fila debe contener crotal, fecha de nacimiento, sexo y raza separados por tabulaciones.");
+        }
+
+        var dateMatch = Regex.Match(columns[1].Trim(), @"^(\d{1,2})/(\d{1,2})/(\d{2}|\d{4})$");
+        DateOnly birthDate;
+        try
+        {
+            if (!dateMatch.Success)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            var year = int.Parse(dateMatch.Groups[3].Value);
+            // The guide's two-digit years represent years in the 2000s (14 = 2014).
+            if (dateMatch.Groups[3].Length == 2) year += 2000;
+            birthDate = new DateOnly(year, int.Parse(dateMatch.Groups[2].Value), int.Parse(dateMatch.Groups[1].Value));
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new DomainException("La fecha de nacimiento no es válida. Usa día/mes/año (por ejemplo, 1/12/16 o 01/12/2016).");
+        }
+
+        var sex = columns[2].Trim().ToLowerInvariant() switch
+        {
+            "hembra" or "h" or "female" => "Female",
+            "macho" or "m" or "male" => "Male",
+            _ => throw new DomainException("El sexo no es válido. Indica Hembra o Macho.")
+        };
+        var breed = NormalizeOfficialBreed(context.Species, columns[3].Trim());
+        return new SharedAnimalDataRequest(birthDate, birthDate.Year, breed, sex, null, null, null);
+    }
+
     private static IReadOnlyList<ParsedIdentificationLine> ParseLines(string? rawText)
     {
         if (string.IsNullOrWhiteSpace(rawText))
@@ -2231,7 +2285,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         string CounterpartyCode,
         bool IsBulkImport);
 
-    private sealed record ParsedIdentificationLine(int LineNumber, string Value);
+    private sealed record ParsedIdentificationLine(int LineNumber, string Value, SharedAnimalDataRequest? AnimalData = null);
 
     private sealed record SnapshotRequest(
         LivestockFarm Farm,

@@ -10,6 +10,80 @@ namespace Pecualia.Test.Services;
 
 public sealed class MovementServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CommitImportAsync_UsesIndividualGuideData_WithOptionalLegacyRows(bool includeLegacyRow)
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var service = CreateService(dbContext, new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero)));
+        var farm = await SeedFarmAsync(dbContext, 1021, LivestockSpecies.Ovine, "ES410010000121");
+        var rawText = "\uFEFFES100004553031\t1/1/14\tHembra\tMerina\t\t\t\r\n\r\nES100006323994\t1/12/2018\tMacho\tAssaf\t\t";
+        if (includeLegacyRow) rawText += "\nES100006323995";
+        var previewRequest = GuidePreviewRequest(farm.Id, rawText);
+        var preview = await service.PreviewImportAsync(farm.FarmerId, UserRole.Farmer, previewRequest, CancellationToken.None);
+        preview.RequiresSharedAnimalData.Should().Be(includeLegacyRow);
+        preview.Summary.NotFoundRows.Should().Be(includeLegacyRow ? 3 : 2);
+        preview.Rows[1].LineNumber.Should().Be(3);
+        preview.Rows[0].AnimalData!.BirthDate.Should().Be(new DateOnly(2014, 1, 1));
+
+        var result = await service.CommitImportAsync(farm.FarmerId, UserRole.Farmer, new CommitMovementImportRequest(
+            farm.Id, MovementImportOperation.Alta, "ES410010009121", "Origen externo", "REMO-TXT", null,
+            previewRequest.DepartureDate, previewRequest.ArrivalDate, null, null, null, null,
+            MovementImportCause.Entrada, null, null, null, rawText,
+            includeLegacyRow ? new SharedAnimalDataRequest(new DateOnly(2020, 2, 3), 2020, "Merina", "Female", null, null, null) : null,
+            null, null), CancellationToken.None);
+
+        result.ProcessedRows.Should().Be(includeLegacyRow ? 3 : 2);
+        result.SharedAnimalDataUsed.Should().Be(includeLegacyRow);
+        var animals = await dbContext.Animals.OrderBy(animal => animal.Identification).ToListAsync();
+        animals[0].BirthDate.Should().Be(new DateOnly(2014, 1, 1));
+        animals[0].BirthYear.Should().Be(2014);
+        animals[0].Sex.Should().Be("Female");
+        animals[0].Breed.Should().Be("Merina");
+        animals[1].BirthDate.Should().Be(new DateOnly(2018, 12, 1));
+        animals[1].Sex.Should().Be("Male");
+        animals[1].Breed.Should().Be("Assaf");
+        dbContext.OvinoCaprinoAnimals.Should().HaveCount(includeLegacyRow ? 3 : 2);
+        if (includeLegacyRow) animals[2].BirthDate.Should().Be(new DateOnly(2020, 2, 3));
+    }
+
+    [Fact]
+    public async Task PreviewImportAsync_DetectsDuplicateGuideRows()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var service = CreateService(dbContext, new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero)));
+        var farm = await SeedFarmAsync(dbContext, 1021, LivestockSpecies.Ovine, "ES410010000121");
+        var preview = await service.PreviewImportAsync(farm.FarmerId, UserRole.Farmer,
+            GuidePreviewRequest(farm.Id, "ES100004553031\t1/1/14\tHembra\tMerina\nES100004553031\t1/1/16\tMacho\tAssaf"), CancellationToken.None);
+        preview.Summary.DuplicateRows.Should().Be(1);
+        preview.Rows[0].AnimalData!.BirthYear.Should().Be(2014);
+        preview.Rows[1].Status.Should().Be("duplicate");
+    }
+
+    [Theory]
+    [InlineData("31/2/16\tHembra\tMerina", "fecha")]
+    [InlineData("1/1/16\tDesconocido\tMerina", "sexo")]
+    [InlineData("1/1/16\tHembra\tNoExiste", "raza")]
+    [InlineData("1/1/16\tHembra", "tabulaciones")]
+    public async Task PreviewImportAsync_RejectsInvalidGuideData(string columns, string error)
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var service = CreateService(dbContext, new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero)));
+        var farm = await SeedFarmAsync(dbContext, 1021, LivestockSpecies.Ovine, "ES410010000121");
+        var preview = await service.PreviewImportAsync(farm.FarmerId, UserRole.Farmer,
+            GuidePreviewRequest(farm.Id, $"ES100004553031\t{columns}\nES100006323994"), CancellationToken.None);
+        preview.Rows[0].Status.Should().Be("invalid_format");
+        preview.Rows[0].Message.Should().Contain(error);
+        preview.RequiresSharedAnimalData.Should().BeTrue();
+        preview.Summary.NotFoundRows.Should().Be(1);
+    }
+
+    private static PreviewMovementImportRequest GuidePreviewRequest(long farmId, string text) => new(
+        farmId, MovementImportOperation.Alta, "ES410010009121", "Origen externo", "REMO-TXT", null,
+        new DateTime(2026, 05, 15, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 05, 15, 0, 0, 0, DateTimeKind.Utc),
+        null, null, null, null, MovementImportCause.Entrada, null, null, null, text, null, null, null);
+
     [Fact]
     public void GetBreedOptions_ReturnsOfficialBreedCodes()
     {

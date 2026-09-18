@@ -129,7 +129,7 @@ function SharedAnimalDataFields({ species, form, onChange, breedOptions, loading
     <div className="movement-shared-data stack">
       <div className="movement-section-copy">
         <h3>Datos comunes de los nuevos animales</h3>
-        <p>Solo se aplicarán a las identificaciones que no existan aún en Pecualia.</p>
+        <p>Se aplicarán a los nuevos animales cuyas líneas solo contienen el crotal. Los datos incluidos en el TXT se respetarán para cada animal.</p>
       </div>
 
       <div className="grid-form">
@@ -825,6 +825,7 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
                 <Upload size={20} />
                 <strong>{fileName || 'Selecciona un archivo TXT'}</strong>
                 <span>También puedes pegar el contenido manualmente en el cuadro inferior.</span>
+                <span>Para altas: crotal, fecha de nacimiento (día/mes/año), sexo (Hembra/Macho) y raza, separados por tabulaciones. No se requiere fecha de identificación.</span>
                 <input type="file" accept=".txt,text/plain" onChange={handleFileSelected} hidden />
               </label>
 
@@ -891,7 +892,14 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
                             <td><strong>{row.identification}</strong></td>
                             <td><span className="animal-chip" style={{ background: tone.bg, color: tone.color }}>{tone.label}</span></td>
                             <td>{row.action}</td>
-                            <td>{row.message}</td>
+                            <td>
+                              {row.message}
+                              {row.animalData && (
+                                <div>
+                                  {row.animalData.birthDate?.split('-').reverse().join('/')} · {row.animalData.sex === 'Female' ? 'Hembra' : 'Macho'} · {row.animalData.breed}
+                                </div>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}

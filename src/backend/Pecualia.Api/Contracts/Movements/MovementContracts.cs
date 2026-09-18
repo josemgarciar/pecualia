@@ -150,7 +150,8 @@ public sealed record MovementImportPreviewRowResponse(
     string Action,
     string Message,
     string? AnimalDescription,
-    long? AnimalId);
+    long? AnimalId,
+    SharedAnimalDataRequest? AnimalData = null);
 
 public sealed record SharedAnimalDataRequest(
     DateOnly? BirthDate,

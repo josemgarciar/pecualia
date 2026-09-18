@@ -319,7 +319,6 @@ export function FarmDetailPage() {
         </div>
 
         <div className="farm-detail-metrics">
-          <SummaryMetric label="Censo actual" value={currentAnimalCount} tone="success" />
           {farm.livestockSpecies === 'Porcine' && farm.porcineRegistryNumber && (
             <SummaryMetric label="Registro porcino" value={farm.porcineRegistryNumber} />
           )}
