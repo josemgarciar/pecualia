@@ -460,6 +460,37 @@ public sealed class FarmOperationServiceTests
         deaths.Should().ContainSingle(entry => entry.AnimalId == animal.Id && entry.DischargeCause == AnimalDischargeCause.Muerte.ToString());
     }
 
+    [Theory]
+    [InlineData(LivestockSpecies.Ovine, 2025, 1, 1, 1)]
+    [InlineData(LivestockSpecies.Caprine, 2025, 1, 1, 1)]
+    [InlineData(LivestockSpecies.Ovine, 2026, 1, 1, 1)]
+    [InlineData(LivestockSpecies.Caprine, 2026, 1, 1, 1)]
+    [InlineData(LivestockSpecies.Porcine, 2025, 12, 31, 2)]
+    [InlineData(LivestockSpecies.Porcine, 2026, 5, 15, 2)]
+    public async Task AnnualCensus_UsesSpeciesDate_ForQueryAndBook(
+        LivestockSpecies species, int year, int month, int day, int expectedTotal)
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 5, 15, 10, 0, 0, TimeSpan.Zero));
+        var farm = await SeedOvineFarmAsync(dbContext, 115);
+        farm.LivestockSpecies = species;
+        dbContext.Animals.AddRange(
+            ServiceTestData.CreateAnimal(9101, farm.Id, "ES123456789301", new DateOnly(year, 1, 1),
+                birthDate: new DateOnly(year - 2, 1, 1), sex: "M"),
+            ServiceTestData.CreateAnimal(9102, farm.Id, "ES123456789302", new DateOnly(year, 1, 2),
+                birthDate: new DateOnly(year - 2, 1, 1), sex: "F"));
+        await dbContext.SaveChangesAsync();
+
+        var census = await CreateService(dbContext, clock)
+            .GetCensusAsync(115, UserRole.Farmer, farm.Id, year, CancellationToken.None);
+        var book = await new FarmCensusProjectionService(dbContext, clock)
+            .BuildBookCensusesAsync(farm, CancellationToken.None);
+
+        census.Total.Should().Be(expectedTotal);
+        var annualCensus = book.Single(entry => entry.CensusDate.Year == year);
+        annualCensus.CensusDate.Should().Be(new DateOnly(year, month, day));
+    }
+
     private static FarmOperationService CreateService(Pecualia.Api.Data.PecualiaDbContext dbContext, TestClock clock)
     {
         var censusProjectionService = new FarmCensusProjectionService(dbContext, clock);

@@ -663,7 +663,7 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
         var targetYear = NormalizeYear(year);
         var today = DateOnly.FromDateTime(clock.UtcNow.Date);
-        var asOfDate = targetYear == today.Year ? today : new DateOnly(targetYear, 12, 31);
+        var asOfDate = FarmCensusProjectionService.GetAnnualCensusDate(farm.LivestockSpecies, targetYear, today);
         return await censusProjectionService.BuildCensusResponseAsync(farm, targetYear, asOfDate, cancellationToken);
     }
 

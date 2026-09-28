@@ -90,12 +90,19 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
 
         foreach (var year in years.OrderBy(entity => entity))
         {
-            var asOfDate = year == today.Year ? today : new DateOnly(year, 12, 31);
+            var asOfDate = GetAnnualCensusDate(farm.LivestockSpecies, year, today);
             var projection = await BuildProjectionAsync(farm, asOfDate, cancellationToken);
             censuses.Add(CreateSyntheticCensus(farm, asOfDate, projection));
         }
 
         return censuses;
+    }
+
+    internal static DateOnly GetAnnualCensusDate(LivestockSpecies species, int year, DateOnly today)
+    {
+        return species == LivestockSpecies.Porcine
+            ? (year == today.Year ? today : new DateOnly(year, 12, 31))
+            : new DateOnly(year, 1, 1);
     }
 
     private async Task<FarmCensusProjection> BuildProjectionAsync(LivestockFarm farm, DateOnly asOfDate, CancellationToken cancellationToken)

@@ -46,7 +46,7 @@ public sealed class FarmCensusProjectionServiceTests
         census.Total.Should().Be(51);
         var book = await service.BuildBookCensusesAsync(farm, default);
         book.Single(c => c.CensusDate.Year == 2026).OvinoCaprino!
-            .NonReproductiveBetween4And12Months.Should().Be(7);
+            .NonReproductiveBetween4And12Months.Should().Be(0);
     }
 
     [Theory]
@@ -91,7 +91,7 @@ public sealed class FarmCensusProjectionServiceTests
         snapshot.NonReproductiveUnder4Months.Should().Be(expectedUnderFourMonths);
         snapshot.Total.Should().Be(expectedUnderFourMonths);
         censusResponse.NonReproductiveUnder4Months.Should().Be(expectedUnderFourMonths);
-        bookCensuses.Should().ContainSingle().Which.OvinoCaprino!.NonReproductiveUnder4Months.Should().Be(expectedUnderFourMonths);
+        bookCensuses.Should().ContainSingle().Which.OvinoCaprino!.NonReproductiveUnder4Months.Should().Be(0);
     }
 
     [Fact]
