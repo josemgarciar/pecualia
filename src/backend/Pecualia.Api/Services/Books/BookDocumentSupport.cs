@@ -31,7 +31,8 @@ internal static class BookDocumentSupport
         ["Charmoise"] = "CM",
         ["Lacaune"] = "LA",
         ["Assaf"] = "AS",
-        ["Cruzada"] = "CR"
+        ["Cruzada"] = "CR",
+        ["Otras"] = "O"
     };
 
     private static readonly IReadOnlyDictionary<string, string> CaprineBreedCodes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -45,7 +46,8 @@ internal static class BookDocumentSupport
         ["Andaluza"] = "A",
         ["Canaria"] = "C",
         ["Saanen"] = "SA",
-        ["Cruzada"] = "CR"
+        ["Cruzada"] = "CR",
+        ["Otras"] = "O"
     };
 
     private static readonly IReadOnlyDictionary<string, string> PorcineBreedCodes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

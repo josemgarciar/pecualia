@@ -11,6 +11,41 @@ namespace Pecualia.Test.Services;
 public sealed class MovementServiceTests
 {
     [Theory]
+    [InlineData(LivestockSpecies.Ovine, false)]
+    [InlineData(LivestockSpecies.Ovine, true)]
+    [InlineData(LivestockSpecies.Caprine, false)]
+    [InlineData(LivestockSpecies.Caprine, true)]
+    public async Task CommitImportAsync_AcceptsOtherBreed_ForIndividualAndSharedData(
+        LivestockSpecies species, bool useSharedData)
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var service = CreateService(dbContext, new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero)));
+        var farm = await SeedFarmAsync(dbContext, 1021, species, "ES410010000121");
+        var rawText = useSharedData
+            ? "ES100004553031\nES100006323994"
+            : "ES100004553031\t1/1/2020\tHembra\tOtras\nES100006323994\t1/1/2020\tMacho\t otras ";
+        var sharedData = useSharedData
+            ? new SharedAnimalDataRequest(new DateOnly(2020, 1, 1), 2020, " otras ", "Female", null, null, null)
+            : null;
+        var request = GuidePreviewRequest(farm.Id, rawText) with { SharedAnimalData = sharedData };
+
+        service.GetBreedOptions(species).Should().Contain(option => option.Name == "Otras" && option.Code == "O");
+        var preview = await service.PreviewImportAsync(farm.FarmerId, UserRole.Farmer, request, CancellationToken.None);
+        preview.Summary.InvalidFormatRows.Should().Be(0);
+        preview.Summary.NotFoundRows.Should().Be(2);
+
+        var result = await service.CommitImportAsync(farm.FarmerId, UserRole.Farmer, new CommitMovementImportRequest(
+            farm.Id, MovementImportOperation.Alta, "ES410010009121", "Origen externo", "REMO-TXT", null,
+            request.DepartureDate, request.ArrivalDate, null, null, null, null,
+            MovementImportCause.Entrada, null, null, null, rawText, sharedData, null, null), CancellationToken.None);
+
+        result.ProcessedRows.Should().Be(2);
+        var animals = await dbContext.Animals.ToListAsync();
+        animals.Should().HaveCount(2).And.OnlyContain(animal => animal.Breed == "Otras");
+        animals.Select(animal => BookDocumentSupport.MapBreedCode(species, animal.Breed)).Should().OnlyContain(code => code == "O");
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task CommitImportAsync_UsesIndividualGuideData_WithOptionalLegacyRows(bool includeLegacyRow)
