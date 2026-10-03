@@ -2,25 +2,27 @@ import { useEffect, useMemo, useState } from 'react';
 import { PencilLine, Plus, Search, Tag } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { normalizeAnimalIdentification, normalizeRegaCode } from '../../shared/validation/identifiers';
+import { AnimalAutorrepositionModal } from './AnimalAutorrepositionModal.jsx';
+import { AnimalDetailModal } from './AnimalDetailModal.jsx';
 import {
-  AnimalAutorrepositionModal,
-  AnimalDetailModal,
   FARM_ANIMALS_DEFAULT_PAGE_SIZE,
   FARM_ANIMALS_PAGE_SIZE_OPTIONS,
-  FARM_ANIMALS_SEARCH_DEBOUNCE_MS,
+  FARM_ANIMALS_SEARCH_DEBOUNCE_MS
+} from './farmOptions.js';
+import {
   createAnimalDetailForm,
   createAutorrepositionForm,
   createManualOvineCaprineAnimalForm,
   createManualPorcineAnimalForm,
   emptyToNull,
-  formatAnimalSex,
-  ManualOvineCaprineAnimalModal,
-  ManualPorcineAnimalModal,
   validateAnimalDetailForm,
   validateAutorrepositionForm,
   validateManualOvineCaprineAnimalForm,
   validateManualPorcineAnimalForm
-} from './FarmDetailShared';
+} from './farmForms.js';
+import { formatAnimalSex } from './farmFormatting.js';
+import { ManualOvineCaprineAnimalModal } from './ManualOvineCaprineAnimalModal.jsx';
+import { ManualPorcineAnimalModal } from './ManualPorcineAnimalModal.jsx';
 import { FarmAnimalBulkUpdateModal } from './FarmAnimalBulkUpdateModal';
 
 export function FarmAnimalsSection({ farm, movementFilter, onClearMovementFilter }) {

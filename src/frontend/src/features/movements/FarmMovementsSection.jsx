@@ -10,7 +10,7 @@ import {
 import { apiRequest } from '../../shared/api/client';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader, ModalStepper } from '../../shared/components/modal/Modal';
 import { isValidRegaCode, normalizeRegaCode } from '../../shared/validation/identifiers';
-import { formatLivestockSpecies } from '../farms/FarmDetailShared';
+import { formatLivestockSpecies } from '../farms/farmFormatting.js';
 
 const fullMovementImportSteps = [
   { label: 'Configuración' },
@@ -1081,7 +1081,6 @@ export function FarmMovementsSection({ farm, onViewAnimalsForMovement }) {
 
   useEffect(() => {
     loadMovements(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [farm.id]);
 
   useEffect(() => {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { apiRequest } from '../../shared/api/client';
-import { currentYear, monthLabels, speciesToneMap } from './FarmDetailShared';
+import { currentYear, monthLabels, speciesToneMap } from './farmOptions.js';
 
 export function FarmCensusBalancesSection({ farm }) {
   const [activeSubTab, setActiveSubTab] = useState('census');

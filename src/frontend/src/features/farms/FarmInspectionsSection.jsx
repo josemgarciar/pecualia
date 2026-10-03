@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { ClipboardCheck, Plus } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { ModalBody, ModalDialog, ModalFieldLabel, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
-import { emptyToNull, formatDate, parseOptionalInteger } from './FarmDetailShared';
+import { emptyToNull, parseOptionalNumber } from './farmForms.js';
+import { formatDate } from './farmFormatting.js';
 
 function createInspectionFormState() {
   return {
@@ -59,7 +60,7 @@ export function FarmInspectionsSection({ farm }) {
       return;
     }
 
-    const taggedAnimals = parseOptionalInteger(form.taggedAnimals);
+    const taggedAnimals = parseOptionalNumber(form.taggedAnimals);
     if (taggedAnimals != null && (!Number.isInteger(taggedAnimals) || taggedAnimals < 0)) {
       setFormError('Los animales revisados deben ser un número entero igual o mayor que cero.');
       return;

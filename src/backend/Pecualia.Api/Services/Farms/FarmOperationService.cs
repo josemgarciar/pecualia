@@ -861,38 +861,6 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         }
     }
 
-    private static void ValidateCensus(LivestockFarm farm, UpdateFarmCensusRequest request)
-    {
-        var values = IsOvineOrCaprine(farm)
-            ? new int?[]
-            {
-                request.NonReproductiveUnder4Months,
-                request.NonReproductiveBetween4And12Months,
-                request.ReproductiveFemales,
-                request.ReproductiveMales
-            }
-            : new int?[]
-            {
-                request.Boars,
-                request.SowsForLive,
-                request.SowsReposition,
-                request.MalesReposition,
-                request.Piglets,
-                request.Rears,
-                request.Baits
-            };
-
-        if (values.Any(value => value is null))
-        {
-            throw new DomainException("Debes completar todas las categorías del censo.");
-        }
-
-        if (values.Any(value => value < 0))
-        {
-            throw new DomainException("Las categorías del censo no pueden tener valores negativos.");
-        }
-    }
-
     private int NormalizeYear(int? year)
     {
         var targetYear = year ?? clock.UtcNow.Year;
@@ -902,31 +870,6 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         }
 
         return targetYear;
-    }
-
-    private async Task<Census?> LoadAnnualCensusAsync(long farmId, int year, CancellationToken cancellationToken)
-    {
-        var start = new DateOnly(year, 1, 1);
-        var end = new DateOnly(year, 12, 31);
-
-        return await dbContext.Census
-            .Include(entity => entity.OvinoCaprino)
-            .Include(entity => entity.Porcino)
-            .Where(entity => entity.LivestockFarmId == farmId && entity.CensusDate >= start && entity.CensusDate <= end)
-            .OrderByDescending(entity => entity.CensusDate == start)
-            .ThenByDescending(entity => entity.CensusDate)
-            .FirstOrDefaultAsync(cancellationToken);
-    }
-
-    private async Task<IReadOnlyList<int>> LoadAvailableCensusYearsAsync(long farmId, CancellationToken cancellationToken)
-    {
-        return await dbContext.Census
-            .AsNoTracking()
-            .Where(entity => entity.LivestockFarmId == farmId)
-            .Select(entity => entity.CensusDate.Year)
-            .Distinct()
-            .OrderByDescending(year => year)
-            .ToListAsync(cancellationToken);
     }
 
     private async Task<Balance> AddBalanceEventAsync(
@@ -1337,67 +1280,6 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             vaccination.NextDose,
             vaccination.VaccinationType,
             EmptyToNull(vaccination.Observations));
-    }
-
-    private static FarmCensusResponse BuildEmptyCensusResponse(LivestockFarm farm, int year, IReadOnlyList<int> availableYears)
-    {
-        return new FarmCensusResponse(
-            null,
-            farm.Id,
-            year,
-            farm.LivestockSpecies.ToString(),
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            availableYears);
-    }
-
-    private static FarmCensusResponse MapCensus(LivestockFarm farm, Census census, int year, IReadOnlyList<int> availableYears)
-    {
-        var ovineDetail = census.OvinoCaprino;
-        var porcineDetail = census.Porcino;
-        var under4 = ovineDetail?.NonReproductiveUnder4Months ?? 0;
-        var between4And12 = ovineDetail?.NonReproductiveBetween4And12Months ?? 0;
-        var reproductiveFemales = ovineDetail?.ReproductiveFemale ?? 0;
-        var reproductiveMales = ovineDetail?.ReproductiveMale ?? 0;
-        var boars = porcineDetail?.Boars ?? 0;
-        var sowsForLive = porcineDetail?.Sow ?? 0;
-        var sowsReposition = porcineDetail?.SowsReposition ?? 0;
-        var malesReposition = porcineDetail?.PigsReposition ?? 0;
-        var piglets = porcineDetail?.Piglets ?? 0;
-        var rears = porcineDetail?.Rears ?? 0;
-        var baits = porcineDetail?.Baits ?? 0;
-        var total = under4 + between4And12 + reproductiveFemales + reproductiveMales + boars + sowsForLive + sowsReposition + malesReposition + piglets + rears + baits;
-
-        return new FarmCensusResponse(
-            census.Id,
-            census.LivestockFarmId,
-            year,
-            farm.LivestockSpecies.ToString(),
-            under4,
-            between4And12,
-            reproductiveFemales,
-            reproductiveMales,
-            boars,
-            sowsForLive,
-            sowsReposition,
-            malesReposition,
-            piglets,
-            rears,
-            baits,
-            0,
-            total,
-            availableYears);
     }
 
     private static FarmIncidentResponse MapIncident(Incident incident)

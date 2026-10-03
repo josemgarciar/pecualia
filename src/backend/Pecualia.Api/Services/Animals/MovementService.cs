@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Pecualia.Api.Contracts.Movements;
 using Pecualia.Api.Data;
@@ -42,12 +41,6 @@ public interface IMovementService
 
 public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProjectionService censusProjectionService, IClock clock) : IMovementService
 {
-    private static readonly Regex SpanishOfficialIdentificationRegex = new("^ES\\d{12}$", RegexOptions.Compiled);
-    private static readonly Regex OvineOrCaprineLegacyIdentificationRegex = new("^ES\\d{12}-[A-Z0-9]{3,}$", RegexOptions.Compiled);
-    private static readonly Regex PorcineAlternativeIdentificationRegex = new("^GT\\d+$", RegexOptions.Compiled);
-    private static readonly Regex SpanishOfficialIdentificationFinderRegex = new("ES[\\s._-]*(?:\\d[\\s._-]*){12}(?:-[A-Z0-9]{3,})?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex PorcineAlternativeIdentificationFinderRegex = new("\\bGT[\\s._-]*\\d+\\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
     public IReadOnlyList<MovementBreedOptionResponse> GetBreedOptions(LivestockSpecies species)
     {
         return BookDocumentSupport.GetBreedCodes(species)
@@ -158,7 +151,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
 
         if (context.Direction == MovementDirection.Entry && context.CounterpartyType == MovementCounterpartyType.External)
         {
-            var parsedRows = ParseLines(request.Identifications);
+            var parsedRows = MovementImportParser.ParseLines(request.Identifications);
             if (parsedRows.Count == 0)
             {
                 throw new DomainException("Debes indicar al menos una identificación para registrar una entrada externa.");
@@ -447,7 +440,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
 
         ValidatePorcineAggregateMovementRequest(numberOfAnimals, breed, animalType);
 
-        var normalizedBreed = NormalizeOfficialBreed(LivestockSpecies.Porcine, breed);
+        var normalizedBreed = MovementImportParser.NormalizeOfficialBreed(LivestockSpecies.Porcine, breed);
         var normalizedType = NormalizeRequiredAnimalType(animalType);
         var departureDay = ToDateOnly(departureDate);
         DateOnly? arrivalDay = arrivalDate is null ? null : ToDateOnly(arrivalDate.Value);
@@ -535,65 +528,18 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         string rawText,
         CancellationToken cancellationToken)
     {
-        var parsedLines = ParseLines(rawText);
+        var parsedLines = MovementImportParser.ParseLines(rawText);
         if (parsedLines.Count == 0)
         {
             throw new DomainException("Debes subir o pegar un TXT con al menos una identificación.");
         }
 
-        var deduplicated = new Dictionary<string, ParsedIdentificationLine>(StringComparer.OrdinalIgnoreCase);
-        var rows = new List<MovementImportPreviewRowResponse>(parsedLines.Count);
+        var parsedImport = MovementImportParser.ParsePreviewLines(context.Species, context.Direction, parsedLines);
+        var deduplicated = parsedImport.Lines;
+        var rows = parsedImport.RejectedRows.ToList();
 
-        foreach (var line in parsedLines)
-        {
-            var columns = line.Value.TrimEnd().Split('\t');
-            var identification = NormalizeIdentification(columns[0].TrimStart('\uFEFF'));
-            if (!IsIdentificationValid(context.Species, identification))
-            {
-                rows.Add(new MovementImportPreviewRowResponse(
-                    line.LineNumber,
-                    identification,
-                    "invalid_format",
-                    "Excluido",
-                    BuildIdentificationFormatMessage(context.Species),
-                    null,
-                    null));
-                continue;
-            }
-
-            if (deduplicated.TryGetValue(identification, out var firstOccurrence))
-            {
-                rows.Add(new MovementImportPreviewRowResponse(
-                    line.LineNumber,
-                    identification,
-                    "duplicate",
-                    "Excluido",
-                    $"Identificación duplicada. Primera aparición en la línea {firstOccurrence.LineNumber}.",
-                    null,
-                    null));
-                continue;
-            }
-
-            SharedAnimalDataRequest? animalData = null;
-            if (columns.Length > 1 && context.Direction == MovementDirection.Entry)
-            {
-                try
-                {
-                    animalData = ParseGuideAnimalData(context, columns);
-                }
-                catch (DomainException exception)
-                {
-                    rows.Add(new MovementImportPreviewRowResponse(line.LineNumber, identification,
-                        "invalid_format", "Excluido", exception.Message, null, null));
-                    continue;
-                }
-            }
-
-            deduplicated[identification] = new ParsedIdentificationLine(line.LineNumber, identification, animalData);
-        }
-
-        var existingAnimals = await LoadAnimalsByIdentificationAsync(deduplicated.Keys.ToList(), cancellationToken);
-        foreach (var parsed in deduplicated.Values.OrderBy(entity => entity.LineNumber))
+        var existingAnimals = await LoadAnimalsByIdentificationAsync(deduplicated.Select(line => line.Value).ToList(), cancellationToken);
+        foreach (var parsed in deduplicated.OrderBy(entity => entity.LineNumber))
         {
             existingAnimals.TryGetValue(parsed.Value, out var animal);
             rows.Add(BuildPreviewRow(context, parsed, animal) with { AnimalData = parsed.AnimalData });
@@ -702,7 +648,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         string? transportName,
         string? vehicleRegistrationNumber,
         SharedAnimalDataRequest? sharedAnimalData,
-        IReadOnlyList<ParsedIdentificationLine> parsedLines,
+        IReadOnlyList<ParsedMovementIdentificationLine> parsedLines,
         CancellationToken cancellationToken)
     {
         var rawText = string.Join(Environment.NewLine, parsedLines.Select(entity => entity.Value));
@@ -1194,7 +1140,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             Identification = identification,
             BirthDate = sharedAnimalData.BirthDate ?? (sharedAnimalData.BirthYear is null ? null : new DateOnly(sharedAnimalData.BirthYear.Value, 1, 1)),
             BirthYear = sharedAnimalData.BirthYear,
-            Breed = NormalizeOfficialBreed(context.Species, sharedAnimalData.Breed),
+            Breed = MovementImportParser.NormalizeOfficialBreed(context.Species, sharedAnimalData.Breed),
             Sex = NormalizeNullable(sharedAnimalData.Sex),
             RegistrationDate = arrivalDate ?? departureDate,
             RegistrationCause = ParseRegistrationCause(context.Cause),
@@ -1396,7 +1342,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         return animals.ToDictionary(entity => entity.Identification, StringComparer.OrdinalIgnoreCase);
     }
 
-    private MovementImportPreviewRowResponse BuildPreviewRow(MovementContext context, ParsedIdentificationLine parsed, Animal? animal)
+    private MovementImportPreviewRowResponse BuildPreviewRow(MovementContext context, ParsedMovementIdentificationLine parsed, Animal? animal)
     {
         if (context.IsBulkImport)
         {
@@ -1533,7 +1479,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             animal.Id);
     }
 
-    private static MovementImportPreviewRowResponse BuildBulkImportPreviewRow(MovementContext context, ParsedIdentificationLine parsed, Animal? animal)
+    private static MovementImportPreviewRowResponse BuildBulkImportPreviewRow(MovementContext context, ParsedMovementIdentificationLine parsed, Animal? animal)
     {
         if (context.Direction == MovementDirection.Entry)
         {
@@ -1612,7 +1558,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             throw new DomainException("La raza común de los animales es obligatoria.");
         }
 
-        _ = NormalizeOfficialBreed(context.Species, sharedAnimalData.Breed);
+        _ = MovementImportParser.NormalizeOfficialBreed(context.Species, sharedAnimalData.Breed);
 
         if (string.IsNullOrWhiteSpace(sharedAnimalData.Sex))
         {
@@ -1665,17 +1611,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         {
             throw new DomainException("La causa de baja debe ser Salida (S) o Muerte (M).");
         }
-    }
-
-    private static string NormalizeOfficialBreed(LivestockSpecies species, string? breed)
-    {
-        if (BookDocumentSupport.TryNormalizeBreed(species, breed, out var normalizedBreed) &&
-            !string.IsNullOrWhiteSpace(normalizedBreed))
-        {
-            return normalizedBreed;
-        }
-
-        throw new DomainException("La raza indicada no es válida para la especie de la guía.");
     }
 
     private static void ValidateMovementCause(MovementDirection direction, string cause)
@@ -1927,120 +1862,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
-    private static string NormalizeIdentification(string value)
-    {
-        var normalizedLine = value.Trim().ToUpperInvariant();
-        var officialMatch = SpanishOfficialIdentificationFinderRegex.Match(normalizedLine);
-        if (officialMatch.Success)
-        {
-            return NormalizeIdentifierToken(officialMatch.Value);
-        }
-
-        var porcineAlternativeMatch = PorcineAlternativeIdentificationFinderRegex.Match(normalizedLine);
-        if (porcineAlternativeMatch.Success)
-        {
-            return NormalizeIdentifierToken(porcineAlternativeMatch.Value);
-        }
-
-        var normalizedWholeLine = DomainValidators.NormalizeAnimalIdentification(normalizedLine);
-        if (!string.Equals(normalizedWholeLine, normalizedLine, StringComparison.Ordinal))
-        {
-            return normalizedWholeLine;
-        }
-
-        var firstToken = normalizedLine
-            .Split(new[] { ' ', '\t', ',', ';', '|', ':', '#', '(', ')' }, StringSplitOptions.RemoveEmptyEntries)
-            .FirstOrDefault() ?? string.Empty;
-
-        return NormalizeIdentifierToken(firstToken);
-    }
-
-    private static bool IsIdentificationValid(LivestockSpecies species, string identification)
-    {
-        return DomainValidators.IsValidAnimalIdentification(species, identification);
-    }
-
-    private static string BuildIdentificationFormatMessage(LivestockSpecies species)
-    {
-        return species == LivestockSpecies.Porcine
-            ? "Formato inválido. Para porcino se espera ES seguido de 12 dígitos o GT seguido de números."
-            : "Formato inválido. Para ovino/caprino se espera ES seguido de 12 dígitos o ES seguido de 12 dígitos con sufijo.";
-    }
-
-    private static string NormalizeIdentifierToken(string value)
-    {
-        return DomainValidators.NormalizeAnimalIdentification(value)
-            .Replace(" ", string.Empty)
-            .Replace("\t", string.Empty)
-            .Replace(".", string.Empty)
-            .Replace("_", string.Empty);
-    }
-
-    private static SharedAnimalDataRequest ParseGuideAnimalData(MovementContext context, string[] columns)
-    {
-        if (columns.Length < 4)
-        {
-            throw new DomainException("La fila debe contener crotal, fecha de nacimiento, sexo y raza separados por tabulaciones.");
-        }
-
-        var dateMatch = Regex.Match(columns[1].Trim(), @"^(\d{1,2})/(\d{1,2})/(\d{2}|\d{4})$");
-        DateOnly birthDate;
-        try
-        {
-            if (!dateMatch.Success)
-            {
-                throw new ArgumentOutOfRangeException();
-            }
-
-            var year = int.Parse(dateMatch.Groups[3].Value);
-            // The guide's two-digit years represent years in the 2000s (14 = 2014).
-            if (dateMatch.Groups[3].Length == 2) year += 2000;
-            birthDate = new DateOnly(year, int.Parse(dateMatch.Groups[2].Value), int.Parse(dateMatch.Groups[1].Value));
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            throw new DomainException("La fecha de nacimiento no es válida. Usa día/mes/año (por ejemplo, 1/12/16 o 01/12/2016).");
-        }
-
-        var sex = columns[2].Trim().ToLowerInvariant() switch
-        {
-            "hembra" or "h" or "female" => "Female",
-            "macho" or "m" or "male" => "Male",
-            _ => throw new DomainException("El sexo no es válido. Indica Hembra o Macho.")
-        };
-        var breed = NormalizeOfficialBreed(context.Species, columns[3].Trim());
-        return new SharedAnimalDataRequest(birthDate, birthDate.Year, breed, sex, null, null, null);
-    }
-
-    private static IReadOnlyList<ParsedIdentificationLine> ParseLines(string? rawText)
-    {
-        if (string.IsNullOrWhiteSpace(rawText))
-        {
-            return [];
-        }
-
-        var lines = rawText
-            .Split(["\r\n", "\n", "\r"], StringSplitOptions.None)
-            .Select((entity, index) => new ParsedIdentificationLine(index + 1, entity))
-            .Where(entity => !string.IsNullOrWhiteSpace(entity.Value))
-            .ToList();
-
-        return lines;
-    }
-
-    private static IReadOnlyList<ParsedIdentificationLine> ParseLines(IReadOnlyList<string>? rawLines)
-    {
-        if (rawLines is null || rawLines.Count == 0)
-        {
-            return [];
-        }
-
-        return rawLines
-            .Select((entity, index) => new ParsedIdentificationLine(index + 1, entity))
-            .Where(entity => !string.IsNullOrWhiteSpace(entity.Value))
-            .ToList();
-    }
-
     private static string? DescribeAnimal(Animal animal)
     {
         var tokens = new List<string>();
@@ -2099,19 +1920,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             ReproductiveMales = 0,
             TransporterName = NormalizeNullable(transportName),
             TransportTicketNumber = NormalizeNullable(vehicleRegistrationNumber)
-        };
-    }
-
-    private static CensusOvinoCaprino BuildOvineOrCaprineCensus(long censusId, IReadOnlyCollection<Animal> animals, DateOnly asOfDate)
-    {
-        var classification = ClassifyOvineOrCaprineAnimals(animals, asOfDate);
-        return new CensusOvinoCaprino
-        {
-            CensusId = censusId,
-            NonReproductiveBetween4And12Months = classification.NonReproductiveBetween4And12Months,
-            NonReproductiveUnder4Months = classification.NonReproductiveUnder4Months,
-            ReproductiveFemale = classification.ReproductiveFemales,
-            ReproductiveMale = classification.ReproductiveMales
         };
     }
 
@@ -2226,22 +2034,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         };
     }
 
-    private static CensusPorcino BuildPorcineCensus(long censusId, IReadOnlyCollection<Animal> animals, DateOnly asOfDate)
-    {
-        var classification = ClassifyPorcineAnimals(animals, asOfDate);
-        return new CensusPorcino
-        {
-            CensusId = censusId,
-            Baits = classification.Baits,
-            Boars = classification.Boars,
-            Piglets = classification.Piglets,
-            PigsReposition = classification.PigsReposition,
-            Rears = classification.Rears,
-            Sow = classification.Sows,
-            SowsReposition = classification.SowsReposition
-        };
-    }
-
     private static PorcineBreakdown ClassifyPorcineAnimals(IReadOnlyCollection<Animal> animals, DateOnly asOfDate, string? fallbackType = null)
     {
         var breakdown = new PorcineBreakdown();
@@ -2284,8 +2076,6 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         string CounterpartyName,
         string CounterpartyCode,
         bool IsBulkImport);
-
-    private sealed record ParsedIdentificationLine(int LineNumber, string Value, SharedAnimalDataRequest? AnimalData = null);
 
     private sealed record SnapshotRequest(
         LivestockFarm Farm,

@@ -244,34 +244,7 @@ public sealed class FarmAnimalBulkUpdateService(
             .ToListAsync(cancellationToken);
 
         var guideResolution = await ResolveGuideAsync(userId, role, farm, changes.Guide, cancellationToken);
-        var rows = new List<AnimalBulkUpdateRowResponse>(animals.Count);
-        foreach (var animal in animals)
-        {
-            var registrationCause = ResolveValue(animal.RegistrationCause, changes.RegistrationCause);
-            var registrationDate = ResolveValue(animal.RegistrationDate, changes.RegistrationDate);
-            var dischargeCause = ResolveValue(animal.DischargeCause, changes.DischargeCause);
-            var dischargeDate = ResolveValue(animal.DischargeDate, changes.DischargeDate);
-            var errors = ValidateResult(
-                registrationCause,
-                registrationDate,
-                dischargeCause,
-                dischargeDate,
-                changes.Guide);
-
-            rows.Add(new AnimalBulkUpdateRowResponse(
-                animal.Id,
-                animal.Identification,
-                animal.RegistrationCause?.ToString(),
-                animal.RegistrationDate,
-                animal.DischargeCause?.ToString(),
-                animal.DischargeDate,
-                registrationCause?.ToString(),
-                registrationDate,
-                dischargeCause?.ToString(),
-                dischargeDate,
-                errors.Count == 0,
-                errors.Count == 0 ? null : string.Join(" ", errors)));
-        }
+        var rows = animals.Select(animal => BuildPreviewRow(animal, changes)).ToList();
 
         var fingerprintSource = JsonSerializer.Serialize(new
         {
@@ -313,6 +286,34 @@ public sealed class FarmAnimalBulkUpdateService(
             rows.Count,
             rows.Count(entity => entity.IsValid),
             rows.Count(entity => !entity.IsValid));
+    }
+
+    private static AnimalBulkUpdateRowResponse BuildPreviewRow(Animal animal, BulkAnimalUpdateDefinition changes)
+    {
+        var registrationCause = ResolveValue(animal.RegistrationCause, changes.RegistrationCause.Mode, changes.RegistrationCause.Value);
+        var registrationDate = ResolveValue(animal.RegistrationDate, changes.RegistrationDate.Mode, changes.RegistrationDate.Value);
+        var dischargeCause = ResolveValue(animal.DischargeCause, changes.DischargeCause.Mode, changes.DischargeCause.Value);
+        var dischargeDate = ResolveValue(animal.DischargeDate, changes.DischargeDate.Mode, changes.DischargeDate.Value);
+        var errors = ValidateResult(
+            registrationCause,
+            registrationDate,
+            dischargeCause,
+            dischargeDate,
+            changes.Guide);
+
+        return new AnimalBulkUpdateRowResponse(
+            animal.Id,
+            animal.Identification,
+            animal.RegistrationCause?.ToString(),
+            animal.RegistrationDate,
+            animal.DischargeCause?.ToString(),
+            animal.DischargeDate,
+            registrationCause?.ToString(),
+            registrationDate,
+            dischargeCause?.ToString(),
+            dischargeDate,
+            errors.Count == 0,
+            errors.Count == 0 ? null : string.Join(" ", errors));
     }
 
     private async Task<IReadOnlyList<long>> ResolveSelectionAsync(
@@ -571,10 +572,10 @@ public sealed class FarmAnimalBulkUpdateService(
 
     private static void ApplyChanges(Animal animal, BulkAnimalUpdateDefinition changes)
     {
-        animal.RegistrationCause = ResolveValue(animal.RegistrationCause, changes.RegistrationCause);
-        animal.RegistrationDate = ResolveValue(animal.RegistrationDate, changes.RegistrationDate);
-        animal.DischargeCause = ResolveValue(animal.DischargeCause, changes.DischargeCause);
-        animal.DischargeDate = ResolveValue(animal.DischargeDate, changes.DischargeDate);
+        animal.RegistrationCause = ResolveValue(animal.RegistrationCause, changes.RegistrationCause.Mode, changes.RegistrationCause.Value);
+        animal.RegistrationDate = ResolveValue(animal.RegistrationDate, changes.RegistrationDate.Mode, changes.RegistrationDate.Value);
+        animal.DischargeCause = ResolveValue(animal.DischargeCause, changes.DischargeCause.Mode, changes.DischargeCause.Value);
+        animal.DischargeDate = ResolveValue(animal.DischargeDate, changes.DischargeDate.Mode, changes.DischargeDate.Value);
         if (animal.DischargeCause is null && animal.DischargeDate is null)
         {
             animal.DestinationCode = null;
@@ -616,29 +617,11 @@ public sealed class FarmAnimalBulkUpdateService(
         return errors;
     }
 
-    private static T? ResolveValue<T>(T? current, BulkRegistrationCauseChange change) where T : struct =>
-        change.Mode switch
+    private static T? ResolveValue<T>(T? current, BulkFieldChangeMode mode, T? value) where T : struct =>
+        mode switch
         {
             BulkFieldChangeMode.Unchanged => current,
-            BulkFieldChangeMode.Set => (T?)(object?)change.Value,
-            BulkFieldChangeMode.Clear => null,
-            _ => throw new DomainException("El modo de cambio no es válido.")
-        };
-
-    private static T? ResolveValue<T>(T? current, BulkDischargeCauseChange change) where T : struct =>
-        change.Mode switch
-        {
-            BulkFieldChangeMode.Unchanged => current,
-            BulkFieldChangeMode.Set => (T?)(object?)change.Value,
-            BulkFieldChangeMode.Clear => null,
-            _ => throw new DomainException("El modo de cambio no es válido.")
-        };
-
-    private static DateOnly? ResolveValue(DateOnly? current, BulkDateChange change) =>
-        change.Mode switch
-        {
-            BulkFieldChangeMode.Unchanged => current,
-            BulkFieldChangeMode.Set => change.Value,
+            BulkFieldChangeMode.Set => value,
             BulkFieldChangeMode.Clear => null,
             _ => throw new DomainException("El modo de cambio no es válido.")
         };

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { AlertTriangle, ArrowRightLeft, CalendarClock } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
-import { formatDate } from './FarmDetailShared';
+import { formatDate } from './farmFormatting.js';
 
 function createForm(task) {
   return {

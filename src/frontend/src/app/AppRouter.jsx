@@ -24,6 +24,7 @@ import { SettingsPage } from '../features/profile/SettingsPage';
 import { SubscriptionPage } from '../features/profile/SubscriptionPage';
 import { useAuth } from '../shared/auth/AuthContext';
 import { getPlanLabel } from '../shared/subscription/plans';
+import { AppErrorBoundary } from './AppErrorBoundary';
 
 const APP_ICON = '/pecualia_icon.png';
 
@@ -173,7 +174,9 @@ function AppShell() {
         </header>
 
         <main className="page-content">
-        <Outlet />
+          <AppErrorBoundary key={location.pathname}>
+            <Outlet />
+          </AppErrorBoundary>
         </main>
       </div>
     </div>

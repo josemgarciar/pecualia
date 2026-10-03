@@ -75,7 +75,7 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         {
             OnMessageReceived = context =>
             {
-                if (string.IsNullOrWhiteSpace(context.Token) &&
+                if (string.IsNullOrWhiteSpace(context.Request.Headers.Authorization) &&
                     context.Request.Cookies.TryGetValue(authCookieOptions.Name, out var cookieToken) &&
                     !string.IsNullOrWhiteSpace(cookieToken))
                 {
@@ -83,6 +83,14 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
                 }
 
                 return Task.CompletedTask;
+            },
+            OnTokenValidated = async context =>
+            {
+                var sessions = context.HttpContext.RequestServices.GetRequiredService<JwtSessionService>();
+                if (!await sessions.IsValidAsync(context.Principal!, context.HttpContext.RequestAborted))
+                {
+                    context.Fail("La sesión ha caducado. Inicia sesión de nuevo.");
+                }
             }
         };
     });
@@ -90,12 +98,12 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(AuthorizationPolicies.ManagerOnly, policy =>
-        policy.RequireAssertion(context =>
+        policy.RequireAuthenticatedUser().RequireAssertion(context =>
             context.User.HasClaim(claim =>
                 (claim.Type == AuthClaimTypes.Role || claim.Type == ClaimTypes.Role) &&
                 claim.Value == UserRole.Manager.ToString())));
     options.AddPolicy(AuthorizationPolicies.FarmerOrManager, policy =>
-        policy.RequireAssertion(context =>
+        policy.RequireAuthenticatedUser().RequireAssertion(context =>
             context.User.HasClaim(claim =>
                 (claim.Type == AuthClaimTypes.Role || claim.Type == ClaimTypes.Role) &&
                 (claim.Value == UserRole.Manager.ToString() || claim.Value == UserRole.Farmer.ToString()))));
@@ -117,11 +125,7 @@ builder.Services.AddOptions<CorsOptions>()
     });
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
-{
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownNetworks.Clear();
-    options.KnownProxies.Clear();
-});
+    ProxyConfiguration.Configure(options, builder.Configuration));
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -209,6 +213,7 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<JwtSessionService>();
 builder.Services.AddScoped<IAuthCookieService, AuthCookieService>();
 builder.Services.AddScoped<IAccountActivationService, AccountActivationService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -253,6 +258,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors();
 app.UseExceptionHandler();
+app.UseMiddleware<CookieRequestOriginMiddleware>();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -264,74 +270,7 @@ if (hasFrontendBuild)
     app.UseStaticFiles();
 }
 
-app.MapGet("/health/live", () => Results.Ok(new
-{
-    status = "ok",
-    service = "pecualia-api",
-    utc = DateTimeOffset.UtcNow
-}));
-app.MapGet("/health/ready", async (DatabaseBootstrapState bootstrapState, PecualiaDbContext dbContext, CancellationToken cancellationToken) =>
-{
-    if (!bootstrapState.IsReady)
-    {
-        return Results.Json(
-            new
-            {
-                status = "initializing",
-                service = "pecualia-api",
-                utc = DateTimeOffset.UtcNow
-            },
-            statusCode: StatusCodes.Status503ServiceUnavailable);
-    }
-
-    var canConnect = await dbContext.Database.CanConnectAsync(cancellationToken);
-    return canConnect
-        ? Results.Ok(new
-        {
-            status = "ok",
-            service = "pecualia-api",
-            utc = DateTimeOffset.UtcNow
-        })
-        : Results.Json(
-            new
-            {
-                status = "degraded",
-                service = "pecualia-api",
-                utc = DateTimeOffset.UtcNow
-            },
-            statusCode: StatusCodes.Status503ServiceUnavailable);
-});
-app.MapGet("/health", async (DatabaseBootstrapState bootstrapState, PecualiaDbContext dbContext, CancellationToken cancellationToken) =>
-{
-    if (!bootstrapState.IsReady)
-    {
-        return Results.Json(
-            new
-            {
-                status = "initializing",
-                service = "pecualia-api",
-                utc = DateTimeOffset.UtcNow
-            },
-            statusCode: StatusCodes.Status503ServiceUnavailable);
-    }
-
-    var canConnect = await dbContext.Database.CanConnectAsync(cancellationToken);
-    return canConnect
-        ? Results.Ok(new
-        {
-            status = "ok",
-            service = "pecualia-api",
-            utc = DateTimeOffset.UtcNow
-        })
-        : Results.Json(
-            new
-            {
-                status = "degraded",
-                service = "pecualia-api",
-                utc = DateTimeOffset.UtcNow
-            },
-            statusCode: StatusCodes.Status503ServiceUnavailable);
-});
+app.MapHealthEndpoints();
 
 app.MapAuthController();
 app.MapFarmerController();

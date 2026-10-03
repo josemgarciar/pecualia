@@ -9,18 +9,12 @@ import { FarmAnimalsSection } from './FarmAnimalsSection';
 import { FarmBirthsSection } from './FarmBirthsSection';
 import { FarmBookSection } from './FarmBookSection';
 import { FarmCensusBalancesSection } from './FarmCensusBalancesSection';
-import {
-  currentYear,
-  createFarmSettingsForm,
-  detailTabs,
-  emptyToNull,
-  FarmSettingsModal,
-  formatRegime,
-  formatText,
-  speciesToneMap,
-  SummaryMetric,
-  validateFarmSettingsForm
-} from './FarmDetailShared';
+import { currentYear, speciesToneMap } from './farmOptions.js';
+import { createFarmSettingsForm, emptyToNull, validateFarmSettingsForm } from './farmForms.js';
+import { detailTabs } from './farmDetailTabs.js';
+import { FarmSettingsModal } from './FarmSettingsModal.jsx';
+import { formatRegime, formatText } from './farmFormatting.js';
+import { SummaryMetric } from './FarmDetailFields.jsx';
 import { FarmDeathsSection } from './FarmDeathsSection';
 import { FarmIncidentsSection } from './FarmIncidentsSection';
 import { FarmInspectionsSection } from './FarmInspectionsSection';

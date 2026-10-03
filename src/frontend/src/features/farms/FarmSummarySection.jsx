@@ -1,4 +1,6 @@
-import { DetailField, formatCoordinate, formatRegime, formatText, speciesToneMap } from './FarmDetailShared';
+import { DetailField } from './FarmDetailFields.jsx';
+import { formatCoordinate, formatRegime, formatText } from './farmFormatting.js';
+import { speciesToneMap } from './farmOptions.js';
 
 export function FarmSummarySection({ farm, summaryCensus }) {
   const speciesTone = speciesToneMap[farm.livestockSpecies] ?? { label: farm.livestockSpecies };

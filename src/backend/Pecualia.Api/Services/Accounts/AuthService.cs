@@ -593,23 +593,53 @@ public sealed class AuthService(
     public async Task<ResetPasswordResponse> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken)
     {
         var tokenHash = ComputeTokenHash(request.Token);
+        var candidate = await dbContext.PasswordResetTokens
+            .AsNoTracking()
+            .SingleOrDefaultAsync(entity => entity.TokenHash == tokenHash, cancellationToken);
+        EnsureUsablePasswordResetToken(candidate);
+        ValidatePasswordOrThrow(request.NewPassword);
+        var newPasswordHash = passwordHasher.Hash(request.NewPassword);
+
+        await using var transaction = dbContext.Database.IsNpgsql()
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+        if (transaction is not null)
+        {
+            // Lock the account, not one token: different links must compete for the same reset.
+            await dbContext.Users
+                .FromSqlInterpolated($"SELECT * FROM app_user WHERE id = {candidate!.UserId} FOR UPDATE")
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+        }
+
         var token = await dbContext.PasswordResetTokens
             .Include(entity => entity.User)
             .SingleOrDefaultAsync(entity => entity.TokenHash == tokenHash, cancellationToken);
+        EnsureUsablePasswordResetToken(token);
+        token!.User.PasswordHash = newPasswordHash;
+        token.User.UpdatedAt = clock.UtcNow;
+        var pendingTokens = await dbContext.PasswordResetTokens
+            .Where(entity => entity.UserId == token.UserId && entity.UsedAt == null)
+            .ToListAsync(cancellationToken);
+        foreach (var pendingToken in pendingTokens)
+        {
+            pendingToken.UsedAt = clock.UtcNow;
+        }
 
+        await dbContext.SaveChangesAsync(cancellationToken);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+        return new ResetPasswordResponse("Tu contraseña se ha restablecido correctamente. Ya puedes iniciar sesión.");
+    }
+
+    private void EnsureUsablePasswordResetToken(PasswordResetToken? token)
+    {
         if (token is null || token.UsedAt.HasValue || token.ExpiresAt < clock.UtcNow)
         {
             throw new DomainException("El enlace de recuperación no es válido o ha caducado.");
         }
-
-        ValidatePasswordOrThrow(request.NewPassword);
-        token.User.PasswordHash = passwordHasher.Hash(request.NewPassword);
-        token.User.UpdatedAt = clock.UtcNow;
-        token.UsedAt = clock.UtcNow;
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return new ResetPasswordResponse("Tu contraseña se ha restablecido correctamente. Ya puedes iniciar sesión.");
     }
 
     private string BuildPasswordResetEmailHtml(string userName, string resetUrl)

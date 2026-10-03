@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check } from 'lucide-react';
 import { apiBlobRequest, apiRequest } from '../../shared/api/client';
-import {
-  BOOK_PREVIEW_DEBOUNCE_MS,
-  BOOK_PREVIEW_MAX_PAGES,
-  BOOK_PREVIEW_TARGET_WIDTH,
-  buildBookPdfPath
-} from './FarmDetailShared';
+import { BOOK_PREVIEW_DEBOUNCE_MS, BOOK_PREVIEW_MAX_PAGES } from './farmOptions.js';
+import { renderPdfPreviewPages } from './pdfPreview.js';
+import { buildBookPdfPath } from './farmForms.js';
 
 export function FarmBookSection({ farm }) {
   const [preview, setPreview] = useState(null);
@@ -72,8 +69,6 @@ export function FarmBookSection({ farm }) {
     }
 
     let cancelled = false;
-    let loadingTask = null;
-    let pdfDocument = null;
     const abortController = new AbortController();
 
     async function renderPdfPreview() {
@@ -96,51 +91,14 @@ export function FarmBookSection({ farm }) {
         GlobalWorkerOptions.workerSrc = workerModule.default;
 
         const pdfBytes = await blob.arrayBuffer();
-        loadingTask = getDocument({ data: pdfBytes });
-        pdfDocument = await loadingTask.promise;
-
-        if (cancelled || abortController.signal.aborted) {
-          return;
-        }
-
-        const pageCount = pdfDocument.numPages;
-        const pagesToRender = Math.min(pageCount, BOOK_PREVIEW_MAX_PAGES);
-        const renderedPages = [];
-
-        for (let pageNumber = 1; pageNumber <= pagesToRender; pageNumber += 1) {
-          const page = await pdfDocument.getPage(pageNumber);
-          const baseViewport = page.getViewport({ scale: 1 });
-          const scale = Math.min(1.25, BOOK_PREVIEW_TARGET_WIDTH / baseViewport.width);
-          const viewport = page.getViewport({ scale });
-          const canvas = document.createElement('canvas');
-          const context = canvas.getContext('2d', { alpha: false });
-
-          if (!context) {
-            throw new Error('No se pudo preparar la vista previa del PDF.');
-          }
-
-          canvas.width = Math.ceil(viewport.width);
-          canvas.height = Math.ceil(viewport.height);
-
-          await page.render({
-            canvasContext: context,
-            viewport
-          }).promise;
-
-          renderedPages.push({
-            pageNumber,
-            src: canvas.toDataURL('image/png'),
-            width: canvas.width,
-            height: canvas.height
-          });
-
-          page.cleanup();
-          canvas.width = 0;
-          canvas.height = 0;
-        }
+        const { pages, pageCount } = await renderPdfPreviewPages({
+          getDocument,
+          data: pdfBytes,
+          signal: abortController.signal
+        });
 
         if (!cancelled && !abortController.signal.aborted) {
-          setPdfPreviewPages(renderedPages);
+          setPdfPreviewPages(pages);
           setPdfPreviewTotalPages(pageCount);
         }
       } catch (requestError) {
@@ -150,12 +108,6 @@ export function FarmBookSection({ farm }) {
           setPdfPreviewError(requestError.message ?? 'No se pudo generar la vista previa del PDF.');
         }
       } finally {
-        if (pdfDocument) {
-          await pdfDocument.destroy().catch(() => {});
-        } else if (loadingTask) {
-          await loadingTask.destroy().catch(() => {});
-        }
-
         if (!cancelled) {
           setPdfPreviewLoading(false);
         }
@@ -170,12 +122,6 @@ export function FarmBookSection({ farm }) {
       cancelled = true;
       abortController.abort();
       window.clearTimeout(timeoutId);
-      if (loadingTask) {
-        loadingTask.destroy().catch(() => {});
-      }
-      if (pdfDocument) {
-        pdfDocument.destroy().catch(() => {});
-      }
     };
   }, [farm.id, orderedSelectedSectionIds, preview]);
 

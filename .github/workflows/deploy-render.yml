@@ -25,12 +25,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: src/frontend/package-lock.json
 
       - name: Build backend
         run: dotnet build Pecualia.sln --configuration Release
+
+      - name: Run backend tests
+        run: dotnet test src/backend/Pecualia.Test/Pecualia.Test.csproj --configuration Release --no-build
 
       - name: Install frontend dependencies
         run: npm ci
@@ -38,6 +41,14 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+        working-directory: src/frontend
+
+      - name: Check frontend identifiers
+        run: npm run lint
+        working-directory: src/frontend
+
+      - name: Run frontend tests
+        run: npm test
         working-directory: src/frontend
 
       - name: Trigger Render deploy

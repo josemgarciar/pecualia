@@ -113,7 +113,3 @@ export function getCurrentPlan(user) {
 export function getPlanLabel(user) {
   return getCurrentPlan(user).name;
 }
-
-export function getPlanAudienceLabel(role) {
-  return role === 'Manager' ? 'gestión profesional' : 'operativa de explotación';
-}

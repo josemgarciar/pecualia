@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, Pencil, RefreshCw, Trash2, User, UserMinus } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { ModalBody, ModalDialog, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
-import { formatLivestockSpecies } from '../farms/FarmDetailShared';
+import { formatLivestockSpecies } from '../farms/farmFormatting.js';
 
 function formatStatus(status) {
   if (!status) {

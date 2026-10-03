@@ -15,6 +15,7 @@ public static class AuthClaimTypes
 {
     public const string UserId = "userId";
     public const string Role = "role";
+    public const string SessionStamp = "sessionStamp";
 }
 
 public static class AuthorizationPolicies
@@ -51,7 +52,8 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
         var claims = new List<Claim>
         {
             new(AuthClaimTypes.UserId, user.Id.ToString()),
-            new(AuthClaimTypes.Role, user.Role.ToString())
+            new(AuthClaimTypes.Role, user.Role.ToString()),
+            new(AuthClaimTypes.SessionStamp, SessionStamp.Create(user, _options.SigningKey))
         };
 
         if (!string.IsNullOrWhiteSpace(user.Email))

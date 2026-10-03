@@ -12,7 +12,7 @@ using Pecualia.Test.Testing;
 
 namespace Pecualia.Test.Services;
 
-public sealed class AuthServiceTests
+public sealed partial class AuthServiceTests
 {
     [Fact]
     public async Task RegisterManagerAsync_CreatesManagerWithBasicSubscription()
@@ -357,6 +357,49 @@ public sealed class AuthServiceTests
         response.Message.Should().Be("Tu contraseña se ha restablecido correctamente. Ya puedes iniciar sesión.");
         user.PasswordHash.Should().Be("hash::new-password");
         token.UsedAt.Should().Be(clock.UtcNow);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_ConsumesAllPendingUserTokens_WithoutChangingOtherAccounts()
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2026, 05, 15, 10, 0, 0, TimeSpan.Zero));
+        var service = CreateService(dbContext, clock, new CapturingEmailSender());
+        var user = ServiceTestData.CreateUser(50, UserRole.Farmer, "Luis", "Activo", email: "luis@test.local");
+        var otherUser = ServiceTestData.CreateUser(51, UserRole.Farmer, "Ana", "Activa", email: "ana@test.local");
+        var previouslyUsedAt = clock.UtcNow.AddMinutes(-10);
+        var tokens = new[]
+        {
+            CreateResetToken(1, user, "current-token"),
+            CreateResetToken(2, user, "earlier-token"),
+            CreateResetToken(3, otherUser, "other-user-token"),
+            CreateResetToken(4, user, "already-used-token")
+        };
+        tokens[3].UsedAt = previouslyUsedAt;
+        dbContext.Users.AddRange(user, otherUser);
+        dbContext.PasswordResetTokens.AddRange(tokens);
+        await dbContext.SaveChangesAsync();
+
+        await service.ResetPasswordAsync(new ResetPasswordRequest("current-token", "new-password"), CancellationToken.None);
+
+        tokens[0].UsedAt.Should().Be(clock.UtcNow);
+        tokens[1].UsedAt.Should().Be(clock.UtcNow);
+        tokens[2].UsedAt.Should().BeNull();
+        tokens[3].UsedAt.Should().Be(previouslyUsedAt);
+        var reuseEarlierToken = () => service.ResetPasswordAsync(
+            new ResetPasswordRequest("earlier-token", "another-password"), CancellationToken.None);
+        await reuseEarlierToken.Should().ThrowAsync<DomainException>();
+        user.PasswordHash.Should().Be("hash::new-password");
+
+        PasswordResetToken CreateResetToken(long id, AppUser owner, string plainToken) => new()
+        {
+            Id = id,
+            UserId = owner.Id,
+            User = owner,
+            TokenHash = ComputeTokenHash(plainToken),
+            CreatedAt = clock.UtcNow.AddMinutes(-15),
+            ExpiresAt = clock.UtcNow.AddMinutes(15)
+        };
     }
 
     [Fact]

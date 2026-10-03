@@ -68,8 +68,17 @@ public static class AuthController
             }))
             .RequireAuthorization();
 
-        group.MapPut("/settings", async (ClaimsPrincipal user, UpdateUserSettingsRequest request, IAuthService service, CancellationToken cancellationToken) =>
-            await ControllerResults.ExecuteAsync(() => service.UpdateCurrentUserSettingsAsync(user.GetUserId(), request, cancellationToken)))
+        group.MapPut("/settings", async (HttpContext httpContext, ClaimsPrincipal user, UpdateUserSettingsRequest request, IAuthService service, JwtSessionService sessions, IAuthCookieService cookies, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(async () =>
+            {
+                var response = await service.UpdateCurrentUserSettingsAsync(user.GetUserId(), request, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(request.NewPassword))
+                {
+                    cookies.AppendAuthCookie(httpContext, await sessions.CreateCurrentTokenAsync(user.GetUserId(), cancellationToken));
+                }
+
+                return response;
+            }))
             .RequireAuthorization();
 
         group.MapDelete("/me", async (HttpContext httpContext, ClaimsPrincipal user, IAuthService service, IAuthCookieService authCookieService, CancellationToken cancellationToken) =>

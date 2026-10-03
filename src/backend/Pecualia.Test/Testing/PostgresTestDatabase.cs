@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 using Pecualia.Api.Data;
 
@@ -28,7 +29,7 @@ public sealed class PostgresTestDatabase : IAsyncDisposable
         SearchPath = _schema
     }.ConnectionString;
 
-    public async Task InitializeAsync()
+    public async Task InitializeAsync(bool useCurrentModel = false)
     {
         await using var connection = new NpgsqlConnection(_adminConnectionString);
         await connection.OpenAsync();
@@ -37,14 +38,18 @@ public sealed class PostgresTestDatabase : IAsyncDisposable
 
         await using var schemaConnection = new NpgsqlConnection(ConnectionString);
         await schemaConnection.OpenAsync();
-        var sql = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "db", "init", "001_schema.sql"));
+        await using var context = CreateContext();
+        var sql = useCurrentModel
+            ? context.Database.GenerateCreateScript()
+            : await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "db", "init", "001_schema.sql"));
         await using var initialize = new NpgsqlCommand(sql, schemaConnection);
         await initialize.ExecuteNonQueryAsync();
     }
 
-    public PecualiaDbContext CreateContext() => new(
+    public PecualiaDbContext CreateContext(params IInterceptor[] interceptors) => new(
         new DbContextOptionsBuilder<PecualiaDbContext>()
             .UseNpgsql(ConnectionString)
+            .AddInterceptors(interceptors)
             .Options);
 
     public async ValueTask DisposeAsync()

@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Plus, Sprout } from 'lucide-react';
 import { apiRequest } from '../../shared/api/client';
 import { ModalBody, ModalDialog, ModalFieldLabel, ModalFooter, ModalHeader } from '../../shared/components/modal/Modal';
-import { BirthDetailModal, formatDate, parsePositiveNumber } from './FarmDetailShared';
+import { BirthDetailModal } from './BirthDetailModal.jsx';
+import { formatDate } from './farmFormatting.js';
+import { parseOptionalNumber } from './farmForms.js';
 
 function createBirthFormState() {
   return {
@@ -51,7 +53,7 @@ export function FarmBirthsSection({ farm }) {
     setSuccess('');
 
     const offspringNumber = Number(form.offspringNumber);
-    const birthWeight = parsePositiveNumber(form.birthWeight);
+    const birthWeight = parseOptionalNumber(form.birthWeight);
     const today = new Date().toISOString().slice(0, 10);
     if (!form.birthDate || !Number.isInteger(offspringNumber) || offspringNumber <= 0 || (birthWeight !== null && birthWeight < 0)) {
       setFormError('Revisa fecha, número de crías y peso. El número de crías debe ser positivo.');

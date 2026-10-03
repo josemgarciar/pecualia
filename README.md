@@ -6,7 +6,7 @@ Aplicación web para gestión ganadera con frontend en React/Vite, backend en AS
 
 - `Docker` y `docker compose`
 - `.NET 8 SDK`
-- `Node.js 20+`
+- `Node.js 22.13+` (rama 22 LTS) o `24+`
 - `npm`
 
 ## Estructura
@@ -15,6 +15,11 @@ Aplicación web para gestión ganadera con frontend en React/Vite, backend en AS
 - `src/backend/Pecualia.Api`: API backend en ASP.NET Core
 - `db/init`: esquema SQL inicial y datos de ejemplo
 - `db/migrations`: cambios incrementales sobre el esquema
+
+Los servicios de la API se agrupan en `Services/Accounts`, `Animals`, `Farms`,
+`Books`, `Billing`, `Tasks` y `Shared`, manteniendo el namespace
+`Pecualia.Api.Services`. Los criterios y resultados de la limpieza se recogen en
+[`docs/clean-code-verification.md`](docs/clean-code-verification.md).
 
 ## Configuración
 
@@ -127,6 +132,17 @@ Validación de backend:
 dotnet build Pecualia.sln
 ```
 
+Pruebas de backend:
+
+```bash
+dotnet test Pecualia.sln
+```
+
+Las pruebas de concurrencia necesitan una base PostgreSQL local de pruebas.
+Configura `PECUALIA_TEST_POSTGRES` con su cadena de conexión antes de ejecutar
+`dotnet test`. Cada caso crea y elimina su propio esquema; sin esa variable,
+estos casos se omiten. CI proporciona PostgreSQL 16 y ejecuta también estos casos.
+
 Pruebas de rendimiento de backend:
 
 ```bash
@@ -157,8 +173,29 @@ Validación de frontend:
 
 ```bash
 cd src/frontend
+npm run lint
+npm test
 npm run build
 ```
+
+Comprobación HTTP de extremo a extremo contra una API **local conectada a una
+base desechable**, inicializada con los datos de demostración y `Email__Mode=File`:
+
+```bash
+python3 scripts/verify_local_api.py --isolated-database \
+  --base-url http://127.0.0.1:5049 --origin http://127.0.0.1:5179
+```
+
+`--origin` debe coincidir con `Frontend__Origin` de esa API. Para HTTP local,
+configura `AuthCookie__Secure=false` sólo en el proceso de pruebas. El script
+utiliza por defecto el gestor de demostración, consulta ambas especies, comprueba
+los PDF, crea y elimina una vacunación de prueba y verifica sesión y protección
+de origen. Se pueden indicar otras credenciales de prueba mediante
+`PECUALIA_SMOKE_USER` y `PECUALIA_SMOKE_PASSWORD`. No apuntes la API de esta
+comprobación a una base de producción.
+
+La revisión y los límites de seguridad se documentan en
+[`security_best_practices_report.md`](security_best_practices_report.md).
 
 Apagar la base de datos:
 

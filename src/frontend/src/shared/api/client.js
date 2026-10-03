@@ -1,68 +1,87 @@
-const JSON_HEADERS = {
-  'Content-Type': 'application/json'
-};
+const OPERATION_FAILED = 'La operación no se pudo completar.';
 
 function buildApiUrl(path) {
   if (/^https?:\/\//i.test(path)) {
     return path;
   }
 
-  const baseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
-  if (!baseUrl) {
-    return path;
-  }
-
-  return new URL(path, `${baseUrl.replace(/\/+$/, '')}/`).toString();
+  const baseUrl = import.meta.env?.VITE_API_BASE_URL?.trim();
+  return baseUrl
+    ? new URL(path, `${baseUrl.replace(/\/+$/, '')}/`).toString()
+    : path;
 }
 
-async function parseResponse(response) {
-  const isJson = response.headers.get('content-type')?.includes('application/json');
-  const payload = isJson ? await response.json() : null;
-
-  if (!response.ok) {
-    throw new Error(payload?.error ?? 'La operación no se pudo completar.');
+async function readJsonPayload(response) {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!/\bapplication\/(?:[\w.-]+\+)?json\b/i.test(contentType) || response.status === 204) {
+    return null;
   }
 
-  return payload;
+  const content = await response.text();
+  if (!content.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(content);
+  } catch {
+    if (response.ok) {
+      throw new Error('La respuesta del servidor no es válida.');
+    }
+    return null;
+  }
 }
 
-export async function apiRequest(path, { method = 'GET', body } = {}) {
-  const headers = { ...JSON_HEADERS };
-  if (!body) {
-    delete headers['Content-Type'];
+async function ensureSuccessfulResponse(response, payload) {
+  if (response.ok) {
+    return;
   }
 
+  const errorPayload = payload === undefined ? await readJsonPayload(response) : payload;
+  const message = errorPayload?.error ?? errorPayload?.detail ?? errorPayload?.title;
+  throw new Error(typeof message === 'string' && message.trim() ? message : OPERATION_FAILED);
+}
+
+function getDownloadFilename(disposition) {
+  const encoded = disposition.match(/(?:^|;)\s*filename\*=UTF-8'[^']*'([^;]+)/i);
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded[1].trim());
+    } catch {
+      // Malformed extended names may still have a usable plain filename.
+    }
+  }
+
+  const plain = disposition.match(/(?:^|;)\s*filename=(?:"([^"]+)"|([^;]+))/i);
+  return plain?.[1] ?? plain?.[2]?.trim() ?? 'documento.pdf';
+}
+
+export async function apiRequest(path, { method = 'GET', body, signal } = {}) {
+  const hasBody = body !== undefined && body !== null;
   const response = await fetch(buildApiUrl(path), {
     method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: 'include'
-  });
-
-  return parseResponse(response);
-}
-
-export async function apiBlobRequest(path, { method = 'GET', signal } = {}) {
-  const headers = {};
-
-  const response = await fetch(buildApiUrl(path), {
-    method,
-    headers,
+    headers: hasBody ? { 'Content-Type': 'application/json' } : {},
+    body: hasBody ? JSON.stringify(body) : undefined,
     signal,
     credentials: 'include'
   });
 
-  if (!response.ok) {
-    const isJson = response.headers.get('content-type')?.includes('application/json');
-    const payload = isJson ? await response.json() : null;
-    throw new Error(payload?.error ?? 'La operación no se pudo completar.');
-  }
+  const payload = await readJsonPayload(response);
+  await ensureSuccessfulResponse(response, payload);
+  return payload;
+}
 
-  const disposition = response.headers.get('content-disposition') ?? '';
-  const match = disposition.match(/filename="?([^"]+)"?/i);
+export async function apiBlobRequest(path, { method = 'GET', signal } = {}) {
+  const response = await fetch(buildApiUrl(path), {
+    method,
+    headers: {},
+    signal,
+    credentials: 'include'
+  });
 
+  await ensureSuccessfulResponse(response);
   return {
     blob: await response.blob(),
-    filename: match?.[1] ?? 'documento.pdf'
+    filename: getDownloadFilename(response.headers.get('content-disposition') ?? '')
   };
 }

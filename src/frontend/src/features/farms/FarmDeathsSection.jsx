@@ -10,17 +10,16 @@ import {
   normalizeAnimalIdentification,
   normalizeMerCode
 } from '../../shared/validation/identifiers';
+import { SummaryMetric } from './FarmDetailFields.jsx';
+import { createDeathFormState, emptyToNull } from './farmForms.js';
 import {
-  SummaryMetric,
-  createDeathFormState,
-  emptyToNull,
   formatDate,
   formatDeathDestination,
   getDeathDestinationOptions,
   getDeathDestinationType,
-  isMerOnlyDeathSpecies,
-  porcineAnimalTypeOptions
-} from './FarmDetailShared';
+  isMerOnlyDeathSpecies
+} from './farmFormatting.js';
+import { porcineAnimalTypeOptions } from './farmOptions.js';
 
 export function FarmDeathsSection({ farm }) {
   const isMerOnlyFarm = isMerOnlyDeathSpecies(farm.livestockSpecies);

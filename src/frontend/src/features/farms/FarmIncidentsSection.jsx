@@ -6,7 +6,8 @@ import {
   isValidAnimalIdentification,
   normalizeAnimalIdentification
 } from '../../shared/validation/identifiers';
-import { emptyToNull, formatDate } from './FarmDetailShared';
+import { emptyToNull } from './farmForms.js';
+import { formatDate } from './farmFormatting.js';
 
 function createIncidentFormState() {
   return {

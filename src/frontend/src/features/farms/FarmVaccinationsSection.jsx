@@ -7,12 +7,9 @@ import {
   isValidAnimalIdentification,
   normalizeAnimalIdentification
 } from '../../shared/validation/identifiers';
-import {
-  SummaryMetric,
-  createVaccinationFormState,
-  emptyToNull,
-  formatDate
-} from './FarmDetailShared';
+import { SummaryMetric } from './FarmDetailFields.jsx';
+import { createVaccinationFormState, emptyToNull } from './farmForms.js';
+import { formatDate } from './farmFormatting.js';
 
 export function FarmVaccinationsSection({ farm }) {
   const [vaccinations, setVaccinations] = useState([]);
