@@ -202,14 +202,20 @@ internal static class BookDocumentSupport
             .DefaultTextStyle(style => style.FontSize(7.4f).SemiBold());
     }
 
-    internal static IContainer OfficialLedgerBodyCell(IContainer container)
+    internal static IContainer OfficialLedgerBodyCell(IContainer container) =>
+        CreateLedgerBodyCell(container, minimumHeight: 18, verticalPadding: 3);
+
+    private static IContainer CodeLegendBodyCell(IContainer container) =>
+        CreateLedgerBodyCell(container, minimumHeight: 12, verticalPadding: 2);
+
+    private static IContainer CreateLedgerBodyCell(IContainer container, float minimumHeight, float verticalPadding)
     {
         return container
             .Border(1)
             .BorderColor(Colors.Grey.Darken1)
-            .PaddingVertical(3)
+            .PaddingVertical(verticalPadding)
             .PaddingHorizontal(3)
-            .MinHeight(18)
+            .MinHeight(minimumHeight)
             .AlignCenter()
             .AlignMiddle()
             .DefaultTextStyle(style => style.FontSize(7.2f));
@@ -262,8 +268,8 @@ internal static class BookDocumentSupport
 
                 foreach (var item in items)
                 {
-                    table.Cell().Element(OfficialLedgerBodyCellLeft).Text(item.Key);
-                    table.Cell().Element(OfficialLedgerBodyCell).Text(item.Value);
+                    table.Cell().Element(CodeLegendBodyCell).AlignLeft().Text(item.Key);
+                    table.Cell().Element(CodeLegendBodyCell).Text(item.Value);
                 }
             });
         });
