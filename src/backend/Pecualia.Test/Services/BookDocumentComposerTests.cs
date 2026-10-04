@@ -86,6 +86,25 @@ public sealed class BookDocumentComposerTests
         pdf.Length.Should().BeGreaterThan(5_000);
     }
 
+    [Fact]
+    public void BalanceTable_PaginatesContinuously_WithoutAnOverflowPageBetweenChunks()
+    {
+        var aggregate = CreateAggregate(LivestockSpecies.Ovine);
+        var balances = Enumerable.Range(1, 27).Select(index => new Balance
+        {
+            Id = index, LivestockFarmId = aggregate.Farm.Id,
+            BalanceDate = new DateOnly(2026, 1, 1).AddDays(index),
+            ModificationCause = "Nacimiento", NumberOfAnimals = index,
+            OvinoCaprino = new BalanceOvinoCaprino { NonReproductiveUnder4Months = index }
+        }).ToList();
+        aggregate = aggregate with { Balances = balances };
+
+        var pages = Document.Create(container => BookDocumentComposer.ComposeDocument(
+            container, aggregate, new HashSet<string> { "balance" })).GenerateImages();
+
+        pages.Should().HaveCount(2);
+    }
+
     private static BookAggregate CreateAggregate(LivestockSpecies species)
     {
         var user = ServiceTestData.CreateUser(1, UserRole.Farmer, "Lucia", "Romero", email: "lucia@test.local");

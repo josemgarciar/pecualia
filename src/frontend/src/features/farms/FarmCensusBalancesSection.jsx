@@ -106,6 +106,10 @@ export function FarmCensusBalancesSection({ farm }) {
         </select>
       </div>
 
+      {census?.unallocatedMovements > 0 && <div className="error-banner">
+        Censo pendiente de revisar: hay {census.unallocatedMovements} salidas sin lotes de nacimiento asignados.
+        Vincula los lotes desde el detalle de cada guía en Movimientos para obtener el cálculo corregido.
+      </div>}
       {error && <div className="error-banner">{error}</div>}
 
       <div className="census-subtab-row">

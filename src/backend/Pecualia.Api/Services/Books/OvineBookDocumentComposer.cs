@@ -329,75 +329,77 @@ internal static class OvineBookDocumentComposer
                 (balance.OvinoCaprino?.ReproductiveFemales ?? 0).ToString()))
             .ToList();
 
-        foreach (var pageRows in BookDocumentSupport.ChunkOrBlank(rows, 18, OvineBalanceRow.Empty))
+        // Let the table paginate continuously: fixed chunks can overflow and leave
+        // an almost empty page before the next chunk starts.
+        var pageRows = rows.Count == 0
+            ? Enumerable.Repeat(OvineBalanceRow.Empty, 18).ToList()
+            : rows;
+        container.Page(page =>
         {
-            container.Page(page =>
+            BookDocumentSupport.ConfigureOfficialLedgerPage(page, aggregate, "HOJA DE BALANCE DEL GANADO OVINO-CAPRINO", false);
+            page.Content().Column(column =>
             {
-                BookDocumentSupport.ConfigureOfficialLedgerPage(page, aggregate, "HOJA DE BALANCE DEL GANADO OVINO-CAPRINO", false);
-                page.Content().Column(column =>
+                column.Spacing(4);
+                column.Item().Table(table =>
                 {
-                    column.Spacing(4);
-                    column.Item().Table(table =>
+                    table.ColumnsDefinition(columns =>
                     {
-                        table.ColumnsDefinition(columns =>
-                        {
-                            columns.ConstantColumn(60);
-                            columns.ConstantColumn(112);
-                            columns.ConstantColumn(48);
-                            columns.ConstantColumn(94);
-                            columns.ConstantColumn(82);
-                            columns.RelativeColumn();
-                            columns.ConstantColumn(70);
-                            columns.ConstantColumn(44);
-                            columns.ConstantColumn(44);
-                            columns.ConstantColumn(44);
-                            columns.ConstantColumn(44);
-                        });
-
-                        table.Header(header =>
-                        {
-                            header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Fecha (1)");
-                            header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Causa de modificación del balance (2)");
-                            header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Nº de animales");
-                            header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Código explotación de procedencia o destino (3)");
-                            header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Nº documento sanitario de acompañamiento (4)");
-                            header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Nombre transportista");
-                            header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Nº matrícula transportista");
-                            header.Cell().ColumnSpan(4).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Balance");
-
-                            header.Cell().Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("No reproductor\n< 4 meses");
-                            header.Cell().Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("No reproductor\nde 4 a 12 meses");
-                            header.Cell().Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Reproductores\nmachos");
-                            header.Cell().Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Reproductores\nhembras");
-                        });
-
-                        foreach (var row in pageRows)
-                        {
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.Date ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.CauseCode ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.NumberOfAnimals ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCellLeft).Text(row.OriginCode ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.GuideSerie ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCellLeft).Text(row.TransporterName ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.TransportTicketNumber ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.Under4 ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.From4To12 ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.ReproductiveMales ?? string.Empty);
-                            table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.ReproductiveFemales ?? string.Empty);
-                        }
+                        columns.ConstantColumn(60);
+                        columns.ConstantColumn(112);
+                        columns.ConstantColumn(48);
+                        columns.ConstantColumn(94);
+                        columns.ConstantColumn(82);
+                        columns.RelativeColumn();
+                        columns.ConstantColumn(70);
+                        columns.ConstantColumn(44);
+                        columns.ConstantColumn(44);
+                        columns.ConstantColumn(44);
+                        columns.ConstantColumn(44);
                     });
-                });
 
-                page.Footer().PaddingTop(4).Text(text =>
-                {
-                    text.DefaultTextStyle(style => style.FontSize(7));
-                    text.Span("(1) Fecha en la que se realiza el asiento.\n");
-                    text.Span("(2) Causa: Entrada (E), Autorreposición (A), Salida (S), Muerte (M), Nacimiento (N).\n");
-                    text.Span("(3) Código de la explotación de procedencia o de destino.\n");
-                    text.Span("(4) Documento sanitario de acompañamiento.");
+                    table.Header(header =>
+                    {
+                        header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Fecha (1)");
+                        header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Causa de modificación del balance (2)");
+                        header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Nº de animales");
+                        header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Código explotación de procedencia o destino (3)");
+                        header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Nº documento sanitario de acompañamiento (4)");
+                        header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Nombre transportista");
+                        header.Cell().RowSpan(2).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Nº matrícula transportista");
+                        header.Cell().ColumnSpan(4).Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Balance");
+
+                        header.Cell().Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("No reproductor\n< 4 meses");
+                        header.Cell().Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("No reproductor\nde 4 a 12 meses");
+                        header.Cell().Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Reproductores\nmachos");
+                        header.Cell().Element(BookDocumentSupport.OfficialLedgerHeaderCell).Text("Reproductores\nhembras");
+                    });
+
+                    foreach (var row in pageRows)
+                    {
+                        table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.Date ?? string.Empty);
+                        table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.CauseCode ?? string.Empty);
+                        table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.NumberOfAnimals ?? string.Empty);
+                        table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCellLeft).Text(row.OriginCode ?? string.Empty);
+                        table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.GuideSerie ?? string.Empty);
+                        table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCellLeft).Text(row.TransporterName ?? string.Empty);
+                        table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.TransportTicketNumber ?? string.Empty);
+                        table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.Under4 ?? string.Empty);
+                        table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.From4To12 ?? string.Empty);
+                        table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.ReproductiveMales ?? string.Empty);
+                        table.Cell().Element(BookDocumentSupport.OfficialLedgerBodyCell).Text(row.ReproductiveFemales ?? string.Empty);
+                    }
                 });
             });
-        }
+
+            page.Footer().PaddingTop(4).Text(text =>
+            {
+                text.DefaultTextStyle(style => style.FontSize(7));
+                text.Span("(1) Fecha en la que se realiza el asiento.\n");
+                text.Span("(2) Causa: Entrada (E), Autorreposición (A), Salida (S), Muerte (M), Nacimiento (N).\n");
+                text.Span("(3) Código de la explotación de procedencia o de destino.\n");
+                text.Span("(4) Documento sanitario de acompañamiento.");
+            });
+        });
     }
 
     internal static void ComposeCensusSection(IDocumentContainer container, BookRenderContext context)

@@ -23,6 +23,7 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
     public DbSet<PorcinoAnimal> PorcinoAnimals => Set<PorcinoAnimal>();
 
     public DbSet<AnimalBirth> AnimalBirths => Set<AnimalBirth>();
+    public DbSet<MovementBirthLot> MovementBirthLots => Set<MovementBirthLot>();
 
     public DbSet<PorcineBirthTransitionDecision> PorcineBirthTransitionDecisions => Set<PorcineBirthTransitionDecision>();
 
@@ -340,6 +341,17 @@ public sealed class PecualiaDbContext(DbContextOptions<PecualiaDbContext> option
             .WithMany()
             .HasForeignKey(entity => entity.DestinationLivestockId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        var movementBirthLot = modelBuilder.Entity<MovementBirthLot>();
+        movementBirthLot.ToTable("movement_birth_lot");
+        movementBirthLot.HasKey(entity => new { entity.MovementCertificateId, entity.BirthId });
+        movementBirthLot.Property(entity => entity.MovementCertificateId).HasColumnName("movement_certificate_id");
+        movementBirthLot.Property(entity => entity.BirthId).HasColumnName("birth_id");
+        movementBirthLot.Property(entity => entity.Quantity).HasColumnName("quantity");
+        movementBirthLot.HasOne(entity => entity.MovementCertificate).WithMany(entity => entity.BirthLots)
+            .HasForeignKey(entity => entity.MovementCertificateId).OnDelete(DeleteBehavior.Cascade);
+        movementBirthLot.HasOne(entity => entity.Birth).WithMany()
+            .HasForeignKey(entity => entity.BirthId).OnDelete(DeleteBehavior.Restrict);
 
         var movementCertificateAnimal = modelBuilder.Entity<MovementCertificateAnimal>();
         movementCertificateAnimal.ToTable("movement_certificate_animals");

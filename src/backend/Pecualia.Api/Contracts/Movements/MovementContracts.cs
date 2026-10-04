@@ -38,7 +38,9 @@ public sealed record MovementDetailResponse(
     int NumberOfAnimals,
     string Status,
     string? AnimalType,
-    IReadOnlyList<MovementAnimalItemResponse> Animals);
+    IReadOnlyList<MovementAnimalItemResponse> Animals,
+    MovementUnidentifiedCategory? UnidentifiedCategory = null,
+    IReadOnlyList<MovementBirthLotRequest>? BirthLots = null);
 
 public sealed record MovementAnimalItemResponse(
     long AnimalId,
@@ -95,7 +97,8 @@ public sealed record PreviewMovementImportRequest(
     string? RawText,
     SharedAnimalDataRequest? SharedAnimalData,
     int? UnidentifiedAnimalCount,
-    MovementUnidentifiedCategory? UnidentifiedCategory);
+    MovementUnidentifiedCategory? UnidentifiedCategory,
+    IReadOnlyList<MovementBirthLotRequest>? BirthLots = null);
 
 public sealed record MovementImportPreviewResponse(
     string LivestockSpecies,
@@ -123,7 +126,8 @@ public sealed record CommitMovementImportRequest(
     string? RawText,
     SharedAnimalDataRequest? SharedAnimalData,
     int? UnidentifiedAnimalCount,
-    MovementUnidentifiedCategory? UnidentifiedCategory);
+    MovementUnidentifiedCategory? UnidentifiedCategory,
+    IReadOnlyList<MovementBirthLotRequest>? BirthLots = null);
 
 public sealed record MovementImportCommitResponse(
     long MovementId,
@@ -165,3 +169,8 @@ public sealed record SharedAnimalDataRequest(
 public sealed record ConfirmMovementResponse(
     long MovementId,
     string Status);
+
+public sealed record MovementBirthLotRequest(long BirthId, int Quantity);
+public sealed record MovementBirthLotOption(long BirthId, DateOnly BirthDate, int Born, int Available, string Category);
+public sealed record MovementBirthLotOptions(IReadOnlyList<MovementBirthLotOption> Lots, int UnallocatedMovements);
+public sealed record AssignMovementBirthLotsRequest(IReadOnlyList<MovementBirthLotRequest> BirthLots);

@@ -569,3 +569,27 @@
 .movement-unidentified-count {
   max-width: 260px;
 }
+
+.birth-lot-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.birth-lot-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.birth-lot-table th,
+.birth-lot-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #e2e8e4;
+}
+
+.birth-lot-table input {
+  width: 100%;
+  min-width: 72px;
+  max-width: 120px;
+  padding: 8px;
+}

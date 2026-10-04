@@ -211,7 +211,7 @@ CREATE TABLE movement_certificate (
     CONSTRAINT movement_dates_chk CHECK (arrival_date IS NULL OR arrival_date >= departure_date),
     CONSTRAINT movement_status_chk CHECK (status IN ('Pending', 'Confirmed')),
     CONSTRAINT movement_unidentified_category_chk CHECK (
-        unidentified_category IS NULL OR unidentified_category IN ('Under4Months', 'Between4And12Months')
+        unidentified_category IS NULL OR unidentified_category IN ('Under4Months', 'Between4And12Months', 'BirthLots')
     )
 );
 
@@ -389,3 +389,11 @@ CREATE INDEX idx_incident_animal_id ON incident(animal_id);
 CREATE INDEX idx_inspection_livestock_farm_id ON inspection(livestock_farm_id);
 
 COMMIT;
+
+CREATE TABLE IF NOT EXISTS movement_birth_lot (
+    movement_certificate_id BIGINT NOT NULL REFERENCES movement_certificate(id) ON DELETE CASCADE,
+    birth_id BIGINT NOT NULL REFERENCES animal_birth(id) ON DELETE RESTRICT,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    PRIMARY KEY (movement_certificate_id, birth_id)
+);
+CREATE INDEX IF NOT EXISTS ix_movement_birth_lot_birth ON movement_birth_lot(birth_id);

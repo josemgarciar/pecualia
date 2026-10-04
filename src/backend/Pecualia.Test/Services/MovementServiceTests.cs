@@ -374,6 +374,38 @@ public sealed class MovementServiceTests
         dbContext.Balances.Should().HaveCount(2);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConfirmMovementAsync_RejectsOriginOwner_WithoutChangingStatus(bool internalDestination)
+    {
+        await using var dbContext = ServiceTestDbFactory.CreateContext();
+        var service = CreateService(dbContext, new TestClock(new DateTimeOffset(2026, 5, 15, 10, 0, 0, TimeSpan.Zero)));
+        var origin = await SeedFarmAsync(dbContext, 1050, LivestockSpecies.Ovine, "ES410010000150");
+        var destination = internalDestination
+            ? await SeedFarmAsync(dbContext, 1051, LivestockSpecies.Ovine, "ES410010000151")
+            : null;
+        var movement = new MovementCertificate
+        {
+            OriginLivestockId = origin.Id, DestinationLivestockId = destination?.Id,
+            Specie = "Ovine", NumberOfAnimals = 1, Status = MovementStatus.Pending,
+            DepartureDate = new DateTime(2026, 5, 10, 0, 0, 0, DateTimeKind.Utc)
+        };
+        dbContext.MovementCertificates.Add(movement);
+        await dbContext.SaveChangesAsync();
+
+        var action = () => service.ConfirmMovementAsync(origin.FarmerId, UserRole.Farmer, movement.Id, default);
+        await action.Should().ThrowAsync<DomainException>().WithMessage("*explotación de destino*");
+        dbContext.ChangeTracker.Clear();
+        (await dbContext.MovementCertificates.SingleAsync()).Status.Should().Be(MovementStatus.Pending);
+
+        if (destination != null)
+        {
+            var confirmation = await service.ConfirmMovementAsync(destination.FarmerId, UserRole.Farmer, movement.Id, default);
+            confirmation.Status.Should().Be("Confirmed");
+        }
+    }
+
     [Fact]
     public async Task ConfirmMovementAsync_UpdatesStatus_AndMovementCanBeRetrieved()
     {
@@ -384,7 +416,7 @@ public sealed class MovementServiceTests
         var movement = new MovementCertificate
         {
             Id = 8001,
-            OriginLivestockId = farm.Id,
+            DestinationLivestockId = farm.Id,
             CodRemo = "REMO-GET-1",
             Serie = "SER-GET-1",
             Specie = LivestockSpecies.Ovine.ToString(),
@@ -392,7 +424,7 @@ public sealed class MovementServiceTests
             DepartureDate = new DateTime(2026, 05, 10, 0, 0, 0, DateTimeKind.Utc),
             ArrivalDate = new DateTime(2026, 05, 11, 0, 0, 0, DateTimeKind.Utc),
             Status = MovementStatus.Pending,
-            OriginFarm = farm
+            DestinationFarm = farm
         };
 
         dbContext.MovementCertificates.Add(movement);

@@ -103,7 +103,8 @@ public sealed record FarmCensusResponse(
     int Baits,
     int PendingPorcineTransitions,
     int Total,
-    IReadOnlyList<int> AvailableYears);
+    IReadOnlyList<int> AvailableYears,
+    int UnallocatedMovements = 0);
 
 public sealed record UpdateFarmCensusRequest(
     int? NonReproductiveUnder4Months,

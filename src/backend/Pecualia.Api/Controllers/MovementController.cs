@@ -31,6 +31,16 @@ public static class MovementController
             await ControllerResults.ExecuteAsync(() => service.CommitImportAsync(user.GetUserId(), user.GetRole(), request, cancellationToken)));
 
         var farmGroup = endpoints.MapGroup("/api/farms").RequireAuthorization(AuthorizationPolicies.FarmerOrManager);
+        farmGroup.MapGet("/{farmId:long}/movement-birth-lots", async (ClaimsPrincipal user, long farmId,
+            DateOnly date, long? movementId, IMovementService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(() => service.GetBirthLotsAsync(user.GetUserId(), user.GetRole(), farmId, date, movementId, cancellationToken)));
+        movementGroup.MapPut("/{movementId:long}/birth-lots", async (ClaimsPrincipal user, long movementId,
+            AssignMovementBirthLotsRequest request, IMovementService service, CancellationToken cancellationToken) =>
+            await ControllerResults.ExecuteAsync(async () =>
+            {
+                await service.AssignBirthLotsAsync(user.GetUserId(), user.GetRole(), movementId, request, cancellationToken);
+                return new { movementId };
+            }));
         farmGroup.MapGet("/{farmId:long}/movements", async (ClaimsPrincipal user, long farmId, IMovementService service, CancellationToken cancellationToken) =>
             await ControllerResults.ExecuteAsync(() => service.GetFarmMovementsAsync(user.GetUserId(), user.GetRole(), farmId, cancellationToken)));
 

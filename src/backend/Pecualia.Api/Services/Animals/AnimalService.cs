@@ -275,6 +275,8 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             throw new DomainException("La fecha de alta es obligatoria.");
         }
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await MovementBirthLotSupport.LockFarmAsync(dbContext, farmId, cancellationToken);
         var censusSnapshot = await censusProjectionService.BuildSnapshotAsync(farm, request.RegistrationDate.Value, cancellationToken);
         if (request.Quantity > censusSnapshot.NonReproductiveBetween4And12Months)
         {
@@ -304,6 +306,18 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             .Select(entity => new { BirthId = entity.Key, Count = entity.Count() })
             .ToDictionaryAsync(entity => entity.BirthId, entity => entity.Count, cancellationToken);
 
+        var hasReservedBirthLots = false;
+        if (farm.LivestockSpecies is LivestockSpecies.Ovine or LivestockSpecies.Caprine)
+        {
+            consumedByBirthId = await MovementBirthLotSupport.CountIndividualConsumptionAsync(dbContext, eligibleBirths, null, cancellationToken);
+            var assigned = await dbContext.MovementBirthLots.Where(lot => eligibleBirthIds.Contains(lot.BirthId))
+                .GroupBy(lot => lot.BirthId).Select(group => new { BirthId = group.Key, Quantity = group.Sum(lot => lot.Quantity) })
+                .ToListAsync(cancellationToken);
+            hasReservedBirthLots = assigned.Count > 0;
+            foreach (var lot in assigned)
+                consumedByBirthId[lot.BirthId] = consumedByBirthId.GetValueOrDefault(lot.BirthId) + lot.Quantity;
+        }
+
         var availableUnits = eligibleBirths
             .SelectMany(entity => Enumerable.Repeat(
                 new AllocatedBirthUnit(entity.Id, entity.BirthDate),
@@ -311,6 +325,8 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             .ToList();
 
         var missingUnits = request.Quantity - availableUnits.Count;
+        if (missingUnits > 0 && hasReservedBirthLots)
+            throw new DomainException("No hay suficientes animales libres en los lotes de nacimiento; algunas existencias están asignadas a guías de salida.");
         if (missingUnits > 0)
         {
             availableUnits.AddRange(Enumerable.Range(0, missingUnits).Select(_ => new AllocatedBirthUnit(null, null)));
@@ -352,7 +368,6 @@ public sealed class AnimalService(PecualiaDbContext dbContext, IFarmCensusProjec
             })
             .ToList();
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         dbContext.Animals.AddRange(animals);
         await dbContext.SaveChangesAsync(cancellationToken);

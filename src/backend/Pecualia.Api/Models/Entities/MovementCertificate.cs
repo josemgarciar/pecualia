@@ -47,4 +47,5 @@ public sealed class MovementCertificate
     public LivestockFarm? DestinationFarm { get; set; }
 
     public ICollection<MovementCertificateAnimal> Animals { get; set; } = new List<MovementCertificateAnimal>();
+    public ICollection<MovementBirthLot> BirthLots { get; set; } = new List<MovementBirthLot>();
 }

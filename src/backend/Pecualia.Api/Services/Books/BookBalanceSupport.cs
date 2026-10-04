@@ -3,7 +3,7 @@ using Pecualia.Api.Models.Enums;
 
 namespace Pecualia.Api.Services;
 
-internal sealed record BookBalanceMovementInfo(string? CounterpartyCode, string? GuideNumber);
+internal sealed record BookBalanceMovementInfo(string? CounterpartyCode, string? GuideNumber, MovementCertificate? Movement = null);
 
 internal static class BookBalanceSupport
 {
@@ -46,7 +46,7 @@ internal static class BookBalanceSupport
             usedMovementIds.Add(match.Movement.Id);
             lookup[balance.Id] = new BookBalanceMovementInfo(
                 match.CounterpartyCode,
-                BookDocumentSupport.EmptyToNull(match.Movement.Serie));
+                BookDocumentSupport.EmptyToNull(match.Movement.Serie), match.Movement);
         }
 
         return lookup;

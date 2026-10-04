@@ -128,6 +128,7 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
 
         var unidentifiedMovements = await dbContext.MovementCertificates
             .AsNoTracking()
+            .Include(entity => entity.BirthLots)
             .Where(entity =>
                 entity.UnidentifiedCategory != null &&
                 entity.Specie != LivestockSpecies.Porcine.ToString() &&
@@ -190,7 +191,24 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
             .GroupBy(entity => entity.SourceBirthId!.Value)
             .ToDictionary(entity => entity.Key, entity => entity.Count());
 
-        var projection = new FarmCensusProjection();
+        if (farm.LivestockSpecies is LivestockSpecies.Ovine or LivestockSpecies.Caprine)
+        {
+            var individualConsumption = await MovementBirthLotSupport.CountIndividualConsumptionAsync(
+                dbContext, births, asOfDate, cancellationToken);
+            var matchedLegacyReplacements = individualConsumption.Values.Sum() - consumedByBirthId.Values.Sum();
+            consumedUnidentifiedMovementsByAutorreposition = Math.Max(0,
+                consumedUnidentifiedMovementsByAutorreposition - matchedLegacyReplacements);
+            consumedByBirthId = individualConsumption;
+            foreach (var lot in unidentifiedMovements.Where(movement => movement.OriginLivestockId == farm.Id)
+                         .SelectMany(movement => movement.BirthLots))
+                consumedByBirthId[lot.BirthId] = consumedByBirthId.GetValueOrDefault(lot.BirthId) + lot.Quantity;
+        }
+
+        var projection = new FarmCensusProjection
+        {
+            UnallocatedMovements = unidentifiedMovements.Count(movement =>
+                movement.OriginLivestockId == farm.Id && movement.BirthLots.Count == 0)
+        };
 
         foreach (var birth in births)
         {
@@ -228,6 +246,8 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
         {
             foreach (var movement in unidentifiedMovements)
             {
+                // Allocated exits have already consumed their birth cohorts before ageing.
+                if (movement.OriginLivestockId == farm.Id && movement.BirthLots.Count > 0) continue;
                 AccumulateUnidentifiedMovement(projection, farm.Id, movement);
             }
 
@@ -518,11 +538,13 @@ public sealed class FarmCensusProjectionService(PecualiaDbContext dbContext, ICl
             projection.Baits,
             projection.PendingPorcineTransitions,
             projection.Total,
-            availableYears);
+            availableYears,
+            projection.UnallocatedMovements);
     }
 
     private sealed class FarmCensusProjection
     {
+        public int UnallocatedMovements { get; set; }
         public int NonReproductiveUnder4Months { get; set; }
 
         public int NonReproductiveBetween4And12Months { get; set; }

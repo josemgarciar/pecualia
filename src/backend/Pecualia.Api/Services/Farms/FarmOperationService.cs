@@ -256,6 +256,9 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         var farm = await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
         ValidateBirthRequest(farm, request.BirthDate, request.OffspringNumber, request.BirthWeight, DateOnly.FromDateTime(clock.UtcNow.Date));
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await MovementBirthLotSupport.LockFarmAsync(dbContext, farmId, cancellationToken);
+
         var birth = await dbContext.AnimalBirths
             .Include(entity => entity.Balance)
             .Include(entity => entity.PorcineTransitionDecision)
@@ -265,6 +268,9 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         {
             throw new DomainException("Nacimiento no encontrado.");
         }
+
+        if (await dbContext.MovementBirthLots.AnyAsync(lot => lot.BirthId == birthId, cancellationToken))
+            throw new DomainException("Este nacimiento está vinculado a guías de salida. Revisa sus lotes antes de modificarlo o eliminarlo.");
 
         var consumedAnimals = await dbContext.Animals.CountAsync(entity => entity.SourceBirthId == birth.Id, cancellationToken);
         if (request.OffspringNumber < consumedAnimals)
@@ -376,12 +382,16 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
             }
         }
 
+        await transaction.CommitAsync(cancellationToken);
         return MapBirth(birth);
     }
 
     public async Task DeleteBirthAsync(long userId, UserRole role, long farmId, long birthId, CancellationToken cancellationToken)
     {
         await LoadAccessibleFarmAsync(userId, role, farmId, cancellationToken);
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await MovementBirthLotSupport.LockFarmAsync(dbContext, farmId, cancellationToken);
 
         var birth = await dbContext.AnimalBirths
             .Include(entity => entity.Balance)
@@ -392,6 +402,9 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         {
             throw new DomainException("Nacimiento no encontrado.");
         }
+
+        if (await dbContext.MovementBirthLots.AnyAsync(lot => lot.BirthId == birthId, cancellationToken))
+            throw new DomainException("Este nacimiento está vinculado a guías de salida. Revisa sus lotes antes de modificarlo o eliminarlo.");
 
         var consumedAnimals = await dbContext.Animals.AnyAsync(entity => entity.SourceBirthId == birth.Id, cancellationToken);
         if (consumedAnimals)
@@ -422,6 +435,7 @@ public sealed class FarmOperationService(PecualiaDbContext dbContext, IClock clo
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<FarmDeathResponse>> GetDeathsAsync(long userId, UserRole role, long farmId, CancellationToken cancellationToken)

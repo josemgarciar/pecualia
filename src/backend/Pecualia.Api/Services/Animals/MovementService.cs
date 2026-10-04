@@ -8,6 +8,9 @@ namespace Pecualia.Api.Services;
 
 public interface IMovementService
 {
+    Task<MovementBirthLotOptions> GetBirthLotsAsync(long userId, UserRole role, long farmId, DateOnly date, long? movementId, CancellationToken cancellationToken);
+    Task AssignBirthLotsAsync(long userId, UserRole role, long movementId, AssignMovementBirthLotsRequest request, CancellationToken cancellationToken);
+
     IReadOnlyList<MovementBreedOptionResponse> GetBreedOptions(LivestockSpecies species);
 
     Task<IReadOnlyList<FarmMovementListItemResponse>> GetFarmMovementsAsync(
@@ -39,7 +42,7 @@ public interface IMovementService
         CancellationToken cancellationToken);
 }
 
-public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProjectionService censusProjectionService, IClock clock) : IMovementService
+public sealed partial class MovementService(PecualiaDbContext dbContext, IFarmCensusProjectionService censusProjectionService, IClock clock) : IMovementService
 {
     public IReadOnlyList<MovementBreedOptionResponse> GetBreedOptions(LivestockSpecies species)
     {
@@ -76,6 +79,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             .AsNoTracking()
             .Include(entity => entity.OriginFarm)
             .Include(entity => entity.DestinationFarm)
+            .Include(entity => entity.BirthLots)
             .Include(entity => entity.Animals)
             .ThenInclude(entity => entity.Animal)
             .SingleOrDefaultAsync(entity => entity.Id == movementId, cancellationToken);
@@ -96,6 +100,12 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         if (movement is null)
         {
             throw new DomainException("Movimiento no encontrado.");
+        }
+
+        if (movement.DestinationLivestockId is not long destinationFarmId ||
+            !await BuildAccessibleFarmQuery(userId, role).AnyAsync(farm => farm.Id == destinationFarmId, cancellationToken))
+        {
+            throw new DomainException("Solo el titular o gestor de la explotación de destino puede confirmar una guía de entrada.");
         }
 
         if (movement.Status == MovementStatus.Confirmed)
@@ -271,7 +281,8 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                 request.TransportName,
                 request.VehicleRegistrationNumber,
                 request.UnidentifiedAnimalCount.Value,
-                request.UnidentifiedCategory!.Value,
+                context.Direction == MovementDirection.Exit ? MovementUnidentifiedCategory.BirthLots : request.UnidentifiedCategory!.Value,
+                request.BirthLots,
                 cancellationToken);
         }
 
@@ -382,8 +393,18 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         string? vehicleRegistrationNumber,
         int unidentifiedAnimalCount,
         MovementUnidentifiedCategory unidentifiedCategory,
+        IReadOnlyList<MovementBirthLotRequest>? birthLots,
         CancellationToken cancellationToken)
     {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        if (context.Direction == MovementDirection.Exit)
+        {
+            await MovementBirthLotSupport.LockFarmAsync(dbContext, context.CurrentFarm.Id, cancellationToken);
+            await MovementBirthLotSupport.ValidateAsync(dbContext, context.CurrentFarm.Id, ToDateOnly(departureDate),
+                unidentifiedAnimalCount, birthLots, null, cancellationToken);
+        }
+        else if (birthLots is { Count: > 0 })
+            throw new DomainException("Los lotes de nacimiento se seleccionan en las salidas.");
         var movement = BuildMovementCertificate(
             context,
             serie,
@@ -395,6 +416,13 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             vehicleRegistrationNumber,
             unidentifiedAnimalCount,
             unidentifiedCategory: unidentifiedCategory);
+        var birthIds = birthLots?.Select(lot => lot.BirthId).ToArray() ?? [];
+        var selectedBirths = await dbContext.AnimalBirths.Where(birth => birthIds.Contains(birth.Id))
+            .ToDictionaryAsync(birth => birth.Id, cancellationToken);
+        movement.BirthLots = birthLots?.Select(lot => new MovementBirthLot
+        {
+            BirthId = lot.BirthId, Birth = selectedBirths[lot.BirthId], Quantity = lot.Quantity
+        }).ToList() ?? [];
 
         dbContext.MovementCertificates.Add(movement);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -406,7 +434,10 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             arrivalDate is null ? null : ToDateOnly(arrivalDate.Value),
             transportName,
             vehicleRegistrationNumber,
+            movement.BirthLots.ToList(),
             cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
 
         var summary = new MovementImportPreviewSummaryResponse(0, 0, 0, 0, 0, 0, 0, 0);
 
@@ -496,7 +527,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             throw new DomainException("El número de animales sin identificar debe estar entre 1 y 10.000.");
         }
 
-        if (category is null)
+        if (context.Direction == MovementDirection.Entry && category is not (MovementUnidentifiedCategory.Under4Months or MovementUnidentifiedCategory.Between4And12Months))
         {
             throw new DomainException("Debes indicar si los animales sin identificar son menores de 4 meses o de 4 a 12 meses.");
         }
@@ -1671,6 +1702,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             .AsNoTracking()
             .Include(entity => entity.OriginFarm)
             .Include(entity => entity.DestinationFarm)
+            .Include(entity => entity.BirthLots)
             .Include(entity => entity.Animals)
             .ThenInclude(entity => entity.Animal)
             .SingleAsync(entity => entity.Id == movementId, cancellationToken);
@@ -1728,6 +1760,7 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
         DateOnly? arrivalDate,
         string? transportName,
         string? vehicleRegistrationNumber,
+        IReadOnlyCollection<MovementBirthLot> birthLots,
         CancellationToken cancellationToken)
     {
         var movementDate = arrivalDate ?? departureDate;
@@ -1748,12 +1781,15 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
             dbContext.Balances.Add(balance);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            dbContext.BalanceOvinoCaprino.Add(BuildUnidentifiedOvineBalance(
+            var detail = BuildUnidentifiedOvineBalance(
                 balance.Id,
                 numberOfAnimals,
                 unidentifiedCategory,
                 transportName,
-                vehicleRegistrationNumber));
+                vehicleRegistrationNumber);
+            if (birthLots.Count > 0)
+                MovementBirthLotSupport.ApplyBalanceBreakdown(detail, birthLots, snapshot.Date);
+            dbContext.BalanceOvinoCaprino.Add(detail);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             var census = new Census
@@ -1828,7 +1864,9 @@ public sealed class MovementService(PecualiaDbContext dbContext, IFarmCensusProj
                     NormalizeNullable(entity.Animal.Sex),
                     FarmCensusProjectionSupport.ResolveBirthYear(entity.Animal),
                     entity.Animal.DischargeDate is null ? "Active" : "Discharged"))
-                .ToList());
+                .ToList(),
+            movement.UnidentifiedCategory,
+            movement.BirthLots.Select(lot => new MovementBirthLotRequest(lot.BirthId, lot.Quantity)).ToList());
     }
 
     private static string BuildMovementStatus(MovementCertificate movement)

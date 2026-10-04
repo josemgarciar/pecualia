@@ -56,6 +56,12 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
     {
         var aggregate = await LoadAggregateAsync(userId, role, farmId, cancellationToken);
         var includedSections = BookDocumentComposer.ResolveIncludedSections(sectionIds);
+        if (BookDocumentSupport.IsOvineOrCaprine(aggregate.Farm) &&
+            (includedSections.Contains("balance") || includedSections.Contains("census")) &&
+            await dbContext.MovementCertificates.AsNoTracking().AnyAsync(movement =>
+                movement.OriginLivestockId == farmId && movement.UnidentifiedCategory != null &&
+                !movement.BirthLots.Any(), cancellationToken))
+            throw new DomainException("Asigna los lotes de nacimiento de las guías de salida pendientes antes de generar el libro con censos y balances.");
         var content = Document.Create(container => BookDocumentComposer.ComposeDocument(container, aggregate, includedSections)).GeneratePdf();
         var fileName = $"libro-registro-{aggregate.Farm.RegaCode.ToLowerInvariant()}.pdf";
         return new FarmBookPdfFile(fileName, content, "application/pdf");
@@ -191,6 +197,21 @@ public sealed class BookService(PecualiaDbContext dbContext, IFarmCensusProjecti
         if (farm.LivestockSpecies == LivestockSpecies.Porcine)
         {
             return;
+        }
+
+        var movements = await dbContext.MovementCertificates.AsNoTracking()
+            .Include(movement => movement.BirthLots).ThenInclude(lot => lot.Birth)
+            .Where(movement => movement.OriginLivestockId == farm.Id || movement.DestinationLivestockId == farm.Id)
+            .ToListAsync(cancellationToken);
+        var movementLookup = BookBalanceSupport.BuildBalanceMovementLookup(farm, balances, movements);
+        foreach (var balance in balances)
+        {
+            var movement = movementLookup.GetValueOrDefault(balance.Id)?.Movement;
+            if (movement?.BirthLots.Count > 0)
+            {
+                balance.OvinoCaprino ??= new BalanceOvinoCaprino { BalanceId = balance.Id };
+                MovementBirthLotSupport.ApplyBalanceBreakdown(balance.OvinoCaprino, movement.BirthLots, balance.BalanceDate);
+            }
         }
 
         var deathBalances = balances

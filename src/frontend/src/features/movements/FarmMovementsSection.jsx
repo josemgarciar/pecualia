@@ -1,3 +1,4 @@
+import { BirthLotSelector, MovementBirthLotEditor } from './BirthLotSelector';
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -297,7 +298,10 @@ function MovementDetailModal({ farm, movement, loading, confirming, onClose, onV
                 </div>
               </div>
 
-              <section className="movement-detail-animals-section">
+              {movement.unidentifiedCategory && movement.originFarmId === farm.id && (
+                <MovementBirthLotEditor key={movement.id} farmId={farm.id} movement={movement} />
+              )}
+              {!movement.unidentifiedCategory && <section className="movement-detail-animals-section">
                 <div className="movement-section-copy">
                   <h3>{isPorcineAggregateMovement ? 'Movimiento agregado porcino' : 'Animales asociados'}</h3>
                   <p>
@@ -323,13 +327,13 @@ function MovementDetailModal({ farm, movement, loading, confirming, onClose, onV
                     </button>
                   </div>
                 )}
-              </section>
+              </section>}
             </div>
           )}
       </ModalBody>
 
       <ModalFooter align="end">
-          {movement?.status === 'Pending' && (
+          {movement?.status === 'Pending' && movement.destinationFarmId === farm.id && movement.originFarmId !== farm.id && (
             <button className="secondary-button" type="button" onClick={onConfirm} disabled={loading || confirming}>
               {confirming ? 'Confirmando...' : 'Confirmar guía'}
             </button>
@@ -384,6 +388,7 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
   const [unidentifiedAnimals, setUnidentifiedAnimals] = useState(false);
   const [unidentifiedAnimalCount, setUnidentifiedAnimalCount] = useState('');
   const [unidentifiedCategory, setUnidentifiedCategory] = useState('Under4Months');
+  const [birthLots, setBirthLots] = useState([]);
 
   const isOvineOrCaprine = farm.livestockSpecies === 'Ovine' || farm.livestockSpecies === 'Caprine';
   const isPorcine = farm.livestockSpecies === 'Porcine';
@@ -403,6 +408,8 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
 
   const derivedOperation = config.direction === 'Entry' ? 'Alta' : 'Baja';
   const derivedCause = config.direction === 'Entry' ? 'Entrada' : 'Salida';
+  const selectedBirthCount = birthLots.reduce((sum, lot) => sum + lot.quantity, 0);
+  const unidentifiedCount = config.direction === 'Exit' ? selectedBirthCount : Number(unidentifiedAnimalCount);
   const directionLabel = config.direction === 'Entry' ? 'entrada' : 'salida';
   const processableRowsCount = preview
     ? (config.direction === 'Entry' ? preview.summary.notFoundRows : preview.summary.validRows)
@@ -469,6 +476,7 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
   }
 
   function updateConfig(field, value) {
+    if (field === 'departureDate' || field === 'direction') setBirthLots([]);
     setConfig((current) => ({ ...current, [field]: value }));
     setRequestError('');
   }
@@ -490,12 +498,12 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
     }
 
     if (unidentifiedAnimals) {
-      const count = Number(unidentifiedAnimalCount);
+      const count = unidentifiedCount;
       if (!count || count < 1 || count > 10000) {
         setRequestError('Indica un número de animales entre 1 y 10.000.');
         return;
       }
-      if (!unidentifiedCategory) {
+      if (config.direction === 'Entry' && !unidentifiedCategory) {
         setRequestError('Selecciona la categoría de edad de los animales sin identificar.');
         return;
       }
@@ -622,8 +630,9 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
         animalType: isPorcine ? emptyToNull(config.animalType) : null,
         rawText: unidentifiedAnimals ? null : rawText,
         sharedAnimalData: preview?.requiresSharedAnimalData ? buildSharedAnimalDataPayload(sharedAnimalData, farm.livestockSpecies) : null,
-        unidentifiedAnimalCount: unidentifiedAnimals ? Number(unidentifiedAnimalCount) : null,
-        unidentifiedCategory: unidentifiedAnimals ? unidentifiedCategory : null
+        unidentifiedAnimalCount: unidentifiedAnimals ? unidentifiedCount : null,
+        birthLots: unidentifiedAnimals && config.direction === 'Exit' ? birthLots : null,
+        unidentifiedCategory: unidentifiedAnimals && config.direction === 'Entry' ? unidentifiedCategory : null
       };
 
       const response = await apiRequest('/api/movements/imports/commit', {
@@ -678,17 +687,19 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
                     />
                     <div>
                       <strong>Animales sin identificar individualmente</strong>
-                      <span>Registra la guía solo con el número de cabezas y clasifica si son no reproductores menores de 4 meses o de 4 a 12 meses para actualizar automáticamente el censo.</span>
+                      <span>Selecciona los lotes de nacimiento para las salidas.</span>
                     </div>
                   </label>
                   {unidentifiedAnimals && (
                     <>
+                      {config.direction === 'Entry' && (
                       <label className="farm-form-field movement-unidentified-count">
                         <span className="farm-field-label">Categoría de edad <span className="farm-field-label-required">*</span></span>
                         <select
                           value={unidentifiedCategory}
                           onChange={(event) => {
                             setUnidentifiedCategory(event.target.value);
+                            setBirthLots([]);
                             setRequestError('');
                           }}
                         >
@@ -696,6 +707,12 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
                           <option value="Between4And12Months">No reproductores de 4 a 12 meses</option>
                         </select>
                       </label>
+                      )}
+                      {config.direction === 'Exit' ? (
+                        <BirthLotSelector farmId={farm.id}
+                          date={config.departureDate ? localDateTimeToIso(config.departureDate)?.slice(0, 10) : ''}
+                          selections={birthLots} onChange={setBirthLots} />
+                      ) : (
                       <label className="farm-form-field movement-unidentified-count">
                         <span className="farm-field-label">Número de animales <span className="farm-field-label-required">*</span></span>
                         <input
@@ -710,6 +727,7 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
                           placeholder="Ej. 25"
                         />
                       </label>
+                      )}
                     </>
                   )}
                 </div>
@@ -923,9 +941,14 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
                       El sistema actualizará automáticamente el balance y el censo
                     </p>
                   ) : unidentifiedAnimals ? (
-                    <p>
-                      Se registrará un movimiento de <strong>{unidentifiedAnimalCount}</strong> animales sin identificar como {directionLabel} en la categoría <strong>{unidentifiedCategory === 'Under4Months' ? 'no reproductores menores de 4 meses' : 'no reproductores de 4 a 12 meses'}</strong>.
-                    </p>
+                    <div>
+                      <p>Se registrará un movimiento de <strong>{unidentifiedCount}</strong> animales sin identificar como {directionLabel}.
+                        {config.direction === 'Entry' && <> Categoría: <strong>{unidentifiedCategory === 'Under4Months' ? 'menores de 4 meses' : 'de 4 a 12 meses'}</strong>.</>}
+                      </p>
+                      {config.direction === 'Exit' && <ul>{birthLots.map(lot => <li key={lot.birthId}>
+                        Nacimiento {lot.birthDate?.split('-').reverse().join('/')}: {lot.quantity} animales.
+                      </li>)}</ul>}
+                    </div>
                   ) : (
                     <p>
                       Se procesarán {processableRowsCount} identificaciones como {directionLabel} masiva.
