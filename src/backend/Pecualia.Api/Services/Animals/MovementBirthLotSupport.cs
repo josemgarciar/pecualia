@@ -54,13 +54,18 @@ internal static class MovementBirthLotSupport
             .Where(lot => ids.Contains(lot.BirthId) && lot.MovementCertificateId != excludedMovementId)
             .GroupBy(lot => lot.BirthId).Select(group => new { Id = group.Key, Quantity = group.Sum(lot => lot.Quantity) })
             .ToDictionaryAsync(item => item.Id, item => item.Quantity, cancellationToken);
-        var unresolved = await database.MovementCertificates.AsNoTracking().CountAsync(movement =>
+        var unresolved = await database.MovementCertificates.AsNoTracking().Where(movement =>
             movement.OriginLivestockId == farmId && movement.UnidentifiedCategory != null &&
-            movement.Id != excludedMovementId && !movement.BirthLots.Any(), cancellationToken);
+            movement.Specie != LivestockSpecies.Porcine.ToString() &&
+            movement.Id != excludedMovementId && !movement.BirthLots.Any())
+            .OrderBy(movement => movement.DepartureDate).ThenBy(movement => movement.Id)
+            .Select(movement => new UnallocatedBirthLotMovement(
+                movement.Id, movement.Serie, movement.DepartureDate, movement.NumberOfAnimals))
+            .ToListAsync(cancellationToken);
         return new MovementBirthLotOptions(births.Select(birth => new MovementBirthLotOption(
             birth.Id, birth.BirthDate, birth.OffspringNumber,
             Math.Max(0, birth.OffspringNumber - consumed.GetValueOrDefault(birth.Id) - exits.GetValueOrDefault(birth.Id)),
-            CategoryAt(birth.BirthDate, date).ToString())).ToList(), unresolved);
+            CategoryAt(birth.BirthDate, date).ToString())).ToList(), unresolved.Count, unresolved);
     }
 
     internal static MovementUnidentifiedCategory CategoryAt(DateOnly birthDate, DateOnly date) =>
@@ -93,7 +98,7 @@ internal static class MovementBirthLotSupport
 
         var options = await GetOptionsAsync(database, farmId, date, excludedMovementId, cancellationToken);
         if (excludedMovementId == null && options.UnallocatedMovements > 0)
-            throw new DomainException("Asigna primero los lotes de las salidas anteriores sin vincular para conocer las existencias disponibles.");
+            throw new DomainException("Asigna primero los lotes de las guías de salida ya registradas que siguen pendientes para conocer las existencias disponibles.");
         foreach (var selected in selections)
         {
             var lot = options.Lots.SingleOrDefault(lot => lot.BirthId == selected.BirthId);

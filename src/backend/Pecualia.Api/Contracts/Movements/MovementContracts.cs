@@ -172,5 +172,9 @@ public sealed record ConfirmMovementResponse(
 
 public sealed record MovementBirthLotRequest(long BirthId, int Quantity);
 public sealed record MovementBirthLotOption(long BirthId, DateOnly BirthDate, int Born, int Available, string Category);
-public sealed record MovementBirthLotOptions(IReadOnlyList<MovementBirthLotOption> Lots, int UnallocatedMovements);
+public sealed record UnallocatedBirthLotMovement(long Id, string? Serie, DateTime DepartureDate, int NumberOfAnimals);
+public sealed record MovementBirthLotOptions(
+    IReadOnlyList<MovementBirthLotOption> Lots,
+    int UnallocatedMovements,
+    IReadOnlyList<UnallocatedBirthLotMovement> UnallocatedGuides);
 public sealed record AssignMovementBirthLotsRequest(IReadOnlyList<MovementBirthLotRequest> BirthLots);

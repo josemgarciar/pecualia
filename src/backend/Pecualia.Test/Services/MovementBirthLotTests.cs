@@ -102,6 +102,69 @@ public sealed class MovementBirthLotTests
     }
 
     [PostgresFact]
+    public async Task HistoricalAssignments_Postgres_PersistAndIdentifyTheActualPendingGuides()
+    {
+        await using var database = new PostgresTestDatabase();
+        await database.InitializeAsync(useCurrentModel: true);
+        await using var db = database.CreateContext();
+        await VerifyHistoricalAssignmentsAsync(db);
+    }
+
+    [Fact]
+    public async Task HistoricalAssignments_IdentifyLaterPendingGuides_WithoutLosingEarlierAssignments()
+    {
+        await using var db = ServiceTestDbFactory.CreateContext();
+        await VerifyHistoricalAssignmentsAsync(db);
+    }
+
+    private static async Task VerifyHistoricalAssignmentsAsync(PecualiaDbContext db)
+    {
+        var (farm, birth, _) = await SeedAsync(db);
+        var guides = new[] { "2026-02-03", "2026-03-04", "2026-06-04", "2026-07-01", "2026-07-29" }
+            .Select((date, index) => new MovementCertificate
+            {
+                OriginLivestockId = farm.Id, Specie = "Ovine", NumberOfAnimals = 1,
+                Serie = $"SYNTHETIC-{index}",
+                DepartureDate = DateTime.SpecifyKind(DateOnly.Parse(date).ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc),
+                UnidentifiedCategory = MovementUnidentifiedCategory.Under4Months
+            }).ToList();
+        db.MovementCertificates.AddRange(guides);
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+        var assignment = new AssignMovementBirthLotsRequest([new(birth.Id, 1)]);
+        foreach (var guide in guides.Take(2))
+            await service.AssignBirthLotsAsync(farm.FarmerId, UserRole.Farmer, guide.Id, assignment, default);
+
+        db.ChangeTracker.Clear();
+        var options = await service.GetBirthLotsAsync(farm.FarmerId, UserRole.Farmer, farm.Id,
+            new DateOnly(2026, 6, 4), guides[2].Id, default);
+        options.UnallocatedMovements.Should().Be(2);
+        options.UnallocatedGuides.Select(guide => guide.Id).Should().Equal(guides.Skip(3).Select(guide => guide.Id));
+        options.UnallocatedGuides.Select(guide => guide.DepartureDate).Should().Equal(guides.Skip(3).Select(guide => guide.DepartureDate));
+        options.Lots.Single(lot => lot.BirthId == birth.Id).Available.Should().Be(8);
+
+        var newExit = () => service.CommitImportAsync(farm.FarmerId, UserRole.Farmer,
+            Exit(farm.Id, new DateOnly(2026, 8, 1), [new(birth.Id, 1)]), default);
+        await newExit.Should().ThrowAsync<DomainException>().WithMessage("*siguen pendientes*");
+        // Existing guides must remain assignable even when later guides are still pending.
+        foreach (var guide in guides.Skip(2))
+            await service.AssignBirthLotsAsync(farm.FarmerId, UserRole.Farmer, guide.Id, assignment, default);
+
+        db.ChangeTracker.Clear();
+        options = await service.GetBirthLotsAsync(farm.FarmerId, UserRole.Farmer, farm.Id,
+            new DateOnly(2026, 8, 1), null, default);
+        options.UnallocatedMovements.Should().Be(0);
+        options.UnallocatedGuides.Should().BeEmpty();
+        options.Lots.Single(lot => lot.BirthId == birth.Id).Available.Should().Be(5);
+        foreach (var guide in guides)
+        {
+            var detail = await service.GetMovementAsync(farm.FarmerId, UserRole.Farmer, guide.Id, default);
+            detail.BirthLots.Should().BeEquivalentTo(assignment.BirthLots);
+        }
+        await newExit.Should().NotThrowAsync();
+    }
+
+    [PostgresFact]
     public async Task ConcurrentExits_CannotConsumeTheSameBirthLotTwice()
     {
         await using var database = new PostgresTestDatabase();
