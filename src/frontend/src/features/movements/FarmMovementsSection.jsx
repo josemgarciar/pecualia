@@ -672,7 +672,7 @@ function MovementImportModal({ farm, onClose, onCommitted }) {
                   </div>
                                 {isOvineOrCaprine && (
                 <div className="movement-unidentified-section">
-                  <label className="movement-unidentified-checkbox">
+                  <label className="checkbox-row movement-unidentified-checkbox">
                     <input
                       type="checkbox"
                       checked={unidentifiedAnimals}
